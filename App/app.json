@@ -2,6 +2,7 @@
   "expo": {
     "name": "App",
     "slug": "App",
+    "scheme": "sureva",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -24,6 +25,17 @@
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "plugins": [
+      "expo-font",
+      "expo-web-browser",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Sureva needs access to your photos to update your profile picture.",
+          "cameraPermission": "Sureva needs your camera to take a profile photo."
+        }
+      ]
+    ]
   }
 }
