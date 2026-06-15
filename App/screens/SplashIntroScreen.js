@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { View, Text, Animated, StyleSheet } from 'react-native';
+import { Text, View, Animated, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import colors from '../constants/colors';
 
@@ -45,21 +45,21 @@ export default function SplashIntroScreen({ onComplete }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.white,
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: colors.canvas,
   },
   lockup: {
     alignItems: 'center',
   },
   wordmark: {
-    fontFamily: 'SFProDisplay-Black',
+    fontFamily: 'SpaceGrotesk-Bold',
     fontSize: 56,
-    color: colors.ink,
+    color: colors.orange,
     letterSpacing: -2.5,
   },
   tagline: {
-    fontFamily: 'SFProDisplay-Regular',
+    fontFamily: 'Inter-Regular',
     fontSize: 15,
     color: colors.muted,
     letterSpacing: 0.2,

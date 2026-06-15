@@ -43,7 +43,7 @@ const st = StyleSheet.create({
   threshold: {
     position: 'absolute',
     right: 0,
-    fontFamily: 'SFProDisplay-Bold',
+    fontFamily: 'SpaceGrotesk-SemiBold',
     fontSize: 10,
   },
 });

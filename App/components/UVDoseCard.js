@@ -107,9 +107,14 @@ const chevSt = StyleSheet.create({
 const st = StyleSheet.create({
   card: {
     backgroundColor: colors.white,
-    borderRadius: 18,
-    borderWidth: 1.5,
+    borderRadius: 22,
+    borderWidth: 1,
     borderColor: colors.border,
+    shadowColor: colors.ink,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.06,
+    shadowRadius: 14,
+    elevation: 2,
     paddingHorizontal: 20,
     paddingVertical: 16,
   },
@@ -120,7 +125,7 @@ const st = StyleSheet.create({
   },
   left: { flex: 1 },
   label: {
-    fontFamily: 'SFProDisplay-Regular',
+    fontFamily: 'Inter-Regular',
     fontSize: 12,
     color: colors.muted,
     marginBottom: 3,
@@ -128,7 +133,7 @@ const st = StyleSheet.create({
     textTransform: 'uppercase',
   },
   value: {
-    fontFamily: 'SFProDisplay-Bold',
+    fontFamily: 'SpaceGrotesk-SemiBold',
     fontSize: 15,
     color: colors.ink,
   },
@@ -149,7 +154,7 @@ const st = StyleSheet.create({
     minHeight: 3,
   },
   chartLabel: {
-    fontFamily: 'SFProDisplay-Regular',
+    fontFamily: 'Inter-Regular',
     fontSize: 11,
     color: colors.muted,
     marginTop: 8,

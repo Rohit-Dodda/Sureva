@@ -678,7 +678,7 @@ export default function OnboardingScreen({ onBack, onContinue }) {
 const shared = StyleSheet.create({
   stepWrap: { flex: 1 },
   heading: {
-    fontFamily: 'SFProDisplay-Black',
+    fontFamily: 'SpaceGrotesk-Bold',
     fontSize: 36,
     color: colors.ink,
     letterSpacing: -1.1,
@@ -686,7 +686,7 @@ const shared = StyleSheet.create({
     marginBottom: 14,
   },
   sub: {
-    fontFamily: 'SFProDisplay-Regular',
+    fontFamily: 'Inter-Regular',
     fontSize: 16,
     color: colors.muted,
     lineHeight: 24,
@@ -793,12 +793,12 @@ const ageStyles = StyleSheet.create({
     marginTop: 14,
   },
   label: {
-    fontFamily: 'SFProDisplay-Regular',
+    fontFamily: 'Inter-Regular',
     fontSize: 13,
     color: colors.muted,
   },
   labelActive: {
-    fontFamily: 'SFProDisplay-Bold',
+    fontFamily: 'SpaceGrotesk-SemiBold',
     color: colors.ink,
   },
 });
@@ -860,7 +860,7 @@ const stStyles = StyleSheet.create({
     backgroundColor: colors.orangeLight + '30',
   },
   label: {
-    fontFamily: 'SFProDisplay-Bold',
+    fontFamily: 'SpaceGrotesk-SemiBold',
     fontSize: 14,
     color: colors.muted,
     marginBottom: 14,
@@ -892,7 +892,7 @@ const burnStyles = StyleSheet.create({
     backgroundColor: colors.orangeLight + '30',
   },
   tileLabel: {
-    fontFamily: 'SFProDisplay-Bold',
+    fontFamily: 'SpaceGrotesk-SemiBold',
     fontSize: 15,
     color: colors.ink,
     marginBottom: 3,
@@ -901,7 +901,7 @@ const burnStyles = StyleSheet.create({
     color: colors.orange,
   },
   tileSub: {
-    fontFamily: 'SFProDisplay-Regular',
+    fontFamily: 'Inter-Regular',
     fontSize: 13,
     color: colors.muted,
   },
@@ -925,12 +925,12 @@ const burnStyles = StyleSheet.create({
     marginTop: 6,
   },
   unsureLabel: {
-    fontFamily: 'SFProDisplay-Regular',
+    fontFamily: 'Inter-Regular',
     fontSize: 13,
     color: colors.muted,
   },
   unsureLabelSelected: {
-    fontFamily: 'SFProDisplay-Bold',
+    fontFamily: 'SpaceGrotesk-SemiBold',
     color: colors.orange,
   },
 });
@@ -939,7 +939,7 @@ const burnStyles = StyleSheet.create({
 const styles = StyleSheet.create({
   safe: {
     flex: 1,
-    backgroundColor: colors.white,
+    backgroundColor: colors.canvas,
   },
   topBar: {
     flexDirection: 'row',
@@ -1005,7 +1005,7 @@ const styles = StyleSheet.create({
   },
   continueBtn: {
     height: 58,
-    borderRadius: 18,
+    borderRadius: 29,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.surface,
@@ -1019,7 +1019,7 @@ const styles = StyleSheet.create({
     elevation: 5,
   },
   continueBtnText: {
-    fontFamily: 'SFProDisplay-Bold',
+    fontFamily: 'SpaceGrotesk-SemiBold',
     fontSize: 17,
     color: colors.muted,
     letterSpacing: 0.2,
@@ -1033,7 +1033,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   skipText: {
-    fontFamily: 'SFProDisplay-Regular',
+    fontFamily: 'Inter-Regular',
     fontSize: 13,
     color: colors.muted,
     letterSpacing: 0.1,
@@ -1084,7 +1084,7 @@ const condSt = StyleSheet.create({
     paddingRight: 22,
   },
   rowLabel: {
-    fontFamily: 'SFProDisplay-Bold',
+    fontFamily: 'SpaceGrotesk-SemiBold',
     fontSize: 14,
     color: colors.ink,
   },
@@ -1103,13 +1103,13 @@ const condSt = StyleSheet.create({
     justifyContent: 'center',
   },
   infoI: {
-    fontFamily: 'SFProDisplay-Bold',
+    fontFamily: 'SpaceGrotesk-SemiBold',
     fontSize: 9,
     color: colors.muted,
     lineHeight: 11,
   },
   rowSub: {
-    fontFamily: 'SFProDisplay-Regular',
+    fontFamily: 'Inter-Regular',
     fontSize: 12,
     color: colors.muted,
     lineHeight: 17,
@@ -1151,11 +1151,11 @@ const condSt = StyleSheet.create({
   noneCheckMark: {
     fontSize: 11,
     color: colors.ink,
-    fontFamily: 'SFProDisplay-Bold',
+    fontFamily: 'SpaceGrotesk-SemiBold',
     lineHeight: 13,
   },
   noneLabel: {
-    fontFamily: 'SFProDisplay-Bold',
+    fontFamily: 'SpaceGrotesk-SemiBold',
     fontSize: 14,
     color: colors.ink,
   },
@@ -1197,14 +1197,14 @@ const sheetSt = StyleSheet.create({
     backgroundColor: colors.border,
   },
   title: {
-    fontFamily: 'SFProDisplay-Black',
+    fontFamily: 'SpaceGrotesk-Bold',
     fontSize: 20,
     color: colors.ink,
     letterSpacing: -0.5,
     marginBottom: 12,
   },
   body: {
-    fontFamily: 'SFProDisplay-Regular',
+    fontFamily: 'Inter-Regular',
     fontSize: 15,
     color: colors.muted,
     lineHeight: 24,
@@ -1212,7 +1212,7 @@ const sheetSt = StyleSheet.create({
   },
   gotItBtn: {
     height: 52,
-    borderRadius: 14,
+    borderRadius: 26,
     backgroundColor: colors.orange,
     alignItems: 'center',
     justifyContent: 'center',
@@ -1223,7 +1223,7 @@ const sheetSt = StyleSheet.create({
     elevation: 3,
   },
   gotItText: {
-    fontFamily: 'SFProDisplay-Bold',
+    fontFamily: 'SpaceGrotesk-SemiBold',
     fontSize: 16,
     color: colors.white,
   },

@@ -83,7 +83,7 @@ const st = StyleSheet.create({
     elevation: 8,
   },
   title: {
-    fontFamily: 'SFProDisplay-Black',
+    fontFamily: 'SpaceGrotesk-Bold',
     fontSize: 21,
     color: colors.ink,
     letterSpacing: -0.5,
@@ -91,7 +91,7 @@ const st = StyleSheet.create({
     textAlign: 'center',
   },
   message: {
-    fontFamily: 'SFProDisplay-Regular',
+    fontFamily: 'Inter-Regular',
     fontSize: 14,
     color: colors.muted,
     lineHeight: 21,
@@ -100,7 +100,7 @@ const st = StyleSheet.create({
   },
   confirmBtn: {
     height: 54,
-    borderRadius: 16,
+    borderRadius: 27,
     backgroundColor: colors.orange,
     alignItems: 'center',
     justifyContent: 'center',
@@ -109,7 +109,7 @@ const st = StyleSheet.create({
     backgroundColor: colors.danger,
   },
   confirmText: {
-    fontFamily: 'SFProDisplay-Bold',
+    fontFamily: 'SpaceGrotesk-SemiBold',
     fontSize: 16,
     color: colors.white,
     letterSpacing: 0.2,
@@ -121,7 +121,7 @@ const st = StyleSheet.create({
     marginTop: 4,
   },
   cancelText: {
-    fontFamily: 'SFProDisplay-Bold',
+    fontFamily: 'SpaceGrotesk-SemiBold',
     fontSize: 15,
     color: colors.inkMid,
   },

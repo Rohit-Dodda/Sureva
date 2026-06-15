@@ -42,7 +42,7 @@ const st = StyleSheet.create({
   },
   spfBox: {
     flex: 1,
-    backgroundColor: colors.white,
+    backgroundColor: colors.surface,
     borderRadius: 14,
     paddingHorizontal: 14,
     paddingVertical: 12,
@@ -51,7 +51,7 @@ const st = StyleSheet.create({
     backgroundColor: colors.ink,
   },
   spfLabel: {
-    fontFamily: 'SFProDisplay-Regular',
+    fontFamily: 'Inter-Regular',
     fontSize: 11,
     color: colors.muted,
     letterSpacing: 0.4,
@@ -62,7 +62,7 @@ const st = StyleSheet.create({
     color: colors.surface,
   },
   spfValue: {
-    fontFamily: 'SFProDisplay-Black',
+    fontFamily: 'SpaceGrotesk-Bold',
     fontSize: 21,
     color: colors.ink,
     letterSpacing: -0.5,
@@ -71,7 +71,7 @@ const st = StyleSheet.create({
     color: colors.white,
   },
   spfNote: {
-    fontFamily: 'SFProDisplay-Regular',
+    fontFamily: 'Inter-Regular',
     fontSize: 13,
     color: colors.inkMid,
     lineHeight: 19,
@@ -92,7 +92,7 @@ const st = StyleSheet.create({
     marginTop: 2,
   },
   recoText: {
-    fontFamily: 'SFProDisplay-Bold',
+    fontFamily: 'SpaceGrotesk-SemiBold',
     fontSize: 13,
     color: colors.inkMid,
     lineHeight: 19,

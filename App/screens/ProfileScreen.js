@@ -37,7 +37,7 @@ const ProfileRow = React.memo(function ProfileRow({ label, sublabel, isLast, onP
 async function requestAndPick(type) {
   if (type === 'camera') {
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
-    if (status !== 'granted') {
+    if (status !== 'granted') { 
       Alert.alert('Camera Access', 'Please allow camera access in Settings to take a photo.');
       return null;
     }
@@ -279,7 +279,7 @@ export default function ProfileScreen({ visible, onClose, initials, name, email,
 const st = StyleSheet.create({
   root: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: colors.white,
+    backgroundColor: colors.canvas,
     zIndex: 10,
   },
   safe: {
@@ -306,13 +306,13 @@ const st = StyleSheet.create({
     justifyContent: 'center',
   },
   backArrow: {
-    fontFamily: 'SFProDisplay-Bold',
+    fontFamily: 'SpaceGrotesk-SemiBold',
     fontSize: 18,
     color: colors.ink,
     lineHeight: 22,
   },
   headerTitle: {
-    fontFamily: 'SFProDisplay-Bold',
+    fontFamily: 'SpaceGrotesk-SemiBold',
     fontSize: 22,
     color: colors.ink,
     letterSpacing: -0.4,
@@ -341,7 +341,7 @@ const st = StyleSheet.create({
     borderRadius: 48,
   },
   avatarInitials: {
-    fontFamily: 'SFProDisplay-Bold',
+    fontFamily: 'SpaceGrotesk-SemiBold',
     fontSize: 32,
     color: colors.white,
     letterSpacing: 0.5,
@@ -367,14 +367,14 @@ const st = StyleSheet.create({
     elevation: 2,
   },
   avatarName: {
-    fontFamily: 'SFProDisplay-Bold',
+    fontFamily: 'SpaceGrotesk-SemiBold',
     fontSize: 20,
     color: colors.ink,
     letterSpacing: -0.4,
     marginBottom: 4,
   },
   avatarEmail: {
-    fontFamily: 'SFProDisplay-Regular',
+    fontFamily: 'Inter-Regular',
     fontSize: 14,
     color: colors.muted,
   },
@@ -383,9 +383,14 @@ const st = StyleSheet.create({
   },
   card: {
     backgroundColor: colors.white,
-    borderRadius: 16,
-    borderWidth: 1.5,
+    borderRadius: 20,
+    borderWidth: 1,
     borderColor: colors.border,
+    shadowColor: colors.ink,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.05,
+    shadowRadius: 12,
+    elevation: 2,
     overflow: 'hidden',
     shadowColor: colors.ink,
     shadowOffset: { width: 0, height: 2 },
@@ -409,12 +414,12 @@ const st = StyleSheet.create({
     gap: 2,
   },
   rowLabel: {
-    fontFamily: 'SFProDisplay-Bold',
+    fontFamily: 'SpaceGrotesk-SemiBold',
     fontSize: 15,
     color: colors.ink,
   },
   rowSublabel: {
-    fontFamily: 'SFProDisplay-Regular',
+    fontFamily: 'Inter-Regular',
     fontSize: 12,
     color: colors.muted,
   },
@@ -446,7 +451,7 @@ const st = StyleSheet.create({
     justifyContent: 'center',
   },
   viewerInitials: {
-    fontFamily: 'SFProDisplay-Bold',
+    fontFamily: 'SpaceGrotesk-SemiBold',
     fontSize: 88,
     color: colors.white,
     letterSpacing: 1,

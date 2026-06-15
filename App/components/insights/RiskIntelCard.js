@@ -35,7 +35,7 @@ export default React.memo(function RiskIntelCard({ risk }) {
 
 const st = StyleSheet.create({
   doseLabel: {
-    fontFamily: 'SFProDisplay-Bold',
+    fontFamily: 'SpaceGrotesk-SemiBold',
     fontSize: 12,
     color: colors.muted,
     letterSpacing: 0.4,
@@ -54,14 +54,14 @@ const st = StyleSheet.create({
     borderRadius: 4.5,
   },
   doseText: {
-    fontFamily: 'SFProDisplay-Regular',
+    fontFamily: 'Inter-Regular',
     fontSize: 13,
     color: colors.inkMid,
     lineHeight: 19,
     marginBottom: 16,
   },
   trendBlock: {
-    backgroundColor: colors.white,
+    backgroundColor: colors.surface,
     borderRadius: 12,
     paddingHorizontal: 14,
     paddingVertical: 12,
@@ -79,12 +79,12 @@ const st = StyleSheet.create({
     marginBottom: 8,
   },
   trendBadgeText: {
-    fontFamily: 'SFProDisplay-Bold',
+    fontFamily: 'SpaceGrotesk-SemiBold',
     fontSize: 12,
     color: colors.white,
   },
   trendText: {
-    fontFamily: 'SFProDisplay-Regular',
+    fontFamily: 'Inter-Regular',
     fontSize: 13,
     color: colors.inkMid,
     lineHeight: 19,

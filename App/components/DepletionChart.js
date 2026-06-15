@@ -171,7 +171,7 @@ const st = StyleSheet.create({
     justifyContent: 'center',
   },
   hint: {
-    fontFamily: 'SFProDisplay-Regular',
+    fontFamily: 'Inter-Regular',
     fontSize: 12,
     color: colors.muted,
     textAlign: 'center',
@@ -200,7 +200,7 @@ const st = StyleSheet.create({
     marginTop: 8,
   },
   axisLabel: {
-    fontFamily: 'SFProDisplay-Regular',
+    fontFamily: 'Inter-Regular',
     fontSize: 11,
     color: colors.muted,
   },

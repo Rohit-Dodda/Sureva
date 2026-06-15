@@ -4,20 +4,32 @@ import {
   SafeAreaView, Pressable, Animated, Dimensions, Easing, Image,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons } from '@expo/vector-icons';
 import colors from '../constants/colors';
 import mockData from '../constants/mockData';
 import { useAuth } from '../context/AuthContext';
 import SessionSetupSheet from '../components/SessionSetupSheet';
+import SlideInView from '../components/SlideInView';
+import CountUpText from '../components/CountUpText';
+import CardHeader from '../components/CardHeader';
+import ExpandableCard from '../components/ExpandableCard';
+import DeviceGuideModal from '../components/DeviceGuideModal';
+import Device3D from '../components/onboarding/Device3D';
 import ActiveSessionScreen from './ActiveSessionScreen';
 import SettingsScreen from './SettingsScreen';
+import SessionDetailScreen from './SessionDetailScreen';
+import TrendsScreen from './TrendsScreen';
+import { useScrollToTop } from '../context/ScrollToTopContext';
 
 const SCREEN_W = Dimensions.get('window').width;
 
 // ─── Helpers ──────────────────────────────────────────────────
 function getGreeting(firstName) {
   const h = new Date().getHours();
-  const period = h < 12 ? 'morning' : h < 17 ? 'afternoon' : 'evening';
-  return `Good ${period}, ${firstName}!`;
+  const period = h < 12 ? 'Morning' : h < 17 ? 'Afternoon' : 'Evening';
+  // Two lines: small salutation label on top, bold first name below.
+  return { salutation: `Good ${period},`, name: `${firstName}!` };
 }
 
 function getInitials(firstName, lastName) {
@@ -40,11 +52,20 @@ const ProfileAvatar = React.memo(function ProfileAvatar({ initials, profileImage
       onPressOut={onPressOut}
       hitSlop={8}
     >
-      <Animated.View style={[st.avatar, { transform: [{ scale }] }]}>
+      <Animated.View style={{ transform: [{ scale }] }}>
         {profileImage ? (
-          <Image source={{ uri: profileImage }} style={st.avatarImage} />
+          <View style={st.avatar}>
+            <Image source={{ uri: profileImage }} style={st.avatarImage} />
+          </View>
         ) : (
-          <Text style={st.avatarText}>{initials}</Text>
+          <LinearGradient
+            colors={[colors.gradOrangeStart, colors.gradOrangeEnd]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={st.avatar}
+          >
+            <Text style={st.avatarText}>{initials}</Text>
+          </LinearGradient>
         )}
       </Animated.View>
     </Pressable>
@@ -84,122 +105,215 @@ const StartSessionPill = React.memo(function StartSessionPill({ onPress, session
 
   return (
     <Pressable onPress={onPress} onPressIn={onPressIn} onPressOut={onPressOut}>
-      <Animated.View style={[st.pill, { transform: [{ scale }] }]}>
-        <Text style={st.pillText}>Start Session</Text>
+      <Animated.View style={[st.pillShadow, { transform: [{ scale }] }]}>
+        <LinearGradient
+          colors={[colors.gradOrangeStart, colors.gradOrangeEnd]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={st.pill}
+        >
+          <Ionicons name="flash" size={13} color={colors.white} />
+          <Text style={st.pillText}>Start Session</Text>
+        </LinearGradient>
       </Animated.View>
     </Pressable>
   );
 });
 
-// ─── Shared press scale hook ──────────────────────────────────
-function usePressScale(toValue = 0.98) {
-  const scale = useRef(new Animated.Value(1)).current;
-  const onPressIn  = () => Animated.spring(scale, { toValue,  useNativeDriver: true, tension: 280, friction: 12 }).start();
-  const onPressOut = () => Animated.spring(scale, { toValue: 1, useNativeDriver: true, tension: 200, friction: 10 }).start();
-  return { scale, onPressIn, onPressOut };
-}
-
 // ─── Today's Protection card ──────────────────────────────────
-const ProtectionStatsCard = React.memo(function ProtectionStatsCard({ stats }) {
-  const { scale, onPressIn, onPressOut } = usePressScale();
+const ProtectionStatsCard = React.memo(function ProtectionStatsCard({ stats, conditions, dosePercent }) {
   const tiles = [
-    { label: 'Protected',      value: stats.protectedTime          },
     { label: 'Unprotected',    value: stats.unprotectedTime        },
     { label: 'Reapplications', value: String(stats.reapplications) },
     { label: 'Sessions Today', value: String(stats.sessionsToday)  },
   ];
+  const chips = [
+    { icon: 'sunny-outline',       label: `UV ${conditions.uvIndex}` },
+    { icon: 'thermometer-outline', label: `${conditions.temperature}°C` },
+    { icon: 'water-outline',       label: `${conditions.humidity}% humidity` },
+    { icon: 'walk-outline',        label: conditions.activity },
+  ];
+  const doseColor =
+    dosePercent < 50 ? colors.protected :
+    dosePercent < 80 ? colors.warning : colors.danger;
 
   return (
-    <Pressable
-      onPress={() => console.log('navigate to protection stats')}
-      onPressIn={onPressIn}
-      onPressOut={onPressOut}
+    <ExpandableCard
+      icon="shield-checkmark"
+      title="Today's Protection"
+      expandedContent={
+        <View>
+          <Text style={exSt.sectionLabel}>Conditions right now</Text>
+          <View style={exSt.chipRow}>
+            {chips.map((chip) => (
+              <View key={chip.icon} style={exSt.chip}>
+                <Ionicons name={chip.icon} size={13} color={colors.inkMid} />
+                <Text style={exSt.chipText}>{chip.label}</Text>
+              </View>
+            ))}
+          </View>
+          <View style={exSt.kvRow}>
+            <Text style={exSt.kvLabel}>Today's UV dose</Text>
+            <Text style={[exSt.kvValue, { color: doseColor }]}>{dosePercent}% of safe limit</Text>
+          </View>
+          <View style={exSt.track}>
+            <View style={[exSt.fill, { width: `${dosePercent}%`, backgroundColor: doseColor }]} />
+          </View>
+        </View>
+      }
     >
-      <Animated.View style={[psSt.wrap, { transform: [{ scale }] }]}>
-        <View style={psSt.headingRow}>
-          <Text style={psSt.heading}>Today's Protection</Text>
-          <Text style={psSt.chevron}>›</Text>
-        </View>
-        <View style={psSt.grid}>
-          {tiles.map((tile) => (
-            <View key={tile.label} style={psSt.tile}>
-              <Text style={psSt.tileVal}>{tile.value}</Text>
-              <Text style={psSt.tileLabel}>{tile.label}</Text>
-            </View>
-          ))}
-        </View>
-      </Animated.View>
-    </Pressable>
+      <View style={psSt.grid}>
+        {/* Hero tile — protected time */}
+        <LinearGradient
+          colors={[colors.gradOrangeStart, colors.gradOrangeEnd]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={psSt.heroTile}
+        >
+          <Text style={psSt.heroVal}>{stats.protectedTime}</Text>
+          <Text style={psSt.heroLabel}>Protected</Text>
+        </LinearGradient>
+        {tiles.map((tile) => (
+          <View key={tile.label} style={psSt.tile}>
+            <Text style={psSt.tileVal}>{tile.value}</Text>
+            <Text style={psSt.tileLabel}>{tile.label}</Text>
+          </View>
+        ))}
+      </View>
+    </ExpandableCard>
   );
 });
 
 // ─── Last Session card ────────────────────────────────────────
-const LastSessionCard = React.memo(function LastSessionCard({ session }) {
-  const { scale, onPressIn, onPressOut } = usePressScale();
+const LastSessionCard = React.memo(function LastSessionCard({ session, detail, onOpenDetail }) {
+  const confirmed = detail.alerts.log.filter((a) => a.confirmed).length;
 
   return (
-    <Pressable
-      onPress={() => console.log('navigate to session summary')}
-      onPressIn={onPressIn}
-      onPressOut={onPressOut}
+    <ExpandableCard
+      icon="time"
+      title="Last Session"
+      subtitle={`${session.date} · ${session.location}`}
+      linkLabel="View Full Report"
+      onLinkPress={onOpenDetail}
+      expandedContent={
+        <View>
+          <Text style={exSt.verdict}>“{detail.verdict}”</Text>
+          <View style={exSt.kvRow}>
+            <Text style={exSt.kvLabel}>Peak UV</Text>
+            <View style={lsSt.peakBadge}>
+              <Ionicons name="sunny" size={11} color={colors.orangeDark} />
+              <Text style={lsSt.peakVal}>{session.peakUV.toFixed(1)}</Text>
+            </View>
+          </View>
+          <View style={exSt.kvRow}>
+            <Text style={exSt.kvLabel}>Alerts</Text>
+            <Text style={exSt.kvValue}>{detail.alerts.fired} fired · {confirmed} confirmed</Text>
+          </View>
+          <View style={exSt.kvRow}>
+            <Text style={exSt.kvLabel}>Session UV dose</Text>
+            <Text style={exSt.kvValue}>{session.uvDosePercent}% of session limit</Text>
+          </View>
+        </View>
+      }
     >
-      <Animated.View style={[lsSt.wrap, { transform: [{ scale }] }]}>
-        <View style={lsSt.header}>
-          <Text style={lsSt.title}>Last Session</Text>
-          <View style={lsSt.headerRight}>
-            <Text style={lsSt.date}>{session.date}</Text>
-            <Text style={lsSt.chevron}>›</Text>
-          </View>
+      <View style={lsSt.statsRow}>
+        <View style={lsSt.stat}>
+          <Text style={lsSt.statVal}>{session.duration}</Text>
+          <Text style={lsSt.statLabel}>DURATION</Text>
         </View>
-
-        <View style={lsSt.statsRow}>
-          <View style={lsSt.stat}>
-            <Text style={lsSt.statVal}>{session.duration}</Text>
-            <Text style={lsSt.statLabel}>DURATION</Text>
-          </View>
-          <View style={lsSt.statDivider} />
-          <View style={lsSt.stat}>
-            <Text style={lsSt.statVal}>{session.score}</Text>
-            <Text style={lsSt.statLabel}>SCORE</Text>
-          </View>
-          <View style={lsSt.statDivider} />
-          <View style={lsSt.stat}>
-            <Text style={lsSt.statVal}>SPF {session.spf}</Text>
-            <Text style={lsSt.statLabel}>{session.environment}</Text>
-          </View>
+        <View style={lsSt.statDivider} />
+        <View style={lsSt.stat}>
+          <Text style={[lsSt.statVal, lsSt.statValAccent]}>{session.score}</Text>
+          <Text style={lsSt.statLabel}>SCORE</Text>
         </View>
-
-        <View style={lsSt.dividerLine} />
-
-        <View style={lsSt.peakRow}>
-          <Text style={lsSt.peakLabel}>Peak UV</Text>
-          <Text style={lsSt.peakVal}>{session.peakUV.toFixed(1)}</Text>
+        <View style={lsSt.statDivider} />
+        <View style={lsSt.stat}>
+          <Text style={lsSt.statVal}>SPF {session.spf}</Text>
+          <Text style={lsSt.statLabel}>{session.environment}</Text>
         </View>
-      </Animated.View>
-    </Pressable>
+      </View>
+    </ExpandableCard>
   );
 });
 
 // ─── Weekly Snapshot card ─────────────────────────────────────
-const WeeklySnapshotCard = React.memo(function WeeklySnapshotCard({ snapshot }) {
-  const { scale, onPressIn, onPressOut } = usePressScale();
+const WeekBar = React.memo(function WeekBar({ height, isToday, isPast, delay }) {
+  const grow = useRef(new Animated.Value(4)).current;
+
+  useEffect(() => {
+    Animated.timing(grow, {
+      toValue: height,
+      duration: 600,
+      delay,
+      easing: Easing.bezier(0.16, 1, 0.3, 1),
+      useNativeDriver: false,
+    }).start();
+  }, [height, delay]);
+
+  if (isToday) {
+    return (
+      <Animated.View style={[wkSt.barClip, { height: grow }]}>
+        <LinearGradient
+          colors={[colors.gradOrangeStart, colors.gradOrangeEnd]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 0, y: 1 }}
+          style={StyleSheet.absoluteFill}
+        />
+      </Animated.View>
+    );
+  }
+  return (
+    <Animated.View
+      style={[
+        wkSt.bar,
+        { height: grow, backgroundColor: isPast ? colors.orangeWashDark : colors.surface },
+      ]}
+    />
+  );
+});
+
+const WeeklySnapshotCard = React.memo(function WeeklySnapshotCard({ snapshot, weeklyDose, onSeeAll }) {
   const { days, todayIndex, complianceRate } = snapshot;
   const BAR_MAX_H = 56;
   const pastAndToday = days.filter((_, i) => i <= todayIndex);
   const maxDose = Math.max(...pastAndToday.map((d) => d.uvDose), 0.1);
 
-  return (
-    <Pressable
-      onPress={() => console.log('navigate to weekly snapshot')}
-      onPressIn={onPressIn}
-      onPressOut={onPressOut}
-    >
-    <Animated.View style={[wkSt.wrap, { transform: [{ scale }] }]}>
-      <View style={wkSt.headingRow}>
-        <Text style={wkSt.heading}>This Week</Text>
-        <Text style={wkSt.chevron}>›</Text>
-      </View>
+  const activeDays = pastAndToday.filter((d) => d.uvDose > 0).length;
+  const highestDay = pastAndToday.reduce((a, b) => (b.uvDose > a.uvDose ? b : a));
+  const budgetPct = Math.min((weeklyDose.meds / weeklyDose.limit) * 100, 100);
+  const budgetColor =
+    budgetPct < 50 ? colors.protected :
+    budgetPct < 80 ? colors.warning : colors.danger;
 
+  return (
+    <ExpandableCard
+      icon="bar-chart"
+      title="This Week"
+      linkLabel="View Exposure Trends"
+      linkIcon="trending-up"
+      onLinkPress={onSeeAll}
+      expandedContent={
+        <View>
+          <View style={exSt.kvRow}>
+            <Text style={exSt.kvLabel}>Active days</Text>
+            <Text style={exSt.kvValue}>{activeDays} of 7</Text>
+          </View>
+          <View style={exSt.kvRow}>
+            <Text style={exSt.kvLabel}>Highest exposure</Text>
+            <Text style={exSt.kvValue}>{highestDay.label}</Text>
+          </View>
+          <View style={exSt.kvRow}>
+            <Text style={exSt.kvLabel}>Weekly UV budget</Text>
+            <Text style={[exSt.kvValue, { color: budgetColor }]}>
+              {weeklyDose.meds} of {weeklyDose.limit} MEDs
+            </Text>
+          </View>
+          <View style={exSt.track}>
+            <View style={[exSt.fill, { width: `${budgetPct}%`, backgroundColor: budgetColor }]} />
+          </View>
+        </View>
+      }
+    >
       <View style={wkSt.chartRow}>
         {days.map((day, i) => {
           const isPast   = i < todayIndex;
@@ -210,15 +324,14 @@ const WeeklySnapshotCard = React.memo(function WeeklySnapshotCard({ snapshot }) 
             ? 4
             : Math.max(6, Math.round((day.uvDose / maxDose) * BAR_MAX_H));
 
-          const barBg  = isToday ? colors.orange : isPast ? colors.orangeLight : colors.surface;
           const labelColor = isToday ? colors.ink : colors.muted;
 
           return (
             <View key={day.label} style={wkSt.col}>
               <View style={[wkSt.barWrap, { height: BAR_MAX_H }]}>
-                <View style={[wkSt.bar, { height: barH, backgroundColor: barBg }]} />
+                <WeekBar height={barH} isToday={isToday} isPast={isPast} delay={i * 50} />
               </View>
-              <Text style={[wkSt.dayLabel, { color: labelColor, fontFamily: isToday ? 'SFProDisplay-Bold' : 'SFProDisplay-Regular' }]}>
+              <Text style={[wkSt.dayLabel, { color: labelColor, fontFamily: isToday ? 'SpaceGrotesk-SemiBold' : 'Inter-Regular' }]}>
                 {day.label}
               </Text>
             </View>
@@ -227,89 +340,119 @@ const WeeklySnapshotCard = React.memo(function WeeklySnapshotCard({ snapshot }) 
       </View>
 
       <View style={wkSt.footer}>
-        <View style={wkSt.footerDot} />
-        <Text style={wkSt.footerText}>
-          Protected <Text style={wkSt.footerBold}>{complianceRate}%</Text> of outdoor time this week
-        </Text>
+        <View style={wkSt.footerTextRow}>
+          <Text style={wkSt.footerText}>Protected outdoor time</Text>
+          <CountUpText
+            value={complianceRate}
+            format={(v) => `${Math.round(v)}%`}
+            style={wkSt.footerPct}
+          />
+        </View>
+        <View style={wkSt.footerTrack}>
+          <View style={[wkSt.footerFill, { width: `${complianceRate}%` }]} />
+        </View>
       </View>
-    </Animated.View>
-    </Pressable>
+    </ExpandableCard>
   );
+});
+
+// ─── Expanded-section styles (shared by all expandable cards) ──
+const exSt = StyleSheet.create({
+  sectionLabel: {
+    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontSize: 11,
+    color: colors.muted,
+    letterSpacing: 1.1,
+    textTransform: 'uppercase',
+    marginBottom: 10,
+  },
+  chipRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 14,
+  },
+  chip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: colors.surface,
+    borderRadius: 14,
+    paddingHorizontal: 11,
+    paddingVertical: 7,
+  },
+  chipText: {
+    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontSize: 12,
+    color: colors.inkMid,
+  },
+  kvRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 7,
+  },
+  kvLabel: {
+    fontFamily: 'Inter-Regular',
+    fontSize: 13,
+    color: colors.muted,
+  },
+  kvValue: {
+    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontSize: 13,
+    color: colors.ink,
+  },
+  track: {
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: colors.surface,
+    overflow: 'hidden',
+    marginTop: 4,
+  },
+  fill: {
+    height: 8,
+    borderRadius: 4,
+  },
+  verdict: {
+    fontFamily: 'Inter-Medium',
+    fontSize: 13.5,
+    color: colors.inkMid,
+    lineHeight: 20,
+    marginBottom: 8,
+  },
+  note: {
+    fontFamily: 'Inter-Regular',
+    fontSize: 13,
+    color: colors.muted,
+    lineHeight: 19,
+    marginTop: 6,
+  },
 });
 
 // ─── Protection pattern styles ────────────────────────────────
 const ppSt = StyleSheet.create({
-  wrap: {
-    backgroundColor: colors.white,
-    borderRadius: 20,
-    borderWidth: 1.5,
-    borderColor: colors.border,
-    padding: 20,
-    shadowColor: colors.ink,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 10,
-    elevation: 1,
-  },
-  headingRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 18,
-  },
-  heading: {
-    fontFamily: 'SFProDisplay-Bold',
-    fontSize: 15,
-    color: colors.ink,
-  },
-  chevron: {
-    fontSize: 20,
-    color: colors.muted,
-    lineHeight: 22,
-  },
   lockedBody: {
     alignItems: 'center',
     paddingVertical: 8,
   },
   lockWrap: {
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  lockShackle: {
-    width: 20,
-    height: 13,
-    borderTopLeftRadius: 10,
-    borderTopRightRadius: 10,
-    borderWidth: 2.5,
-    borderBottomWidth: 0,
-    borderColor: colors.muted,
-    marginBottom: -1,
-  },
-  lockBody: {
-    width: 30,
-    height: 22,
-    borderRadius: 6,
+    width: 52,
+    height: 52,
+    borderRadius: 18,
     backgroundColor: colors.surface,
-    borderWidth: 2,
-    borderColor: colors.muted,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  lockKeyhole: {
-    width: 7,
-    height: 7,
-    borderRadius: 3.5,
-    backgroundColor: colors.muted,
+    marginBottom: 16,
   },
   lockedTitle: {
-    fontFamily: 'SFProDisplay-Bold',
-    fontSize: 14,
+    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontSize: 15,
     color: colors.ink,
     textAlign: 'center',
     marginBottom: 8,
   },
   lockedSub: {
-    fontFamily: 'SFProDisplay-Regular',
+    fontFamily: 'Inter-Regular',
     fontSize: 13,
     color: colors.muted,
     textAlign: 'center',
@@ -319,26 +462,26 @@ const ppSt = StyleSheet.create({
   },
   progressWrap: {
     width: '100%',
-    gap: 6,
+    gap: 8,
     alignItems: 'center',
   },
   progressBg: {
     width: '100%',
-    height: 6,
-    borderRadius: 3,
+    height: 8,
+    borderRadius: 4,
     backgroundColor: colors.surface,
     overflow: 'hidden',
   },
   progressFill: {
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: colors.orange,
+    height: 8,
+    borderRadius: 4,
+    overflow: 'hidden',
   },
   progressLabel: {
-    fontFamily: 'SFProDisplay-Bold',
-    fontSize: 11,
+    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontSize: 12,
     color: colors.muted,
-    letterSpacing: 0.3,
+    letterSpacing: 0.4,
   },
   insightList: {
     gap: 0,
@@ -354,21 +497,16 @@ const ppSt = StyleSheet.create({
     borderBottomColor: colors.border,
   },
   insightIconWrap: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    backgroundColor: colors.white,
-    borderWidth: 1,
-    borderColor: colors.border,
+    width: 38,
+    height: 38,
+    borderRadius: 13,
+    backgroundColor: colors.orangeWash,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  insightIcon: {
-    fontSize: 16,
-  },
   insightText: {
     flex: 1,
-    fontFamily: 'SFProDisplay-Regular',
+    fontFamily: 'Inter-Regular',
     fontSize: 14,
     color: colors.ink,
     lineHeight: 20,
@@ -376,49 +514,60 @@ const ppSt = StyleSheet.create({
 });
 
 // ─── Protection Pattern card ──────────────────────────────────
-function LockIcon() {
-  return (
-    <View style={ppSt.lockWrap}>
-      <View style={ppSt.lockShackle} />
-      <View style={ppSt.lockBody}>
-        <View style={ppSt.lockKeyhole} />
-      </View>
-    </View>
-  );
-}
-
-const ProtectionPatternCard = React.memo(function ProtectionPatternCard({ pattern }) {
+const ProtectionPatternCard = React.memo(function ProtectionPatternCard({ pattern, patterns, onExplore }) {
   const { totalSessions, reapplyInterval, depletionFasterPct, firstAlertTime } = pattern;
   const THRESHOLD  = 10;
   const isUnlocked = totalSessions >= THRESHOLD;
   const progress   = Math.min(totalSessions / THRESHOLD, 1);
 
   const insights = [
-    { icon: '⏱', text: `You typically need to reapply every ${reapplyInterval}` },
-    { icon: '📊', text: `Your skin depletes sunscreen ${depletionFasterPct}% faster than average` },
-    { icon: '🔔', text: `You usually get your first alert around ${firstAlertTime} into a session` },
+    { icon: 'timer-outline',         text: `You typically need to reapply every ${reapplyInterval}` },
+    { icon: 'trending-up-outline',   text: `Your skin depletes sunscreen ${depletionFasterPct}% faster than average` },
+    { icon: 'notifications-outline', text: `You usually get your first alert around ${firstAlertTime} into a session` },
   ];
 
-  const { scale, onPressIn, onPressOut } = usePressScale();
-
   return (
-    <Pressable
-      onPress={() => console.log('navigate to protection pattern')}
-      onPressIn={onPressIn}
-      onPressOut={onPressOut}
+    <ExpandableCard
+      icon="sparkles"
+      title="Your Protection Pattern"
+      linkLabel={isUnlocked ? 'Explore All Insights' : undefined}
+      onLinkPress={onExplore}
+      expandedContent={isUnlocked ? (
+        <View>
+          <View style={exSt.kvRow}>
+            <Text style={exSt.kvLabel}>Critical window</Text>
+            <Text style={exSt.kvValue}>{patterns.riskWindow.label}</Text>
+          </View>
+          <View style={exSt.kvRow}>
+            <Text style={exSt.kvLabel}>Alert trigger</Text>
+            <Text style={exSt.kvValue}>UV 6+ while active</Text>
+          </View>
+          <Text style={exSt.note}>{patterns.weakSpot}</Text>
+        </View>
+      ) : (
+        <View>
+          <Text style={exSt.note}>
+            Sureva learns your skin with every session. At {THRESHOLD} sessions you'll unlock:
+          </Text>
+          {[
+            'Your personal reapplication window',
+            'Your highest-risk time of day',
+            'Your depletion rate vs people like you',
+          ].map((item) => (
+            <View key={item} style={exSt.kvRow}>
+              <Text style={exSt.kvLabel}>{item}</Text>
+              <Ionicons name="lock-closed" size={13} color={colors.muted} />
+            </View>
+          ))}
+        </View>
+      )}
     >
-    <Animated.View style={[ppSt.wrap, { transform: [{ scale }] }]}>
-      <View style={ppSt.headingRow}>
-        <Text style={ppSt.heading}>Your Protection Pattern</Text>
-        <Text style={ppSt.chevron}>›</Text>
-      </View>
-
       {isUnlocked ? (
         <View style={ppSt.insightList}>
           {insights.map((item, i) => (
             <View key={i} style={[ppSt.insightRow, i < insights.length - 1 && ppSt.insightRowBorder]}>
               <View style={ppSt.insightIconWrap}>
-                <Text style={ppSt.insightIcon}>{item.icon}</Text>
+                <Ionicons name={item.icon} size={18} color={colors.orangeDark} />
               </View>
               <Text style={ppSt.insightText}>{item.text}</Text>
             </View>
@@ -426,78 +575,54 @@ const ProtectionPatternCard = React.memo(function ProtectionPatternCard({ patter
         </View>
       ) : (
         <View style={ppSt.lockedBody}>
-          <LockIcon />
+          <View style={ppSt.lockWrap}>
+            <Ionicons name="lock-closed" size={22} color={colors.muted} />
+          </View>
           <Text style={ppSt.lockedTitle}>Complete 10 sessions to unlock</Text>
           <Text style={ppSt.lockedSub}>
             Your personal protection insights will appear here after 10 sessions. You have {totalSessions} so far.
           </Text>
           <View style={ppSt.progressWrap}>
             <View style={ppSt.progressBg}>
-              <View style={[ppSt.progressFill, { width: `${progress * 100}%` }]} />
+              <LinearGradient
+                colors={[colors.gradOrangeStart, colors.gradOrangeEnd]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={[ppSt.progressFill, { width: `${progress * 100}%` }]}
+              />
             </View>
             <Text style={ppSt.progressLabel}>{totalSessions} / {THRESHOLD}</Text>
           </View>
         </View>
       )}
-    </Animated.View>
-    </Pressable>
+    </ExpandableCard>
   );
 });
-
-// ─── Sureva device illustration ───────────────────────────────
-function SurevaIllustration({ connected }) {
-  const haloScale   = useRef(new Animated.Value(1)).current;
-  const haloOpacity = useRef(new Animated.Value(0.7)).current;
-
-  useEffect(() => {
-    if (!connected) return;
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.parallel([
-          Animated.timing(haloScale,   { toValue: 2.6, duration: 900, useNativeDriver: true }),
-          Animated.timing(haloOpacity, { toValue: 0,   duration: 900, useNativeDriver: true }),
-        ]),
-        Animated.parallel([
-          Animated.timing(haloScale,   { toValue: 1,   duration: 0, useNativeDriver: true }),
-          Animated.timing(haloOpacity, { toValue: 0.7, duration: 0, useNativeDriver: true }),
-        ]),
-        Animated.delay(400),
-      ])
-    );
-    loop.start();
-    return () => loop.stop();
-  }, [connected]);
-
-  return (
-    <View style={illSt.root}>
-      <View style={illSt.clipArm} />
-      <View style={illSt.body}>
-        <View style={illSt.ledContainer}>
-          {connected && (
-            <Animated.View style={[
-              illSt.ledHalo,
-              { opacity: haloOpacity, transform: [{ scale: haloScale }] },
-            ]} />
-          )}
-          <View style={illSt.led} />
-        </View>
-        <View style={illSt.panel} />
-        <View style={illSt.btn} />
-      </View>
-    </View>
-  );
-}
 
 // ─── Device card ──────────────────────────────────────────────
 const DeviceCard = React.memo(function DeviceCard({ device }) {
   const batColor = device.battery > 30 ? colors.protected : colors.warning;
   const dotColor = device.connected ? colors.protected : colors.danger;
+  const [guideVisible, setGuideVisible] = useState(false);
+  const openGuide  = useCallback(() => setGuideVisible(true), []);
+  const closeGuide = useCallback(() => setGuideVisible(false), []);
 
   return (
     <View style={devSt.wrap}>
-      {/* Centered illustration */}
+      <CardHeader
+        icon="bluetooth"
+        title="My Device"
+        subtitle={device.connected ? 'Connected' : 'Disconnected'}
+        actionIcon="information-circle-outline"
+        onActionPress={openGuide}
+      />
+
+      <DeviceGuideModal visible={guideVisible} onClose={closeGuide} />
+
+      <View style={devSt.body}>
+      {/* Centered 3D device — gently sways up and down; LED blinks green when connected */}
       <View style={devSt.illustrationArea}>
-        <SurevaIllustration connected={device.connected} />
+        <Device3D gesture={device.connected ? 'connected' : 'intro'} background={colors.white} />
       </View>
 
       {/* Name + connection */}
@@ -519,25 +644,38 @@ const DeviceCard = React.memo(function DeviceCard({ device }) {
 
       {/* Last synced */}
       <Text style={devSt.lastSynced}>Last synced {device.lastSynced}</Text>
+      </View>
     </View>
   );
 });
 
 // ─── Main screen ──────────────────────────────────────────────
-export default function HomeScreen({ onSignOut }) {
+export default function HomeScreen({ onSignOut, onNavigateTab }) {
   const { userProfile, profileImage } = useAuth();
   const { conditions, lastSession, device, todayStats, weeklySnapshot, protectionPattern } = mockData;
+  // Last session card runs on the full session record so it can deep-link
+  // into the same detail view History uses
+  const lastFull   = mockData.sessions[0];
+  const lastDetail = mockData.sessionDetails[lastFull.id];
   const firstName = userProfile?.firstName || mockData.user.firstName;
   const lastName  = userProfile?.lastName  || mockData.user.lastName;
   const initials  = getInitials(firstName, lastName);
   const greeting  = getGreeting(firstName);
-  const uvRounded = Math.round(conditions.uvIndex);
 
   const [sheetVisible, setSheetVisible]     = useState(false);
   const [settingsVisible, setSettingsVisible] = useState(false);
+  const [detailVisible, setDetailVisible]   = useState(false);
+  const [trendsVisible, setTrendsVisible]   = useState(false);
   const [activeSession, setActiveSession] = useState(null);
   const [elapsed, setElapsed]             = useState(0);
   const slideAnim = useRef(new Animated.Value(0)).current;
+  const scrollRef = useRef(null);
+
+  const scrollToTop = useCallback(
+    () => scrollRef.current?.scrollTo({ y: 0, animated: true }),
+    []
+  );
+  useScrollToTop('home', scrollToTop);
 
   // Timer lives here so it keeps ticking even when home screen is visible
   useEffect(() => {
@@ -574,42 +712,14 @@ export default function HomeScreen({ onSignOut }) {
     }, 340);
   }, [slideToHome]);
 
+  const openLastDetail  = useCallback(() => setDetailVisible(true), []);
+  const closeLastDetail = useCallback(() => setDetailVisible(false), []);
+  const openTrends      = useCallback(() => setTrendsVisible(true), []);
+  const closeTrends     = useCallback(() => setTrendsVisible(false), []);
+  const goInsights      = useCallback(() => onNavigateTab?.('insights'), [onNavigateTab]);
+
   const homeTranslateX    = slideAnim.interpolate({ inputRange: [0, 1], outputRange: [0, -SCREEN_W] });
   const sessionTranslateX = slideAnim.interpolate({ inputRange: [0, 1], outputRange: [SCREEN_W, 0] });
-
-  const fade0  = useRef(new Animated.Value(0)).current;
-  const fade1  = useRef(new Animated.Value(0)).current;
-  const fade2  = useRef(new Animated.Value(0)).current;
-  const fade3  = useRef(new Animated.Value(0)).current;
-  const fade4  = useRef(new Animated.Value(0)).current;
-  const slide0 = useRef(new Animated.Value(18)).current;
-  const slide1 = useRef(new Animated.Value(18)).current;
-  const slide2 = useRef(new Animated.Value(18)).current;
-  const slide3 = useRef(new Animated.Value(18)).current;
-  const slide4 = useRef(new Animated.Value(18)).current;
-
-  useEffect(() => {
-    const fadeAnims  = [fade0,  fade1,  fade2,  fade3,  fade4];
-    const slideAnims = [slide0, slide1, slide2, slide3, slide4];
-
-    fadeAnims.forEach((anim, i) => {
-      Animated.timing(anim, {
-        toValue: 1,
-        duration: 360,
-        delay: 60 + i * 65,
-        useNativeDriver: true,
-      }).start();
-    });
-    slideAnims.forEach((anim, i) => {
-      Animated.spring(anim, {
-        toValue: 0,
-        tension: 52,
-        friction: 9,
-        delay: 60 + i * 65,
-        useNativeDriver: true,
-      }).start();
-    });
-  }, []);
 
   return (
     <View style={st.root}>
@@ -621,8 +731,8 @@ export default function HomeScreen({ onSignOut }) {
           <View style={st.topBar}>
             <ProfileAvatar initials={initials} profileImage={profileImage} onPress={() => setSettingsVisible(true)} />
             <View style={st.greetingBlock}>
-              <Text style={st.greeting} numberOfLines={1}>{greeting}</Text>
-              <Text style={st.uvSub}>UV index is {uvRounded} right now</Text>
+              <Text style={st.greeting}>{greeting.salutation}</Text>
+              <Text style={st.greetingName} numberOfLines={1}>{greeting.name}</Text>
             </View>
             <StartSessionPill
               sessionActive={!!activeSession}
@@ -631,25 +741,38 @@ export default function HomeScreen({ onSignOut }) {
           </View>
 
           <ScrollView
+            ref={scrollRef}
             style={st.scroll}
             contentContainerStyle={st.scrollContent}
             showsVerticalScrollIndicator={false}
           >
-            <Animated.View style={{ opacity: fade0, transform: [{ translateY: slide0 }] }}>
-              <ProtectionStatsCard stats={todayStats} />
-            </Animated.View>
-            <Animated.View style={{ opacity: fade1, transform: [{ translateY: slide1 }] }}>
-              <LastSessionCard session={lastSession} />
-            </Animated.View>
-            <Animated.View style={{ opacity: fade2, transform: [{ translateY: slide2 }] }}>
-              <WeeklySnapshotCard snapshot={weeklySnapshot} />
-            </Animated.View>
-            <Animated.View style={{ opacity: fade3, transform: [{ translateY: slide3 }] }}>
-              <ProtectionPatternCard pattern={protectionPattern} />
-            </Animated.View>
-            <Animated.View style={{ opacity: fade4, transform: [{ translateY: slide4 }] }}>
+            <SlideInView delay={40}>
+              <ProtectionStatsCard
+                stats={todayStats}
+                conditions={conditions}
+                dosePercent={mockData.uvDose.todayPercent}
+              />
+            </SlideInView>
+            <SlideInView delay={110}>
+              <LastSessionCard session={lastFull} detail={lastDetail} onOpenDetail={openLastDetail} />
+            </SlideInView>
+            <SlideInView delay={180}>
+              <WeeklySnapshotCard
+                snapshot={weeklySnapshot}
+                weeklyDose={lastDetail.pattern.weeklyDose}
+                onSeeAll={openTrends}
+              />
+            </SlideInView>
+            <SlideInView delay={250}>
+              <ProtectionPatternCard
+                pattern={protectionPattern}
+                patterns={mockData.insights.patterns}
+                onExplore={goInsights}
+              />
+            </SlideInView>
+            <SlideInView delay={320}>
               <DeviceCard device={device} />
-            </Animated.View>
+            </SlideInView>
             <View style={{ height: 40 }} />
           </ScrollView>
 
@@ -674,6 +797,16 @@ export default function HomeScreen({ onSignOut }) {
         </Animated.View>
       )}
 
+      {/* ── Last session full report (same detail view History uses) ── */}
+      {detailVisible && (
+        <View style={StyleSheet.absoluteFill}>
+          <SessionDetailScreen session={lastFull} onBack={closeLastDetail} scrollKey="home" />
+        </View>
+      )}
+
+      {/* ── Exposure trends (weeks / months / year charts) ── */}
+      {trendsVisible && <TrendsScreen onBack={closeTrends} />}
+
       {/* ── Settings (slides in from right as modal) ── */}
       <SettingsScreen
         visible={settingsVisible}
@@ -688,72 +821,78 @@ export default function HomeScreen({ onSignOut }) {
 const st = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: colors.white,
+    backgroundColor: colors.canvas,
     overflow: 'hidden',
   },
   safe: {
     flex: 1,
-    backgroundColor: colors.white,
+    backgroundColor: colors.canvas,
   },
   topBar: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingTop: 4,
-    paddingBottom: 14,
+    paddingTop: 14,
+    paddingBottom: 18,
     gap: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-    backgroundColor: colors.white,
+    backgroundColor: colors.canvas,
   },
   avatar: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    backgroundColor: colors.orange,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
+    alignSelf: 'flex-start',
+    marginTop: -2,
   },
   avatarText: {
-    fontFamily: 'SFProDisplay-Bold',
-    fontSize: 15,
+    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontSize: 17,
     color: colors.white,
     letterSpacing: 0.6,
   },
   avatarImage: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
   },
   greetingBlock: {
     flex: 1,
   },
   greeting: {
-    fontFamily: 'SFProDisplay-Bold',
-    fontSize: 16,
-    color: colors.ink,
-    letterSpacing: -0.2,
-    marginBottom: 2,
-  },
-  uvSub: {
-    fontFamily: 'SFProDisplay-Regular',
-    fontSize: 12,
+    fontFamily: 'Inter-Medium',
+    fontSize: 14,
     color: colors.muted,
+    letterSpacing: 0.1,
+    marginBottom: 1,
   },
-  pill: {
-    backgroundColor: colors.orange,
-    paddingHorizontal: 14,
-    paddingVertical: 9,
+  greetingName: {
+    fontFamily: 'SpaceGrotesk-Bold',
+    fontSize: 24,
+    lineHeight: 28,
+    color: colors.ink,
+    letterSpacing: -0.6,
+  },
+  pillShadow: {
     borderRadius: 24,
     shadowColor: colors.orange,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.28,
-    shadowRadius: 8,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.35,
+    shadowRadius: 10,
+    elevation: 4,
+  },
+  pill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 24,
   },
   pillText: {
-    fontFamily: 'SFProDisplay-Bold',
+    fontFamily: 'SpaceGrotesk-SemiBold',
     fontSize: 13,
     color: colors.white,
     letterSpacing: 0.1,
@@ -763,7 +902,7 @@ const st = StyleSheet.create({
     alignItems: 'center',
     gap: 6,
     paddingHorizontal: 13,
-    paddingVertical: 9,
+    paddingVertical: 10,
     borderRadius: 24,
     borderWidth: 1.5,
     borderColor: colors.protected,
@@ -776,15 +915,15 @@ const st = StyleSheet.create({
     backgroundColor: colors.protected,
   },
   pillActiveText: {
-    fontFamily: 'SFProDisplay-Bold',
+    fontFamily: 'SpaceGrotesk-SemiBold',
     fontSize: 13,
-    color: colors.orange,
+    color: colors.ink,
     letterSpacing: 0.1,
   },
   scroll: { flex: 1 },
   scrollContent: {
     paddingHorizontal: 16,
-    paddingTop: 20,
+    paddingTop: 14,
     paddingBottom: 120,
     gap: 12,
   },
@@ -792,57 +931,45 @@ const st = StyleSheet.create({
 
 // ─── Protection stats styles ──────────────────────────────────
 const psSt = StyleSheet.create({
-  wrap: {
-    backgroundColor: colors.white,
-    borderRadius: 20,
-    borderWidth: 1.5,
-    borderColor: colors.border,
-    padding: 20,
-    shadowColor: colors.ink,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 10,
-    elevation: 1,
-  },
-  headingRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 16,
-  },
-  heading: {
-    fontFamily: 'SFProDisplay-Bold',
-    fontSize: 15,
-    color: colors.ink,
-  },
-  chevron: {
-    fontSize: 20,
-    color: colors.muted,
-    lineHeight: 22,
-  },
   grid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 10,
   },
+  heroTile: {
+    width: '47.5%',
+    borderRadius: 16,
+    paddingVertical: 16,
+    paddingHorizontal: 14,
+    gap: 4,
+  },
+  heroVal: {
+    fontFamily: 'SpaceGrotesk-Bold',
+    fontSize: 24,
+    color: colors.white,
+    letterSpacing: -0.6,
+  },
+  heroLabel: {
+    fontFamily: 'Inter-Medium',
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.85)',
+  },
   tile: {
     width: '47.5%',
-    backgroundColor: colors.white,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: colors.border,
-    paddingVertical: 14,
+    backgroundColor: colors.surface,
+    borderRadius: 16,
+    paddingVertical: 16,
     paddingHorizontal: 14,
     gap: 4,
   },
   tileVal: {
-    fontFamily: 'SFProDisplay-Black',
-    fontSize: 22,
+    fontFamily: 'SpaceGrotesk-Bold',
+    fontSize: 24,
     color: colors.ink,
     letterSpacing: -0.6,
   },
   tileLabel: {
-    fontFamily: 'SFProDisplay-Regular',
+    fontFamily: 'Inter-Medium',
     fontSize: 12,
     color: colors.muted,
   },
@@ -850,44 +977,6 @@ const psSt = StyleSheet.create({
 
 // ─── Last session styles ──────────────────────────────────────
 const lsSt = StyleSheet.create({
-  wrap: {
-    backgroundColor: colors.white,
-    borderRadius: 20,
-    borderWidth: 1.5,
-    borderColor: colors.border,
-    padding: 20,
-    shadowColor: colors.ink,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 10,
-    elevation: 1,
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 18,
-  },
-  title: {
-    fontFamily: 'SFProDisplay-Bold',
-    fontSize: 15,
-    color: colors.ink,
-  },
-  date: {
-    fontFamily: 'SFProDisplay-Regular',
-    fontSize: 13,
-    color: colors.muted,
-  },
-  headerRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  chevron: {
-    fontSize: 20,
-    color: colors.muted,
-    lineHeight: 22,
-  },
   statsRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -898,74 +987,43 @@ const lsSt = StyleSheet.create({
     gap: 4,
   },
   statVal: {
-    fontFamily: 'SFProDisplay-Bold',
-    fontSize: 16,
+    fontFamily: 'SpaceGrotesk-Bold',
+    fontSize: 18,
     color: colors.ink,
+    letterSpacing: -0.3,
+  },
+  statValAccent: {
+    color: colors.orange,
   },
   statLabel: {
-    fontFamily: 'SFProDisplay-Bold',
+    fontFamily: 'SpaceGrotesk-SemiBold',
     fontSize: 10,
     color: colors.muted,
-    letterSpacing: 0.8,
+    letterSpacing: 1,
   },
   statDivider: {
     width: 1,
     height: 34,
     backgroundColor: colors.border,
   },
-  dividerLine: {
-    height: 1,
-    backgroundColor: colors.border,
-    marginTop: 16,
-    marginBottom: 12,
-  },
-  peakRow: {
+  peakBadge: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-  },
-  peakLabel: {
-    fontFamily: 'SFProDisplay-Regular',
-    fontSize: 13,
-    color: colors.muted,
+    gap: 4,
+    backgroundColor: colors.orangeWash,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
   },
   peakVal: {
-    fontFamily: 'SFProDisplay-Bold',
+    fontFamily: 'SpaceGrotesk-SemiBold',
     fontSize: 13,
-    color: colors.ink,
+    color: colors.orangeDark,
   },
 });
 
 // ─── Weekly snapshot styles ───────────────────────────────────
 const wkSt = StyleSheet.create({
-  wrap: {
-    backgroundColor: colors.white,
-    borderRadius: 20,
-    borderWidth: 1.5,
-    borderColor: colors.border,
-    padding: 20,
-    shadowColor: colors.ink,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 10,
-    elevation: 1,
-  },
-  headingRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 20,
-  },
-  heading: {
-    fontFamily: 'SFProDisplay-Bold',
-    fontSize: 15,
-    color: colors.ink,
-  },
-  chevron: {
-    fontSize: 20,
-    color: colors.muted,
-    lineHeight: 22,
-  },
   chartRow: {
     flexDirection: 'row',
     alignItems: 'flex-end',
@@ -984,124 +1042,73 @@ const wkSt = StyleSheet.create({
   },
   bar: {
     width: 18,
-    borderRadius: 5,
+    borderRadius: 6,
+  },
+  barClip: {
+    width: 18,
+    borderRadius: 6,
+    overflow: 'hidden',
   },
   dayLabel: {
     fontSize: 10,
     letterSpacing: 0.2,
   },
   footer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 7,
     paddingTop: 14,
     borderTopWidth: 1,
     borderTopColor: colors.border,
+    gap: 8,
   },
-  footerDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 3.5,
-    backgroundColor: colors.orange,
+  footerTextRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
   footerText: {
-    fontFamily: 'SFProDisplay-Regular',
+    fontFamily: 'Inter-Regular',
     fontSize: 13,
     color: colors.muted,
-    flex: 1,
   },
-  footerBold: {
-    fontFamily: 'SFProDisplay-Bold',
+  footerPct: {
+    fontFamily: 'SpaceGrotesk-Bold',
+    fontSize: 16,
     color: colors.ink,
+    letterSpacing: -0.3,
+  },
+  footerTrack: {
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: colors.surface,
+    overflow: 'hidden',
+  },
+  footerFill: {
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: colors.protected,
   },
 });
 
 // ─── Device illustration styles ───────────────────────────────
-const illSt = StyleSheet.create({
-  root: {
-    width: 52,
-    height: 96,
-    alignItems: 'center',
-  },
-  clipArm: {
-    position: 'absolute',
-    top: 0,
-    width: 32,
-    height: 24,
-    borderRadius: 6,
-    backgroundColor: colors.inkMid,
-    zIndex: 0,
-  },
-  body: {
-    position: 'absolute',
-    bottom: 0,
-    width: 44,
-    height: 80,
-    borderRadius: 18,
-    backgroundColor: colors.ink,
-    alignItems: 'center',
-    paddingTop: 16,
-    gap: 10,
-    zIndex: 1,
-    shadowColor: colors.ink,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  ledContainer: {
-    width: 12,
-    height: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  ledHalo: {
-    position: 'absolute',
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: colors.protected,
-  },
-  led: {
-    width: 7,
-    height: 7,
-    borderRadius: 3.5,
-    backgroundColor: colors.protected,
-  },
-  panel: {
-    width: 26,
-    height: 26,
-    borderRadius: 8,
-    backgroundColor: 'rgba(255,255,255,0.07)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.10)',
-  },
-  btn: {
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    borderWidth: 1.5,
-    borderColor: 'rgba(255,255,255,0.22)',
-    backgroundColor: 'rgba(255,255,255,0.08)',
-  },
-});
-
 // ─── Device card styles ───────────────────────────────────────
 const devSt = StyleSheet.create({
   wrap: {
     backgroundColor: colors.white,
-    borderRadius: 20,
-    borderWidth: 1.5,
+    borderRadius: 28,
+    borderWidth: 1,
     borderColor: colors.border,
     padding: 20,
-    alignItems: 'center',
     shadowColor: colors.ink,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 10,
-    elevation: 1,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.06,
+    shadowRadius: 18,
+    elevation: 3,
+  },
+  body: {
+    alignItems: 'center',
   },
   illustrationArea: {
+    width: 130,
+    height: 130,
     marginBottom: 18,
   },
   nameRow: {
@@ -1116,7 +1123,7 @@ const devSt = StyleSheet.create({
     borderRadius: 4,
   },
   name: {
-    fontFamily: 'SFProDisplay-Bold',
+    fontFamily: 'SpaceGrotesk-SemiBold',
     fontSize: 15,
     color: colors.ink,
     letterSpacing: -0.1,
@@ -1153,13 +1160,12 @@ const devSt = StyleSheet.create({
     backgroundColor: colors.muted,
   },
   batPct: {
-    fontFamily: 'SFProDisplay-Bold',
+    fontFamily: 'SpaceGrotesk-SemiBold',
     fontSize: 13,
   },
   lastSynced: {
-    fontFamily: 'SFProDisplay-Regular',
+    fontFamily: 'Inter-Regular',
     fontSize: 11,
     color: colors.muted,
   },
 });
-

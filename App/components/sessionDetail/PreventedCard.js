@@ -50,7 +50,7 @@ const st = StyleSheet.create({
     marginTop: 2,
   },
   simText: {
-    fontFamily: 'SFProDisplay-Regular',
+    fontFamily: 'Inter-Regular',
     fontSize: 13,
     color: colors.inkMid,
     lineHeight: 19,
@@ -60,7 +60,7 @@ const st = StyleSheet.create({
     marginBottom: 14,
   },
   compareLabel: {
-    fontFamily: 'SFProDisplay-Bold',
+    fontFamily: 'SpaceGrotesk-SemiBold',
     fontSize: 12,
     color: colors.muted,
     letterSpacing: 0.4,
@@ -74,7 +74,7 @@ const st = StyleSheet.create({
     marginBottom: 8,
   },
   barLabel: {
-    fontFamily: 'SFProDisplay-Regular',
+    fontFamily: 'Inter-Regular',
     fontSize: 13,
     color: colors.inkMid,
     width: 86,
@@ -91,20 +91,20 @@ const st = StyleSheet.create({
     borderRadius: 5,
   },
   barValue: {
-    fontFamily: 'SFProDisplay-Bold',
+    fontFamily: 'SpaceGrotesk-SemiBold',
     fontSize: 13,
     color: colors.ink,
     width: 64,
     textAlign: 'right',
   },
   weeklyBlock: {
-    backgroundColor: colors.white,
+    backgroundColor: colors.surface,
     borderRadius: 12,
     paddingHorizontal: 14,
     paddingVertical: 12,
   },
   weeklyText: {
-    fontFamily: 'SFProDisplay-Bold',
+    fontFamily: 'SpaceGrotesk-SemiBold',
     fontSize: 13,
     color: colors.orange,
     lineHeight: 19,

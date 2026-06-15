@@ -70,7 +70,7 @@ const st = StyleSheet.create({
     marginTop: 2,
   },
   rowText: {
-    fontFamily: 'SFProDisplay-Regular',
+    fontFamily: 'Inter-Regular',
     fontSize: 13,
     color: colors.inkMid,
     lineHeight: 19,
@@ -81,7 +81,7 @@ const st = StyleSheet.create({
     marginBottom: 16,
   },
   blockLabel: {
-    fontFamily: 'SFProDisplay-Bold',
+    fontFamily: 'SpaceGrotesk-SemiBold',
     fontSize: 12,
     color: colors.muted,
     letterSpacing: 0.4,
@@ -102,7 +102,7 @@ const st = StyleSheet.create({
     alignItems: 'center',
   },
   stressPillText: {
-    fontFamily: 'SFProDisplay-Bold',
+    fontFamily: 'SpaceGrotesk-SemiBold',
     fontSize: 12,
     color: colors.muted,
   },
@@ -110,7 +110,7 @@ const st = StyleSheet.create({
     color: colors.white,
   },
   blockNote: {
-    fontFamily: 'SFProDisplay-Regular',
+    fontFamily: 'Inter-Regular',
     fontSize: 13,
     color: colors.inkMid,
     lineHeight: 19,

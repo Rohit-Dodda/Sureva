@@ -42,7 +42,7 @@ const st = StyleSheet.create({
   },
   chip: {
     flex: 1,
-    backgroundColor: colors.white,
+    backgroundColor: colors.surface,
     borderRadius: 14,
     paddingHorizontal: 14,
     paddingVertical: 13,
@@ -51,7 +51,7 @@ const st = StyleSheet.create({
     backgroundColor: colors.orange,
   },
   chipValue: {
-    fontFamily: 'SFProDisplay-Black',
+    fontFamily: 'SpaceGrotesk-Bold',
     fontSize: 26,
     color: colors.ink,
     letterSpacing: -0.8,
@@ -61,7 +61,7 @@ const st = StyleSheet.create({
     color: colors.white,
   },
   chipLabel: {
-    fontFamily: 'SFProDisplay-Regular',
+    fontFamily: 'Inter-Regular',
     fontSize: 11,
     color: colors.muted,
     lineHeight: 15,
@@ -84,7 +84,7 @@ const st = StyleSheet.create({
     marginTop: 2,
   },
   flagText: {
-    fontFamily: 'SFProDisplay-Bold',
+    fontFamily: 'SpaceGrotesk-SemiBold',
     fontSize: 13,
     color: colors.inkMid,
     lineHeight: 19,

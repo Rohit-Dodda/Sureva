@@ -32,7 +32,7 @@ export default function ReportPreviewModal({ visible, uri, onDismiss }) {
           <TouchableOpacity style={st.closeBtn} onPress={onDismiss} activeOpacity={0.6}>
             <Text style={st.closeText}>Close</Text>
           </TouchableOpacity>
-          <Text style={st.topTitle}>Report Preview</Text>
+          <Text style={st.topTitle}>Your Sun Profile</Text>
           <TouchableOpacity style={st.shareBtn} onPress={handleShare} activeOpacity={0.85}>
             {sharing ? (
               <ActivityIndicator size="small" color={colors.white} />
@@ -49,7 +49,7 @@ export default function ReportPreviewModal({ visible, uri, onDismiss }) {
           startInLoadingState
           renderLoading={() => (
             <View style={st.loading}>
-              <ActivityIndicator size="large" color={colors.navy} />
+              <ActivityIndicator size="large" color={colors.orange} />
             </View>
           )}
         />
@@ -77,12 +77,12 @@ const st = StyleSheet.create({
     paddingVertical: 8,
   },
   closeText: {
-    fontFamily: 'SFProDisplay-Regular',
+    fontFamily: 'Inter-Regular',
     fontSize: 15,
     color: colors.inkMid,
   },
   topTitle: {
-    fontFamily: 'SFProDisplay-Bold',
+    fontFamily: 'SpaceGrotesk-SemiBold',
     fontSize: 16,
     color: colors.ink,
   },
@@ -90,12 +90,12 @@ const st = StyleSheet.create({
     width: 72,
     height: 36,
     borderRadius: 11,
-    backgroundColor: colors.navy,
+    backgroundColor: colors.orange,
     alignItems: 'center',
     justifyContent: 'center',
   },
   shareText: {
-    fontFamily: 'SFProDisplay-Bold',
+    fontFamily: 'SpaceGrotesk-SemiBold',
     fontSize: 14,
     color: colors.white,
   },

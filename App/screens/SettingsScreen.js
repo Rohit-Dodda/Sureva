@@ -288,7 +288,7 @@ export default function SettingsScreen({ visible, onClose, onSignOut }) {
 const st = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: colors.white,
+    backgroundColor: colors.canvas,
   },
   safe: {
     flex: 1,
@@ -314,14 +314,14 @@ const st = StyleSheet.create({
     justifyContent: 'center',
   },
   backArrow: {
-    fontFamily: 'SFProDisplay-Bold',
+    fontFamily: 'SpaceGrotesk-SemiBold',
     fontSize: 18,
     color: colors.ink,
     textAlign: 'center',
     includeFontPadding: false,
   },
   headerTitle: {
-    fontFamily: 'SFProDisplay-Bold',
+    fontFamily: 'SpaceGrotesk-SemiBold',
     fontSize: 22,
     color: colors.ink,
     letterSpacing: -0.4,
@@ -336,9 +336,14 @@ const st = StyleSheet.create({
   },
   profileCard: {
     backgroundColor: colors.white,
-    borderRadius: 18,
-    borderWidth: 1.5,
+    borderRadius: 20,
+    borderWidth: 1,
     borderColor: colors.border,
+    shadowColor: colors.ink,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.05,
+    shadowRadius: 12,
+    elevation: 2,
     paddingHorizontal: 16,
     paddingVertical: 14,
     flexDirection: 'row',
@@ -364,7 +369,7 @@ const st = StyleSheet.create({
     borderRadius: 26,
   },
   profileInitials: {
-    fontFamily: 'SFProDisplay-Bold',
+    fontFamily: 'SpaceGrotesk-SemiBold',
     fontSize: 18,
     color: colors.white,
     letterSpacing: 0.5,
@@ -374,13 +379,13 @@ const st = StyleSheet.create({
     gap: 3,
   },
   profileName: {
-    fontFamily: 'SFProDisplay-Bold',
+    fontFamily: 'SpaceGrotesk-SemiBold',
     fontSize: 17,
     color: colors.ink,
     letterSpacing: -0.3,
   },
   profileEmail: {
-    fontFamily: 'SFProDisplay-Regular',
+    fontFamily: 'Inter-Regular',
     fontSize: 13,
     color: colors.muted,
   },
@@ -390,7 +395,7 @@ const st = StyleSheet.create({
     lineHeight: 24,
   },
   sectionHeading: {
-    fontFamily: 'SFProDisplay-Bold',
+    fontFamily: 'SpaceGrotesk-SemiBold',
     fontSize: 11,
     color: colors.muted,
     letterSpacing: 1.2,
@@ -400,9 +405,14 @@ const st = StyleSheet.create({
   },
   card: {
     backgroundColor: colors.white,
-    borderRadius: 16,
-    borderWidth: 1.5,
+    borderRadius: 20,
+    borderWidth: 1,
     borderColor: colors.border,
+    shadowColor: colors.ink,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.05,
+    shadowRadius: 12,
+    elevation: 2,
     overflow: 'hidden',
     shadowColor: colors.ink,
     shadowOffset: { width: 0, height: 2 },
@@ -429,12 +439,12 @@ const st = StyleSheet.create({
     gap: 2,
   },
   rowLabel: {
-    fontFamily: 'SFProDisplay-Bold',
+    fontFamily: 'SpaceGrotesk-SemiBold',
     fontSize: 15,
     color: colors.ink,
   },
   rowSublabel: {
-    fontFamily: 'SFProDisplay-Regular',
+    fontFamily: 'Inter-Regular',
     fontSize: 12,
     color: colors.muted,
   },

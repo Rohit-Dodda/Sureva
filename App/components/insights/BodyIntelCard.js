@@ -28,7 +28,7 @@ export default React.memo(function BodyIntelCard({ body }) {
 
 const st = StyleSheet.create({
   subLabel: {
-    fontFamily: 'SFProDisplay-Bold',
+    fontFamily: 'SpaceGrotesk-SemiBold',
     fontSize: 12,
     color: colors.muted,
     letterSpacing: 0.4,
@@ -42,7 +42,7 @@ const st = StyleSheet.create({
   },
   tile: {
     flex: 1,
-    backgroundColor: colors.white,
+    backgroundColor: colors.surface,
     borderRadius: 14,
     paddingHorizontal: 10,
     paddingVertical: 12,
@@ -51,14 +51,14 @@ const st = StyleSheet.create({
     marginBottom: 6,
   },
   tileValue: {
-    fontFamily: 'SFProDisplay-Black',
+    fontFamily: 'SpaceGrotesk-Bold',
     fontSize: 19,
     color: colors.ink,
     letterSpacing: -0.5,
     marginBottom: 1,
   },
   tileLabel: {
-    fontFamily: 'SFProDisplay-Bold',
+    fontFamily: 'SpaceGrotesk-SemiBold',
     fontSize: 11,
     color: colors.muted,
     letterSpacing: 0.3,
@@ -66,7 +66,7 @@ const st = StyleSheet.create({
     marginBottom: 5,
   },
   tileNote: {
-    fontFamily: 'SFProDisplay-Regular',
+    fontFamily: 'Inter-Regular',
     fontSize: 11,
     color: colors.inkMid,
     lineHeight: 15,

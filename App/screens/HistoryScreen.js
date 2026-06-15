@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useRef } from 'react';
 import {
   View,
   Text,
@@ -13,6 +13,7 @@ import { Ionicons } from '@expo/vector-icons';
 import colors from '../constants/colors';
 import mockData from '../constants/mockData';
 import SessionDetailScreen from './SessionDetailScreen';
+import { useScrollToTop } from '../context/ScrollToTopContext';
 
 // Builds a single searchable string per session covering all searchable fields
 function buildSearchIndex(s) {
@@ -54,6 +55,13 @@ const SessionCard = React.memo(function SessionCard({ session, onPress }) {
 export default function HistoryScreen() {
   const [query, setQuery] = useState('');
   const [selectedSession, setSelectedSession] = useState(null);
+
+  const listRef = useRef(null);
+  const scrollToTop = useCallback(
+    () => listRef.current?.scrollToOffset({ offset: 0, animated: true }),
+    []
+  );
+  useScrollToTop('history', scrollToTop);
 
   const handleCardPress = useCallback((session) => setSelectedSession(session), []);
   const handleBack = useCallback(() => setSelectedSession(null), []);
@@ -100,11 +108,14 @@ export default function HistoryScreen() {
 
       {/* List */}
       <FlatList
+        ref={listRef}
         data={filtered}
         keyExtractor={(item) => item.id}
         renderItem={({ item }) => <SessionCard session={item} onPress={handleCardPress} />}
         contentContainerStyle={st.list}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
         ListEmptyComponent={
           <View style={st.empty}>
             <Ionicons name="search-outline" size={36} color={colors.border} />
@@ -116,7 +127,7 @@ export default function HistoryScreen() {
       {/* Detail overlay — always mounted when a session is selected so list shows through during swipe-back */}
       {selectedSession && (
         <View style={st.detailOverlay}>
-          <SessionDetailScreen session={selectedSession} onBack={handleBack} />
+          <SessionDetailScreen session={selectedSession} onBack={handleBack} scrollKey="history" />
         </View>
       )}
     </SafeAreaView>
@@ -126,7 +137,7 @@ export default function HistoryScreen() {
 const st = StyleSheet.create({
   safe: {
     flex: 1,
-    backgroundColor: colors.white,
+    backgroundColor: colors.canvas,
   },
   detailOverlay: {
     ...StyleSheet.absoluteFillObject,
@@ -140,13 +151,13 @@ const st = StyleSheet.create({
     paddingBottom: 4,
   },
   title: {
-    fontFamily: 'SFProDisplay-Black',
+    fontFamily: 'SpaceGrotesk-Bold',
     fontSize: 32,
     color: colors.ink,
     letterSpacing: -1,
   },
   count: {
-    fontFamily: 'SFProDisplay-Regular',
+    fontFamily: 'Inter-Regular',
     fontSize: 13,
     color: colors.muted,
   },
@@ -159,19 +170,24 @@ const st = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: colors.white,
-    borderRadius: 14,
-    borderWidth: 1.5,
+    borderRadius: 24,
+    borderWidth: 1,
     borderColor: colors.border,
-    paddingHorizontal: 14,
+    paddingHorizontal: 16,
     height: 48,
     gap: 8,
+    shadowColor: colors.ink,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    elevation: 2,
   },
   searchIcon: {
     flexShrink: 0,
   },
   searchInput: {
     flex: 1,
-    fontFamily: 'SFProDisplay-Regular',
+    fontFamily: 'Inter-Regular',
     fontSize: 14,
     color: colors.ink,
     height: '100%',
@@ -185,15 +201,15 @@ const st = StyleSheet.create({
 
   card: {
     backgroundColor: colors.white,
-    borderRadius: 18,
-    borderWidth: 1.5,
+    borderRadius: 28,
+    borderWidth: 1,
     borderColor: colors.border,
     paddingHorizontal: 18,
     paddingVertical: 16,
     shadowColor: colors.ink,
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.06,
-    shadowRadius: 8,
+    shadowRadius: 14,
     elevation: 2,
   },
   cardTop: {
@@ -203,19 +219,24 @@ const st = StyleSheet.create({
     marginBottom: 6,
   },
   envTag: {
-    fontFamily: 'SFProDisplay-Bold',
-    fontSize: 11,
-    color: colors.orange,
-    letterSpacing: 0.6,
+    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontSize: 10,
+    color: colors.orangeDark,
+    letterSpacing: 0.8,
     textTransform: 'uppercase',
+    backgroundColor: colors.orangeWash,
+    paddingHorizontal: 9,
+    paddingVertical: 3,
+    borderRadius: 10,
+    overflow: 'hidden',
   },
   cardDate: {
-    fontFamily: 'SFProDisplay-Regular',
+    fontFamily: 'Inter-Regular',
     fontSize: 13,
     color: colors.muted,
   },
   cardLocation: {
-    fontFamily: 'SFProDisplay-Bold',
+    fontFamily: 'SpaceGrotesk-SemiBold',
     fontSize: 20,
     color: colors.ink,
     letterSpacing: -0.5,
@@ -236,7 +257,7 @@ const st = StyleSheet.create({
     paddingVertical: 5,
   },
   pillText: {
-    fontFamily: 'SFProDisplay-Regular',
+    fontFamily: 'Inter-Regular',
     fontSize: 12,
     color: colors.muted,
   },
@@ -249,7 +270,7 @@ const st = StyleSheet.create({
     justifyContent: 'center',
   },
   scoreText: {
-    fontFamily: 'SFProDisplay-Bold',
+    fontFamily: 'SpaceGrotesk-SemiBold',
     fontSize: 12,
     color: colors.white,
   },
@@ -260,7 +281,7 @@ const st = StyleSheet.create({
     gap: 12,
   },
   emptyText: {
-    fontFamily: 'SFProDisplay-Regular',
+    fontFamily: 'Inter-Regular',
     fontSize: 15,
     color: colors.muted,
     textAlign: 'center',

@@ -18,6 +18,8 @@ import { fetchSignInMethodsForEmail } from 'firebase/auth';
 import { auth } from '../services/firebaseConfig';
 import colors from '../constants/colors';
 import SlideInView from '../components/SlideInView';
+import LegalDocumentModal from '../components/LegalDocumentModal';
+import { PRIVACY_POLICY, TERMS_OF_SERVICE } from '../constants/legalContent';
 
 export default function AuthScreen({ onNavigateToSignIn, onAccountCreated, prefillError }) {
   const [firstName, setFirstName] = useState('');
@@ -30,6 +32,7 @@ export default function AuthScreen({ onNavigateToSignIn, onAccountCreated, prefi
   const [tosAccepted, setTosAccepted] = useState(false);
   const [privacyAccepted, setPrivacyAccepted] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [legalDoc, setLegalDoc] = useState(null);
 
   const lastNameRef = useRef(null);
   const emailRef = useRef(null);
@@ -46,6 +49,10 @@ export default function AuthScreen({ onNavigateToSignIn, onAccountCreated, prefi
 
   const toggleTos = useCallback(() => setTosAccepted((prev) => !prev), []);
   const togglePrivacy = useCallback(() => setPrivacyAccepted((prev) => !prev), []);
+
+  const openTerms = useCallback(() => setLegalDoc(TERMS_OF_SERVICE), []);
+  const openPrivacy = useCallback(() => setLegalDoc(PRIVACY_POLICY), []);
+  const closeLegal = useCallback(() => setLegalDoc(null), []);
 
   const canSubmit = tosAccepted && privacyAccepted;
 
@@ -276,14 +283,14 @@ export default function AuthScreen({ onNavigateToSignIn, onAccountCreated, prefi
             <View style={[styles.checkbox, tosAccepted && styles.checkboxChecked]}>
               {tosAccepted && <Ionicons name="checkmark" size={14} color={colors.white} />}
             </View>
-            <Text style={styles.checkboxLabel}>I have read the <Text style={styles.checkboxLink}>Terms of Service</Text></Text>
+            <Text style={styles.checkboxLabel}>I have read the <Text style={styles.checkboxLink} onPress={openTerms}>Terms of Service</Text></Text>
           </TouchableOpacity>
 
           <TouchableOpacity style={[styles.checkboxRow, { marginBottom: 28 }]} onPress={togglePrivacy} activeOpacity={0.7}>
             <View style={[styles.checkbox, privacyAccepted && styles.checkboxChecked]}>
               {privacyAccepted && <Ionicons name="checkmark" size={14} color={colors.white} />}
             </View>
-            <Text style={styles.checkboxLabel}>I have read the <Text style={styles.checkboxLink}>Privacy Policy</Text></Text>
+            <Text style={styles.checkboxLabel}>I have read the <Text style={styles.checkboxLink} onPress={openPrivacy}>Privacy Policy</Text></Text>
           </TouchableOpacity>
           </SlideInView>
 
@@ -311,6 +318,12 @@ export default function AuthScreen({ onNavigateToSignIn, onAccountCreated, prefi
 
         </ScrollView>
       </KeyboardAvoidingView>
+
+      <LegalDocumentModal
+        visible={legalDoc !== null}
+        document={legalDoc}
+        onClose={closeLegal}
+      />
     </SafeAreaView>
   );
 }
@@ -318,7 +331,7 @@ export default function AuthScreen({ onNavigateToSignIn, onAccountCreated, prefi
 const styles = StyleSheet.create({
   safe: {
     flex: 1,
-    backgroundColor: colors.white,
+    backgroundColor: colors.canvas,
   },
   flex: {
     flex: 1,
@@ -331,14 +344,14 @@ const styles = StyleSheet.create({
   },
 
   heading: {
-    fontFamily: 'SFProDisplay-Black',
+    fontFamily: 'SpaceGrotesk-Bold',
     fontSize: 34,
     color: colors.ink,
     letterSpacing: -1,
     marginBottom: 10,
   },
   subheading: {
-    fontFamily: 'SFProDisplay-Regular',
+    fontFamily: 'Inter-Regular',
     fontSize: 15,
     color: colors.muted,
     marginBottom: 36,
@@ -362,7 +375,7 @@ const styles = StyleSheet.create({
     resizeMode: 'contain',
   },
   googleText: {
-    fontFamily: 'SFProDisplay-Bold',
+    fontFamily: 'SpaceGrotesk-SemiBold',
     fontSize: 15,
     color: colors.ink,
     letterSpacing: 0.1,
@@ -379,7 +392,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.border,
   },
   dividerLabel: {
-    fontFamily: 'SFProDisplay-Regular',
+    fontFamily: 'Inter-Regular',
     marginHorizontal: 14,
     fontSize: 13,
     color: colors.muted,
@@ -396,7 +409,7 @@ const styles = StyleSheet.create({
   },
 
   fieldLabel: {
-    fontFamily: 'SFProDisplay-Bold',
+    fontFamily: 'SpaceGrotesk-SemiBold',
     fontSize: 13,
     color: colors.ink,
     marginBottom: 6,
@@ -408,7 +421,7 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderRadius: 12,
     paddingHorizontal: 14,
-    fontFamily: 'SFProDisplay-Regular',
+    fontFamily: 'Inter-Regular',
     fontSize: 15,
     color: colors.ink,
   },
@@ -416,7 +429,7 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   errorText: {
-    fontFamily: 'SFProDisplay-Regular',
+    fontFamily: 'Inter-Regular',
     fontSize: 12,
     color: colors.danger,
     marginTop: 5,
@@ -432,7 +445,7 @@ const styles = StyleSheet.create({
   },
   passwordInput: {
     flex: 1,
-    fontFamily: 'SFProDisplay-Regular',
+    fontFamily: 'Inter-Regular',
     fontSize: 15,
     color: colors.ink,
     height: '100%',
@@ -462,20 +475,20 @@ const styles = StyleSheet.create({
     borderColor: colors.orange,
   },
   checkboxLabel: {
-    fontFamily: 'SFProDisplay-Regular',
+    fontFamily: 'Inter-Regular',
     fontSize: 14,
     color: colors.ink,
     flex: 1,
   },
   checkboxLink: {
-    fontFamily: 'SFProDisplay-Bold',
+    fontFamily: 'SpaceGrotesk-SemiBold',
     color: colors.orange,
   },
 
   ctaButton: {
     height: 56,
     backgroundColor: colors.orange,
-    borderRadius: 16,
+    borderRadius: 28,
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: colors.orange,
@@ -491,7 +504,7 @@ const styles = StyleSheet.create({
     elevation: 0,
   },
   ctaText: {
-    fontFamily: 'SFProDisplay-Bold',
+    fontFamily: 'SpaceGrotesk-SemiBold',
     fontSize: 17,
     color: colors.white,
     letterSpacing: 0.2,
@@ -503,12 +516,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   signinText: {
-    fontFamily: 'SFProDisplay-Regular',
+    fontFamily: 'Inter-Regular',
     fontSize: 14,
     color: colors.muted,
   },
   signinLink: {
-    fontFamily: 'SFProDisplay-Bold',
+    fontFamily: 'SpaceGrotesk-SemiBold',
     fontSize: 14,
     color: colors.orange,
   },

@@ -1,15 +1,28 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { View, StyleSheet } from 'react-native';
 import colors from '../constants/colors';
+import CardHeader from './CardHeader';
 
-export default React.memo(function SectionCard({ icon, title, children, style }) {
+export default React.memo(function SectionCard({
+  icon,
+  title,
+  subtitle,
+  actionIcon,
+  onActionPress,
+  headerRight,
+  children,
+  style,
+}) {
   return (
     <View style={[st.card, style]}>
-      <View style={st.titleRow}>
-        {icon ? <Ionicons name={icon} size={15} color={colors.orange} /> : null}
-        <Text style={st.title}>{title}</Text>
-      </View>
+      <CardHeader
+        icon={icon}
+        title={title}
+        subtitle={subtitle}
+        actionIcon={actionIcon}
+        onActionPress={onActionPress}
+        right={headerRight}
+      />
       {children}
     </View>
   );
@@ -18,24 +31,16 @@ export default React.memo(function SectionCard({ icon, title, children, style })
 const st = StyleSheet.create({
   card: {
     backgroundColor: colors.white,
-    borderRadius: 18,
-    borderWidth: 1.5,
+    borderRadius: 28,
+    borderWidth: 1,
     borderColor: colors.border,
     paddingHorizontal: 18,
-    paddingVertical: 16,
+    paddingVertical: 18,
     marginBottom: 14,
-  },
-  titleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 7,
-    marginBottom: 14,
-  },
-  title: {
-    fontFamily: 'SFProDisplay-Bold',
-    fontSize: 12,
-    color: colors.muted,
-    letterSpacing: 0.8,
-    textTransform: 'uppercase',
+    shadowColor: colors.ink,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.06,
+    shadowRadius: 14,
+    elevation: 2,
   },
 });

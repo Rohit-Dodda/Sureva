@@ -26,13 +26,31 @@ import PatternCard from '../components/sessionDetail/PatternCard';
 import PreventedCard from '../components/sessionDetail/PreventedCard';
 import SurevaTakeCard from '../components/sessionDetail/SurevaTakeCard';
 import SlideInView, { IOS_EASE_OUT } from '../components/SlideInView';
+import { useTabSwipeLock } from '../context/SwipeNavContext';
+import { useScrollToTop } from '../context/ScrollToTopContext';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const SWIPE_THRESHOLD = 80;
+// Same spring the root TabPager uses, so swipe-back feels identical to tab paging.
+const SPRING = { stiffness: 210, damping: 32, mass: 1, useNativeDriver: true };
+// Matches the Settings screen's back-button slide-out (timed ease-out, not a spring).
+const EASE_OUT = Easing.bezier(0.23, 1, 0.32, 1);
 
-export default function SessionDetailScreen({ session, onBack }) {
+export default function SessionDetailScreen({ session, onBack, scrollKey }) {
   const translateX = useRef(new Animated.Value(SCREEN_WIDTH)).current;
   const detail = mockData.sessionDetails[session.id];
+
+  // Own the back gesture while open so the root tab-swipe can't fire underneath
+  // (a rightward swipe on a tab would otherwise jump to the previous tab).
+  useTabSwipeLock();
+
+  // While open, this overlay handles double-tap-to-top for its parent tab.
+  const scrollRef = useRef(null);
+  const scrollToTop = useCallback(
+    () => scrollRef.current?.scrollTo({ y: 0, animated: true }),
+    []
+  );
+  useScrollToTop(scrollKey, scrollToTop);
 
   useEffect(() => {
     Animated.timing(translateX, {
@@ -43,14 +61,31 @@ export default function SessionDetailScreen({ session, onBack }) {
     }).start();
   }, [translateX]);
 
-  const dismiss = useCallback(() => {
+  const dismiss = useCallback((velocity = 0) => {
+    Animated.spring(translateX, {
+      toValue: SCREEN_WIDTH,
+      velocity: velocity * 1000, // gesture vx is px/ms; spring wants px/s
+      ...SPRING,
+    }).start(onBack);
+  }, [onBack, translateX]);
+
+  // Back-button close: same timed ease-out slide-out as the Settings screen.
+  const handleBackPress = useCallback(() => {
     Animated.timing(translateX, {
       toValue: SCREEN_WIDTH,
       duration: 260,
-      easing: Easing.in(Easing.cubic),
+      easing: EASE_OUT,
       useNativeDriver: true,
     }).start(onBack);
   }, [onBack, translateX]);
+
+  const settleOpen = useCallback((velocity = 0) => {
+    Animated.spring(translateX, {
+      toValue: 0,
+      velocity: velocity * 1000,
+      ...SPRING,
+    }).start();
+  }, [translateX]);
 
   const panResponder = useRef(
     PanResponder.create({
@@ -61,14 +96,12 @@ export default function SessionDetailScreen({ session, onBack }) {
       },
       onPanResponderRelease: (_, { dx, vx }) => {
         if (dx > SWIPE_THRESHOLD || vx > 0.5) {
-          dismiss();
+          dismiss(vx);
         } else {
-          Animated.timing(translateX, { toValue: 0, duration: 320, easing: IOS_EASE_OUT, useNativeDriver: true }).start();
+          settleOpen(vx);
         }
       },
-      onPanResponderTerminate: () => {
-        Animated.timing(translateX, { toValue: 0, duration: 320, easing: IOS_EASE_OUT, useNativeDriver: true }).start();
-      },
+      onPanResponderTerminate: () => settleOpen(),
     })
   ).current;
 
@@ -78,14 +111,14 @@ export default function SessionDetailScreen({ session, onBack }) {
         <StatusBar style="dark" />
 
         <View style={st.header}>
-          <TouchableOpacity onPress={onBack} style={st.backBtn} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
+          <TouchableOpacity onPress={handleBackPress} style={st.backBtn} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
             <Ionicons name="chevron-back" size={26} color={colors.ink} />
           </TouchableOpacity>
           <Text style={st.headerTitle}>Session Details</Text>
           <View style={st.backBtn} />
         </View>
 
-        <ScrollView contentContainerStyle={st.scroll} showsVerticalScrollIndicator={false}>
+        <ScrollView ref={scrollRef} contentContainerStyle={st.scroll} showsVerticalScrollIndicator={false}>
           <SlideInView delay={140}>
             <View style={st.hero}>
               <Text style={st.location}>{session.location}</Text>
@@ -134,7 +167,7 @@ const st = StyleSheet.create({
   },
   safe: {
     flex: 1,
-    backgroundColor: colors.white,
+    backgroundColor: colors.canvas,
   },
   header: {
     flexDirection: 'row',
@@ -142,16 +175,14 @@ const st = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 20,
     paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-    backgroundColor: colors.white,
+    backgroundColor: colors.canvas,
   },
   backBtn: {
     width: 36,
     alignItems: 'flex-start',
   },
   headerTitle: {
-    fontFamily: 'SFProDisplay-Bold',
+    fontFamily: 'SpaceGrotesk-SemiBold',
     fontSize: 17,
     color: colors.ink,
     letterSpacing: -0.2,
@@ -165,27 +196,33 @@ const st = StyleSheet.create({
     marginBottom: 20,
   },
   location: {
-    fontFamily: 'SFProDisplay-Black',
+    fontFamily: 'SpaceGrotesk-Bold',
     fontSize: 28,
     color: colors.ink,
     letterSpacing: -0.8,
     marginBottom: 6,
   },
   envTag: {
-    fontFamily: 'SFProDisplay-Bold',
-    fontSize: 12,
-    color: colors.orange,
-    letterSpacing: 0.5,
+    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontSize: 11,
+    color: colors.orangeDark,
+    letterSpacing: 0.8,
     textTransform: 'uppercase',
-    marginBottom: 4,
+    backgroundColor: colors.orangeWash,
+    alignSelf: 'flex-start',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    overflow: 'hidden',
+    marginBottom: 6,
   },
   dateStr: {
-    fontFamily: 'SFProDisplay-Regular',
+    fontFamily: 'Inter-Regular',
     fontSize: 13,
     color: colors.muted,
   },
   empty: {
-    fontFamily: 'SFProDisplay-Regular',
+    fontFamily: 'Inter-Regular',
     fontSize: 14,
     color: colors.muted,
     textAlign: 'center',

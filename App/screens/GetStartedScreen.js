@@ -210,7 +210,7 @@ const R4 = 280;
 const styles = StyleSheet.create({
   safe: {
     flex: 1,
-    backgroundColor: colors.white,
+    backgroundColor: colors.canvas,
   },
   screenWrap: {
     flex: 1,
@@ -354,7 +354,7 @@ const styles = StyleSheet.create({
     paddingTop: 48,
   },
   heading: {
-    fontFamily: 'SFProDisplay-Black',
+    fontFamily: 'SpaceGrotesk-Bold',
     fontSize: 38,
     color: colors.ink,
     letterSpacing: -1.2,
@@ -362,7 +362,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   sub: {
-    fontFamily: 'SFProDisplay-Regular',
+    fontFamily: 'Inter-Regular',
     fontSize: 17,
     color: colors.muted,
     lineHeight: 26,
@@ -374,7 +374,7 @@ const styles = StyleSheet.create({
   btn: {
     height: 58,
     backgroundColor: colors.orange,
-    borderRadius: 18,
+    borderRadius: 29,
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: colors.orange,
@@ -384,7 +384,7 @@ const styles = StyleSheet.create({
     elevation: 5,
   },
   btnText: {
-    fontFamily: 'SFProDisplay-Bold',
+    fontFamily: 'SpaceGrotesk-SemiBold',
     fontSize: 17,
     color: colors.white,
     letterSpacing: 0.2,

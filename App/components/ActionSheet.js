@@ -133,7 +133,7 @@ const st = StyleSheet.create({
     borderBottomColor: colors.border,
   },
   optionLabel: {
-    fontFamily: 'SFProDisplay-Regular',
+    fontFamily: 'Inter-Regular',
     fontSize: 17,
     color: colors.ink,
   },
@@ -149,7 +149,7 @@ const st = StyleSheet.create({
     alignItems: 'center',
   },
   cancelLabel: {
-    fontFamily: 'SFProDisplay-Bold',
+    fontFamily: 'SpaceGrotesk-SemiBold',
     fontSize: 17,
     color: colors.ink,
   },

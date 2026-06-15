@@ -55,7 +55,7 @@ const st = StyleSheet.create({
     marginTop: 2,
   },
   rowText: {
-    fontFamily: 'SFProDisplay-Regular',
+    fontFamily: 'Inter-Regular',
     fontSize: 13,
     color: colors.inkMid,
     lineHeight: 19,
@@ -65,7 +65,7 @@ const st = StyleSheet.create({
     marginTop: 2,
   },
   doseLabel: {
-    fontFamily: 'SFProDisplay-Bold',
+    fontFamily: 'SpaceGrotesk-SemiBold',
     fontSize: 12,
     color: colors.muted,
     letterSpacing: 0.4,
@@ -84,7 +84,7 @@ const st = StyleSheet.create({
     borderRadius: 4,
   },
   doseText: {
-    fontFamily: 'SFProDisplay-Regular',
+    fontFamily: 'Inter-Regular',
     fontSize: 13,
     color: colors.inkMid,
     lineHeight: 19,

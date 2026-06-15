@@ -99,7 +99,7 @@ const st = StyleSheet.create({
     paddingVertical: 24,
   },
   title: {
-    fontFamily: 'SFProDisplay-Black',
+    fontFamily: 'SpaceGrotesk-Bold',
     fontSize: 20,
     color: colors.ink,
     letterSpacing: -0.5,
@@ -122,19 +122,19 @@ const st = StyleSheet.create({
     flex: 1,
   },
   rowTitle: {
-    fontFamily: 'SFProDisplay-Bold',
+    fontFamily: 'SpaceGrotesk-SemiBold',
     fontSize: 14,
     color: colors.ink,
     marginBottom: 2,
   },
   rowText: {
-    fontFamily: 'SFProDisplay-Regular',
+    fontFamily: 'Inter-Regular',
     fontSize: 13,
     color: colors.inkMid,
     lineHeight: 18,
   },
   legendTitle: {
-    fontFamily: 'SFProDisplay-Bold',
+    fontFamily: 'SpaceGrotesk-SemiBold',
     fontSize: 12,
     color: colors.muted,
     letterSpacing: 0.5,
@@ -162,7 +162,7 @@ const st = StyleSheet.create({
     borderRadius: 4,
   },
   legendText: {
-    fontFamily: 'SFProDisplay-Bold',
+    fontFamily: 'SpaceGrotesk-SemiBold',
     fontSize: 12,
     color: colors.inkMid,
   },
@@ -173,7 +173,7 @@ const st = StyleSheet.create({
     alignItems: 'center',
   },
   buttonText: {
-    fontFamily: 'SFProDisplay-Bold',
+    fontFamily: 'SpaceGrotesk-SemiBold',
     fontSize: 15,
     color: colors.white,
   },

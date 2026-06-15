@@ -79,25 +79,25 @@ const st = StyleSheet.create({
     flex: 1,
   },
   momentTitle: {
-    fontFamily: 'SFProDisplay-Bold',
+    fontFamily: 'SpaceGrotesk-SemiBold',
     fontSize: 13,
     color: colors.ink,
     marginBottom: 3,
   },
   momentText: {
-    fontFamily: 'SFProDisplay-Regular',
+    fontFamily: 'Inter-Regular',
     fontSize: 13,
     color: colors.inkMid,
     lineHeight: 19,
   },
   waterBlock: {
-    backgroundColor: colors.white,
+    backgroundColor: colors.surface,
     borderRadius: 12,
     paddingHorizontal: 14,
     paddingVertical: 12,
   },
   waterLabel: {
-    fontFamily: 'SFProDisplay-Bold',
+    fontFamily: 'SpaceGrotesk-SemiBold',
     fontSize: 12,
     color: colors.muted,
     letterSpacing: 0.4,
@@ -112,7 +112,7 @@ const st = StyleSheet.create({
     borderTopColor: colors.surface,
   },
   waterTime: {
-    fontFamily: 'SFProDisplay-Bold',
+    fontFamily: 'SpaceGrotesk-SemiBold',
     fontSize: 13,
     color: colors.ink,
     width: 72,
@@ -127,7 +127,7 @@ const st = StyleSheet.create({
     backgroundColor: colors.orange,
   },
   waterTagText: {
-    fontFamily: 'SFProDisplay-Bold',
+    fontFamily: 'SpaceGrotesk-SemiBold',
     fontSize: 11,
     color: colors.orange,
   },
@@ -135,7 +135,7 @@ const st = StyleSheet.create({
     color: colors.white,
   },
   waterCut: {
-    fontFamily: 'SFProDisplay-Bold',
+    fontFamily: 'SpaceGrotesk-SemiBold',
     fontSize: 13,
     color: colors.danger,
     flex: 1,

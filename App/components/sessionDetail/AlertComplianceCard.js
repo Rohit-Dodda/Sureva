@@ -39,13 +39,13 @@ const st = StyleSheet.create({
     marginBottom: 12,
   },
   countNumber: {
-    fontFamily: 'SFProDisplay-Black',
+    fontFamily: 'SpaceGrotesk-Bold',
     fontSize: 30,
     color: colors.ink,
     letterSpacing: -1,
   },
   countLabel: {
-    fontFamily: 'SFProDisplay-Regular',
+    fontFamily: 'Inter-Regular',
     fontSize: 14,
     color: colors.muted,
   },
@@ -58,13 +58,13 @@ const st = StyleSheet.create({
     borderTopColor: colors.surface,
   },
   alertId: {
-    fontFamily: 'SFProDisplay-Bold',
+    fontFamily: 'SpaceGrotesk-SemiBold',
     fontSize: 13,
     color: colors.ink,
     width: 56,
   },
   alertDetail: {
-    fontFamily: 'SFProDisplay-Regular',
+    fontFamily: 'Inter-Regular',
     fontSize: 13,
     color: colors.inkMid,
     flex: 1,
@@ -72,17 +72,17 @@ const st = StyleSheet.create({
   },
   alertDetailMissed: {
     color: colors.danger,
-    fontFamily: 'SFProDisplay-Bold',
+    fontFamily: 'SpaceGrotesk-SemiBold',
   },
   ratingBlock: {
-    backgroundColor: colors.white,
+    backgroundColor: colors.surface,
     borderRadius: 12,
     paddingHorizontal: 14,
     paddingVertical: 12,
     marginTop: 12,
   },
   ratingText: {
-    fontFamily: 'SFProDisplay-Bold',
+    fontFamily: 'SpaceGrotesk-SemiBold',
     fontSize: 13,
     color: colors.ink,
     lineHeight: 19,

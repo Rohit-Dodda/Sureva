@@ -179,24 +179,6 @@ function CheckmarkAnimation() {
   );
 }
 
-// ─── Debug state strip (DEV only) ────────────────────────────
-const DEBUG_STATES = [
-  'instructions', 'scanning', 'deviceFound',
-  'connecting', 'connected', 'error', 'bluetoothOff',
-];
-
-const DebugStateButtons = React.memo(function DebugStateButtons({ onSetState }) {
-  return (
-    <View style={dbgStyles.strip}>
-      {DEBUG_STATES.map((s) => (
-        <TouchableOpacity key={s} style={dbgStyles.btn} onPress={() => onSetState(s)} activeOpacity={0.6}>
-          <Text style={dbgStyles.label}>{s}</Text>
-        </TouchableOpacity>
-      ))}
-    </View>
-  );
-});
-
 // ─── Main screen ──────────────────────────────────────────────
 export default function BluetoothPairingScreen({ onComplete }) {
   const [pairingState,   setPairingState  ] = useState('instructions');
@@ -243,11 +225,6 @@ export default function BluetoothPairingScreen({ onComplete }) {
   const handleGetStarted = useCallback(() => {
     onComplete && onComplete({ connected: true });
   }, [onComplete]);
-
-  const handleDebugState = useCallback((s) => {
-    clearTimers();
-    setPairingState(s);
-  }, [clearTimers]);
 
   // ── Content ─────────────────────────────────────────────────
   const renderContent = () => {
@@ -405,7 +382,6 @@ export default function BluetoothPairingScreen({ onComplete }) {
       <StatusBar style="dark" />
       {renderContent()}
       {renderFooter()}
-      {__DEV__ && <DebugStateButtons onSetState={handleDebugState} />}
     </SafeAreaView>
   );
 }
@@ -543,37 +519,11 @@ const checkStyles = StyleSheet.create({
   },
 });
 
-// ─── Debug strip styles ───────────────────────────────────────
-const dbgStyles = StyleSheet.create({
-  strip: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'center',
-    gap: 5,
-    paddingHorizontal: 12,
-    paddingBottom: 10,
-  },
-  btn: {
-    paddingHorizontal: 9,
-    paddingVertical: 4,
-    borderRadius: 6,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  label: {
-    fontFamily: 'SFProDisplay-Regular',
-    fontSize: 9,
-    color: colors.muted,
-    letterSpacing: 0.2,
-  },
-});
-
 // ─── Screen styles ────────────────────────────────────────────
 const styles = StyleSheet.create({
   safe: {
     flex: 1,
-    backgroundColor: colors.white,
+    backgroundColor: colors.canvas,
   },
   content: {
     flex: 1,
@@ -595,7 +545,7 @@ const styles = StyleSheet.create({
     marginBottom: 28,
   },
   heading: {
-    fontFamily: 'SFProDisplay-Black',
+    fontFamily: 'SpaceGrotesk-Bold',
     fontSize: 36,
     color: colors.ink,
     letterSpacing: -1.1,
@@ -604,7 +554,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   sub: {
-    fontFamily: 'SFProDisplay-Regular',
+    fontFamily: 'Inter-Regular',
     fontSize: 16,
     color: colors.muted,
     lineHeight: 25,
@@ -612,7 +562,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   scanLabel: {
-    fontFamily: 'SFProDisplay-Regular',
+    fontFamily: 'Inter-Regular',
     fontSize: 15,
     color: colors.muted,
     marginBottom: 32,
@@ -651,7 +601,7 @@ const styles = StyleSheet.create({
   },
   deviceName: {
     flex: 1,
-    fontFamily: 'SFProDisplay-Bold',
+    fontFamily: 'SpaceGrotesk-SemiBold',
     fontSize: 15,
     color: colors.ink,
   },
@@ -694,7 +644,7 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
   },
   statusIconGlyph: {
-    fontFamily: 'SFProDisplay-Black',
+    fontFamily: 'SpaceGrotesk-Bold',
     fontSize: 30,
   },
   statusGlyphWarning: {
@@ -715,7 +665,7 @@ const styles = StyleSheet.create({
   },
   primaryBtn: {
     height: 58,
-    borderRadius: 18,
+    borderRadius: 29,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.orange,
@@ -726,7 +676,7 @@ const styles = StyleSheet.create({
     elevation: 5,
   },
   primaryBtnText: {
-    fontFamily: 'SFProDisplay-Bold',
+    fontFamily: 'SpaceGrotesk-SemiBold',
     fontSize: 17,
     color: colors.white,
     letterSpacing: 0.2,
@@ -737,7 +687,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   ghostBtnText: {
-    fontFamily: 'SFProDisplay-Regular',
+    fontFamily: 'Inter-Regular',
     fontSize: 14,
     color: colors.muted,
     letterSpacing: 0.1,

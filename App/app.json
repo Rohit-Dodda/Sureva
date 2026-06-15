@@ -30,6 +30,12 @@
       "expo-font",
       "expo-web-browser",
       [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Sureva uses your location to detect your environment (beach, snow, urban, etc.) so UV reflection is calculated accurately."
+        }
+      ],
+      [
         "expo-image-picker",
         {
           "photosPermission": "Sureva needs access to your photos to update your profile picture.",

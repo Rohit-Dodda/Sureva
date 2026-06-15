@@ -55,7 +55,7 @@ const st = StyleSheet.create({
     flex: 1,
   },
   riskLabel: {
-    fontFamily: 'SFProDisplay-Regular',
+    fontFamily: 'Inter-Regular',
     fontSize: 11,
     color: colors.surface,
     letterSpacing: 0.4,
@@ -63,13 +63,13 @@ const st = StyleSheet.create({
     marginBottom: 1,
   },
   riskValue: {
-    fontFamily: 'SFProDisplay-Black',
+    fontFamily: 'SpaceGrotesk-Bold',
     fontSize: 20,
     color: colors.white,
     letterSpacing: -0.4,
   },
   riskText: {
-    fontFamily: 'SFProDisplay-Regular',
+    fontFamily: 'Inter-Regular',
     fontSize: 13,
     color: colors.inkMid,
     lineHeight: 19,
@@ -86,7 +86,7 @@ const st = StyleSheet.create({
     marginTop: 2,
   },
   windowText: {
-    fontFamily: 'SFProDisplay-Bold',
+    fontFamily: 'SpaceGrotesk-SemiBold',
     fontSize: 13,
     color: colors.orange,
     lineHeight: 19,

@@ -1,4 +1,51 @@
+// Deterministic pseudo-random daily MED doses for trend charts.
+// ~35% of days are zero (no outdoor session), the rest scale seasonally.
+function genMonthDays(seed, scale, len) {
+  return Array.from({ length: len }, (_, i) => {
+    const v = Math.abs(Math.sin(seed * 12.9898 + i * 1.7));
+    return v < 0.35 ? 0 : +(v * scale).toFixed(2);
+  });
+}
+
+const TREND_MONTHS = [
+  { id: 'jan', label: 'January',  short: 'Jan', days: genMonthDays(1, 0.45, 31),
+    insight: 'Winter baseline — your average daily dose was 0.2 MEDs and you never crossed half your daily limit. Low UV did most of the protecting for you.' },
+  { id: 'feb', label: 'February', short: 'Feb', days: genMonthDays(2, 0.5, 28),
+    insight: 'Quiet month with one outlier: your Feb 21 ski day delivered 3x your winter daily average. Snow reflection is the only winter condition that can burn you.' },
+  { id: 'mar', label: 'March',    short: 'Mar', days: genMonthDays(3, 0.65, 31),
+    insight: 'Spring ramp-up began — your daily average rose 28% over February as UV climbed, but your session frequency rose faster than your dose. Good sign: more time outside, managed exposure.' },
+  { id: 'apr', label: 'April',    short: 'Apr', days: genMonthDays(4, 0.9, 30),
+    insight: 'April was your turning point: first month above 6 MEDs total. Your skin’s depletion rate also began its seasonal acceleration — reapplication windows started shrinking here.' },
+  { id: 'may', label: 'May',      short: 'May', days: genMonthDays(5, 1.15, 31),
+    insight: 'Your heaviest full month so far — 3 beach days drove 40% of the monthly dose. Your weekday exposure stayed flat; weekends are where May got expensive.' },
+  { id: 'jun', label: 'June',     short: 'Jun', days: genMonthDays(6, 1.4, 12), partial: true,
+    insight: 'June is tracking 22% hotter per day than May. At this pace you’ll hit your highest monthly dose of the year — July and August will demand SPF 50 as your default.' },
+];
+
 const mockData = {
+  trends: {
+    dayLabels: ['M', 'T', 'W', 'T', 'F', 'S', 'S'],
+    weeks: [
+      { id: 'jun8',  label: 'Jun 8 – 14',  days: [0.4, 0, 1.1, 0.6, 0, 1.6, 0.8],
+        insight: 'Saturday drove 36% of this week’s dose — your weekend sessions consistently run hotter than weekdays. Wednesday was your most efficient day: high UV, 91% protected time.' },
+      { id: 'jun1',  label: 'Jun 1 – 7',   days: [0.7, 0.5, 0, 1.2, 0.4, 1.8, 1.1],
+        insight: 'Your Malibu session on Saturday was the week’s biggest dose, but also your best-scored — both alerts answered inside six minutes. Volume isn’t your problem; midday timing is.' },
+      { id: 'may25', label: 'May 25 – 31', days: [0.3, 0.6, 0.9, 0, 0.5, 1.4, 0.7],
+        insight: 'A balanced week — no single day above 1.5 MEDs and zero red-zone time. Weeks shaped like this are what keep your seasonal totals on budget.' },
+      { id: 'may18', label: 'May 18 – 24', days: [0.5, 0, 0.4, 0.8, 0.6, 1.1, 0],
+        insight: 'Your Santa Monica Pier session on Wednesday included your only ignored alert this month — 22 unprotected minutes that accounted for a third of the week’s dose.' },
+    ],
+    months: TREND_MONTHS,
+    year: {
+      label: '2026',
+      months: [
+        ...TREND_MONTHS.map((m) => ({ label: m.short[0], meds: +m.days.reduce((a, b) => a + b, 0).toFixed(1) })),
+        { label: 'J', meds: null }, { label: 'A', meds: null }, { label: 'S', meds: null },
+        { label: 'O', meds: null }, { label: 'N', meds: null }, { label: 'D', meds: null },
+      ],
+      insight: 'Halfway through 2026 you’ve accumulated well under the pace dermatologists flag for photoaging — and your dose per outdoor hour is falling even as UV rises, which means your habits are outpacing the season. July is historically your riskiest month: last year it alone was 2.1x your winter baseline.',
+    },
+  },
   sessions: [
     {
       id: '1',
@@ -406,6 +453,68 @@ const mockData = {
       { label: 'Sat', uvDose: 0 },
       { label: 'Sun', uvDose: 0 },
     ],
+  },
+  // ─── Forecast & Planning ──────────────────────────────────────
+  // Personalized to the user's skin profile (Fitzpatrick + 23% faster
+  // depletion). UV figures are sourced as if from a weather/UV API for the
+  // user's location; risk bands are computed against THEIR thresholds, not
+  // population averages. Today: Sat Jun 14, 2026.
+  forecast: {
+    location: 'Los Angeles, CA',
+    updated: '9:42 AM',
+    today: {
+      peakWindow: { start: '11 AM', end: '2 PM' },
+      peakUV: 9,
+      // Personal high-risk UV threshold for this user (lower than the
+      // population "high" cutoff because their skin depletes faster).
+      personalRiskUV: 6,
+      riskLine:
+        'Peak UV hits between 11am and 2pm today. Based on your skin, that window is high risk for you.',
+      hourly: [
+        { hour: '6a', uv: 0 },
+        { hour: '7a', uv: 1 },
+        { hour: '8a', uv: 2 },
+        { hour: '9a', uv: 4 },
+        { hour: '10a', uv: 6 },
+        { hour: '11a', uv: 8 },
+        { hour: '12p', uv: 9 },
+        { hour: '1p', uv: 9 },
+        { hour: '2p', uv: 8 },
+        { hour: '3p', uv: 6 },
+        { hour: '4p', uv: 4 },
+        { hour: '5p', uv: 3 },
+        { hour: '6p', uv: 1 },
+        { hour: '7p', uv: 0 },
+      ],
+      bestTime: 'Before 10am or after 4pm for lower UV exposure today.',
+    },
+    recommendedSetup: {
+      spf: 'SPF 50+',
+      waterResistant: true,
+      reapplyMinutes: 75,
+      line: "For today's conditions, we recommend SPF 50+, water-resistant if you'll be active, and reapplication every 75 minutes.",
+      factors: [
+        { icon: 'sunny-outline', label: 'Peak UV 9', detail: 'Very high for your skin' },
+        { icon: 'thermometer-outline', label: '31°C', detail: 'Above your 29°C threshold' },
+        { icon: 'water-outline', label: '64% humidity', detail: 'Sweat displaces film sooner' },
+      ],
+    },
+    // 7-day outlook. level is computed for THIS user: low / moderate / high.
+    week: [
+      { label: 'Sat', date: 14, peakUV: 9, level: 'high', isToday: true },
+      { label: 'Sun', date: 15, peakUV: 10, level: 'high', isToday: false },
+      { label: 'Mon', date: 16, peakUV: 7, level: 'high', isToday: false },
+      { label: 'Tue', date: 17, peakUV: 5, level: 'moderate', isToday: false },
+      { label: 'Wed', date: 18, peakUV: 3, level: 'moderate', isToday: false },
+      { label: 'Thu', date: 19, peakUV: 2, level: 'low', isToday: false },
+      { label: 'Fri', date: 20, peakUV: 6, level: 'high', isToday: false },
+    ],
+    alert: {
+      active: true,
+      title: 'High-risk day tomorrow',
+      line: "Tomorrow's conditions are your highest-risk combination based on your history. We recommend SPF 50 and planning reapplication at the 60-minute mark.",
+      reapplyMinutes: 60,
+    },
   },
 };
 

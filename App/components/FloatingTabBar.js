@@ -1,7 +1,8 @@
 import React, { useRef, useCallback } from 'react';
 import {
-  Pressable, Animated, StyleSheet, Dimensions,
+  Pressable, View, Animated, StyleSheet, Dimensions, Platform,
 } from 'react-native';
+import { BlurView } from 'expo-blur';
 import { Ionicons } from '@expo/vector-icons';
 import colors from '../constants/colors';
 
@@ -9,6 +10,7 @@ const SCREEN_WIDTH = Dimensions.get('window').width;
 
 const TABS = [
   { key: 'home',     iconDefault: 'home-outline',      iconActive: 'home' },
+  { key: 'forecast', iconDefault: 'partly-sunny-outline', iconActive: 'partly-sunny' },
   { key: 'history',  iconDefault: 'time-outline',       iconActive: 'time' },
   { key: 'insights', iconDefault: 'bar-chart-outline',  iconActive: 'bar-chart' },
 ];
@@ -52,7 +54,7 @@ const TabItem = React.memo(function TabItem({ tab, isActive, onPress }) {
         <Ionicons
           name={isActive ? tab.iconActive : tab.iconDefault}
           size={25}
-          color={isActive ? colors.white : 'rgba(255,255,255,0.38)'}
+          color={isActive ? '#FFFFFF' : 'rgba(255,255,255,0.70)'}
         />
       </Animated.View>
     </Pressable>
@@ -83,6 +85,16 @@ export default function FloatingTabBar({ activeTab, onTabPress }) {
 
   return (
     <Animated.View style={st.pill}>
+      {/* Frosted glass layer */}
+      <BlurView
+        intensity={Platform.OS === 'android' ? 30 : 22}
+        tint="light"
+        experimentalBlurMethod="dimezisBlurView"
+        style={StyleSheet.absoluteFill}
+      />
+      {/* Orange glass tint over the blur */}
+      <View pointerEvents="none" style={st.tint} />
+
       {/* Glow overlay — flashes on press */}
       <Animated.View
         style={[st.glowOverlay, { opacity: glowOpacity }]}
@@ -109,19 +121,23 @@ const st = StyleSheet.create({
     alignSelf: 'center',
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(26,24,21,0.72)',
+    backgroundColor: 'transparent',
     borderRadius: 50,
     width: SCREEN_WIDTH * 0.74,
     paddingHorizontal: 8,
     paddingVertical: 5,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.07)',
-    shadowColor: '#000',
+    borderColor: 'rgba(255,255,255,0.30)',
+    shadowColor: colors.orangeDark,
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.40,
     shadowRadius: 24,
     elevation: 14,
     overflow: 'hidden',
+  },
+  tint: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(178,58,12,0.42)',
   },
   glowOverlay: {
     ...StyleSheet.absoluteFillObject,
@@ -140,8 +156,8 @@ const st = StyleSheet.create({
     justifyContent: 'center',
   },
   iconWrapActive: {
-    backgroundColor: 'rgba(255,255,255,0.18)',
+    backgroundColor: 'rgba(255,255,255,0.22)',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.22)',
+    borderColor: 'rgba(255,255,255,0.40)',
   },
 });

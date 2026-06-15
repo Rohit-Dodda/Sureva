@@ -1,97 +1,37 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import React, { useState, useRef, useCallback, useMemo } from 'react';
 import {
-  View, Text, TouchableOpacity, Modal, Animated,
+  View, Text, TouchableOpacity, Modal, Animated, ScrollView,
   SafeAreaView, StyleSheet, Dimensions,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons } from '@expo/vector-icons';
 import colors from '../constants/colors';
 import mockData from '../constants/mockData';
-import ProtectionGauge, { gaugeColor } from '../components/ProtectionGauge';
+import SlideInView from '../components/SlideInView';
+import SessionHero from '../components/activeSession/SessionHero';
+import SessionSparkline from '../components/activeSession/SessionSparkline';
+import ExposureBattery from '../components/activeSession/ExposureBattery';
+import DriverCard from '../components/activeSession/DriverCard';
+import StatStrip from '../components/activeSession/StatStrip';
+import SessionActions from '../components/activeSession/SessionActions';
+import {
+  protectionAt, buildCurve, uvDoseFraction, statusFor,
+  uvIndexColor, keyDriver, formatElapsed,
+} from '../components/activeSession/sessionMath';
 
 const { width: SCREEN_W } = Dimensions.get('window');
-const GAUGE_SIZE = Math.round(SCREEN_W * 0.76);
-
-// ─── Helpers ──────────────────────────────────────────────────
-function formatElapsed(seconds) {
-  const h = Math.floor(seconds / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
-  const s = seconds % 60;
-  const mm = String(m).padStart(2, '0');
-  const ss = String(s).padStart(2, '0');
-  return h > 0 ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
-}
-
-// ─── Depletion helpers ────────────────────────────────────────
-const UV_BASELINE = 7;
-
-function computeSession(elapsedSinceReapply, sessionParams) {
-  const { waterResistance, spf } = sessionParams;
-  const uvIndex    = mockData.conditions.uvIndex;
-  const spfBonus   = spf >= 50 ? 1.15 : 1.0;
-  const totalMins  = (waterResistance * (UV_BASELINE / uvIndex)) * spfBonus;
-  const elapsedMins    = elapsedSinceReapply / 60;
-  const protectionPct  = Math.max(0, 100 - (elapsedMins / totalMins) * 100);
-  const minsRemaining  = Math.max(0, Math.round(totalMins - elapsedMins));
-  return { protectionPct, minsRemaining };
-}
-
-function uvIndexColor(uvi) {
-  if (uvi >= 8) return colors.danger;
-  if (uvi >= 3) return colors.warning;
-  return colors.protected;
-}
-
-function getKeyDriver(uvIndex, environment) {
-  if (environment === 'Beach / Water') return 'Water activity is your main depletion factor';
-  if (environment === 'Snow / Mountains') return 'Snow reflection is amplifying your UV exposure';
-  if (uvIndex >= 8) return 'High UV is your main depletion factor right now';
-  if (uvIndex >= 5) return 'Moderate UV is the primary driver of depletion';
-  return 'Low UV — your protection is holding well';
-}
-
-// ─── Conditions strip ─────────────────────────────────────────
-const ConditionsStrip = React.memo(function ConditionsStrip() {
-  const { uvIndex, temperature, humidity, activity } = mockData.conditions;
-  const tiles = [
-    { label: 'UV Index',  value: uvIndex.toFixed(1), color: uvIndexColor(uvIndex) },
-    { label: 'Temp',      value: `${temperature}°`,  color: colors.ink },
-    { label: 'Humidity',  value: `${humidity}%`,     color: colors.ink },
-    { label: 'Activity',  value: activity,            color: colors.ink },
-  ];
-  return (
-    <View style={cndSt.row}>
-      {tiles.map((tile, i) => (
-        <View key={tile.label} style={[cndSt.tile, i < tiles.length - 1 && cndSt.tileDivider]}>
-          <Text style={[cndSt.val, { color: tile.color }]}>{tile.value}</Text>
-          <Text style={cndSt.label}>{tile.label}</Text>
-        </View>
-      ))}
-    </View>
-  );
-});
-
-// ─── Gauge center content ─────────────────────────────────────
-const GaugeCenter = React.memo(function GaugeCenter({ percent, minsRemaining, keyDriver }) {
-  const color = gaugeColor(percent);
-  return (
-    <View style={gcSt.wrap}>
-      <Text style={[gcSt.pct, { color }]}>{Math.round(percent)}%</Text>
-      <Text style={gcSt.sub}>Protection remaining</Text>
-      <Text style={[gcSt.time, { color }]}>~{minsRemaining} min until reapplication</Text>
-      <Text style={gcSt.driver} numberOfLines={2}>{keyDriver}</Text>
-    </View>
-  );
-});
+const GAUGE_SIZE = Math.round(SCREEN_W * 0.58);
 
 // ─── End session confirmation modal ──────────────────────────
 const EndSessionModal = React.memo(function EndSessionModal({ visible, onConfirm, onCancel }) {
-  const scaleAnim  = useRef(new Animated.Value(0.88)).current;
-  const opacAnim   = useRef(new Animated.Value(0)).current;
+  const scaleAnim = useRef(new Animated.Value(0.88)).current;
+  const opacAnim = useRef(new Animated.Value(0)).current;
 
-  useEffect(() => {
+  React.useEffect(() => {
     if (visible) {
       Animated.parallel([
-        Animated.timing(opacAnim,  { toValue: 1,    duration: 180, useNativeDriver: true }),
+        Animated.timing(opacAnim, { toValue: 1, duration: 180, useNativeDriver: true }),
         Animated.spring(scaleAnim, { toValue: 1, tension: 120, friction: 10, useNativeDriver: true }),
       ]).start();
     } else {
@@ -110,9 +50,7 @@ const EndSessionModal = React.memo(function EndSessionModal({ visible, onConfirm
       <View style={esSt.centerWrap} pointerEvents="box-none">
         <Animated.View style={[esSt.card, { opacity: opacAnim, transform: [{ scale: scaleAnim }] }]}>
           <Text style={esSt.title}>End this session?</Text>
-          <Text style={esSt.body}>
-            Your session data will be saved and you'll get a summary.
-          </Text>
+          <Text style={esSt.body}>Your session data will be saved and you'll get a summary.</Text>
           <View style={esSt.btnRow}>
             <TouchableOpacity style={esSt.cancelBtn} onPress={onCancel} activeOpacity={0.7}>
               <Text style={esSt.cancelText}>Keep going</Text>
@@ -130,28 +68,16 @@ const EndSessionModal = React.memo(function EndSessionModal({ visible, onConfirm
 // ─── Top bar ──────────────────────────────────────────────────
 const SessionTopBar = React.memo(function SessionTopBar({ elapsed, onBack, onEndRequest }) {
   const backScale = useRef(new Animated.Value(1)).current;
-
-  const onBackPressIn  = () => Animated.spring(backScale, { toValue: 0.88, useNativeDriver: true, tension: 280, friction: 12 }).start();
-  const onBackPressOut = () => Animated.spring(backScale, { toValue: 1,    useNativeDriver: true, tension: 200, friction: 10 }).start();
+  const onIn = () => Animated.spring(backScale, { toValue: 0.88, useNativeDriver: true, tension: 280, friction: 12 }).start();
+  const onOut = () => Animated.spring(backScale, { toValue: 1, useNativeDriver: true, tension: 200, friction: 10 }).start();
 
   return (
     <View style={tbSt.bar}>
-      {/* Back arrow */}
-      <TouchableOpacity
-        onPress={onBack}
-        onPressIn={onBackPressIn}
-        onPressOut={onBackPressOut}
-        hitSlop={12}
-        activeOpacity={1}
-      >
+      <TouchableOpacity onPress={onBack} onPressIn={onIn} onPressOut={onOut} hitSlop={12} activeOpacity={1}>
         <Animated.View style={[tbSt.backBtn, { transform: [{ scale: backScale }] }]}>
-          <View style={tbSt.arrowShaft} />
-          <View style={tbSt.arrowHeadTop} />
-          <View style={tbSt.arrowHeadBottom} />
+          <Ionicons name="chevron-back" size={20} color={colors.ink} />
         </Animated.View>
       </TouchableOpacity>
-
-      {/* Live timer */}
       <View style={tbSt.timerWrap}>
         <Text style={tbSt.timerText}>{formatElapsed(elapsed)}</Text>
         <View style={tbSt.livePill}>
@@ -159,8 +85,6 @@ const SessionTopBar = React.memo(function SessionTopBar({ elapsed, onBack, onEnd
           <Text style={tbSt.liveLabel}>LIVE</Text>
         </View>
       </View>
-
-      {/* End session */}
       <TouchableOpacity onPress={onEndRequest} hitSlop={12} activeOpacity={0.6}>
         <Text style={tbSt.endLink}>End</Text>
       </TouchableOpacity>
@@ -170,88 +94,162 @@ const SessionTopBar = React.memo(function SessionTopBar({ elapsed, onBack, onEnd
 
 // ─── Main screen ──────────────────────────────────────────────
 export default function ActiveSessionScreen({ sessionParams, elapsed, onBack, onSessionEnd }) {
-  const [showEndModal,  setShowEndModal]  = useState(false);
-  const [reapplyBasis,  setReapplyBasis]  = useState(0);
+  const [showEndModal, setShowEndModal] = useState(false);
+  const [snoozed, setSnoozed] = useState(false);
+  const [reapplyEvents, setReapplyEvents] = useState([]); // seconds since session start
+  const [inShade, setInShade] = useState(false);
 
-  // Animation refs for the reapply button
-  const btnScale      = useRef(new Animated.Value(1)).current;
-  const confirmOpac   = useRef(new Animated.Value(0)).current;
-  const confirmSlide  = useRef(new Animated.Value(6)).current;
+  const btnScale = useRef(new Animated.Value(1)).current;
+  const confirmOpac = useRef(new Animated.Value(0)).current;
+  const confirmSlide = useRef(new Animated.Value(6)).current;
+  const toastMsg = useRef('Protection reset — clock restarted');
+  const [, forceTick] = useState(0);
 
-  const elapsedSinceReapply = elapsed - reapplyBasis;
+  const lastReapply = reapplyEvents.length ? reapplyEvents[reapplyEvents.length - 1] : 0;
+  const elapsedSinceReapply = elapsed - lastReapply;
 
   const { protectionPct, minsRemaining } = useMemo(
-    () => computeSession(elapsedSinceReapply, sessionParams),
+    () => protectionAt(elapsedSinceReapply, sessionParams),
     [elapsedSinceReapply, sessionParams]
   );
 
-  const keyDriver = useMemo(
-    () => getKeyDriver(mockData.conditions.uvIndex, sessionParams.environment),
+  const curve = useMemo(
+    () => buildCurve(elapsed, reapplyEvents, sessionParams),
+    [elapsed, reapplyEvents, sessionParams]
+  );
+
+  const dose = useMemo(() => uvDoseFraction(elapsed), [elapsed]);
+  const driver = useMemo(
+    () => keyDriver(mockData.conditions.uvIndex, sessionParams.environment),
     [sessionParams.environment]
   );
 
-  const handleReapply = useCallback(() => {
-    setReapplyBasis(elapsed);
+  const status = statusFor(protectionPct);
+  const { uvIndex, temperature, humidity } = mockData.conditions;
 
-    // Button pulse
-    Animated.sequence([
-      Animated.spring(btnScale, { toValue: 1.05, tension: 200, friction: 6,  useNativeDriver: true }),
-      Animated.spring(btnScale, { toValue: 1,    tension: 180, friction: 8,  useNativeDriver: true }),
-    ]).start();
-
-    // Confirmation toast: slide up + fade in, hold, fade out
+  const showToast = useCallback((msg) => {
+    toastMsg.current = msg;
+    forceTick((n) => n + 1);
     confirmSlide.setValue(6);
     confirmOpac.setValue(0);
     Animated.sequence([
       Animated.parallel([
-        Animated.timing(confirmOpac,  { toValue: 1, duration: 220, useNativeDriver: true }),
+        Animated.timing(confirmOpac, { toValue: 1, duration: 220, useNativeDriver: true }),
         Animated.timing(confirmSlide, { toValue: 0, duration: 220, useNativeDriver: true }),
       ]),
       Animated.delay(1600),
       Animated.timing(confirmOpac, { toValue: 0, duration: 280, useNativeDriver: true }),
     ]).start();
-  }, [elapsed, btnScale, confirmOpac, confirmSlide]);
+  }, [confirmOpac, confirmSlide]);
+
+  const handleReapply = useCallback(() => {
+    setReapplyEvents((prev) => [...prev, elapsed]);
+    setSnoozed(false);
+    Animated.sequence([
+      Animated.spring(btnScale, { toValue: 1.05, tension: 200, friction: 6, useNativeDriver: true }),
+      Animated.spring(btnScale, { toValue: 1, tension: 180, friction: 8, useNativeDriver: true }),
+    ]).start();
+    showToast('Protection reset — clock restarted');
+  }, [elapsed, btnScale, showToast]);
+
+  const handleSnooze = useCallback(() => {
+    setSnoozed((s) => {
+      showToast(s ? 'Alert un-snoozed' : 'Reapply alert snoozed 15 min');
+      return !s;
+    });
+  }, [showToast]);
+
+  const handleShade = useCallback(() => {
+    setInShade((s) => {
+      showToast(s ? 'Back in the sun' : "In the shade — you're covered");
+      return !s;
+    });
+  }, [showToast]);
 
   const handleEndConfirm = useCallback(() => {
     setShowEndModal(false);
-    onSessionEnd({ elapsed, sessionParams });
-  }, [elapsed, sessionParams, onSessionEnd]);
+    onSessionEnd({ elapsed, sessionParams, reapplyEvents });
+  }, [elapsed, sessionParams, reapplyEvents, onSessionEnd]);
+
+  const statTiles = [
+    { label: 'ELAPSED', value: formatElapsed(elapsed) },
+    { label: 'REAPPLIES', value: String(reapplyEvents.length) },
+    { label: 'PEAK UV', value: uvIndex.toFixed(1), color: uvIndexColor(uvIndex) },
+  ];
+  const condTiles = [
+    { label: 'UV INDEX', value: uvIndex.toFixed(1), color: uvIndexColor(uvIndex) },
+    { label: 'TEMP', value: `${temperature}°` },
+    { label: 'HUMIDITY', value: `${humidity}%` },
+    { label: 'SHADE', value: inShade ? 'Yes' : 'No', color: inShade ? colors.protected : colors.ink },
+  ];
 
   return (
     <SafeAreaView style={st.safe}>
       <StatusBar style="dark" />
+      <SessionTopBar elapsed={elapsed} onBack={onBack} onEndRequest={() => setShowEndModal(true)} />
 
-      <SessionTopBar
-        elapsed={elapsed}
-        onBack={onBack}
-        onEndRequest={() => setShowEndModal(true)}
-      />
+      <ScrollView
+        style={st.scroll}
+        contentContainerStyle={st.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        <SlideInView delay={0}>
+          <SessionHero percent={protectionPct} minsRemaining={minsRemaining} size={GAUGE_SIZE} />
+        </SlideInView>
 
-      {/* Hero gauge */}
-      <View style={st.heroWrap}>
-        <ProtectionGauge percent={protectionPct} size={GAUGE_SIZE} pulsing>
-          <GaugeCenter
-            percent={protectionPct}
-            minsRemaining={minsRemaining}
-            keyDriver={keyDriver}
+        <SlideInView delay={60} style={st.gap}>
+          <DriverCard environment={sessionParams.environment} driver={driver} />
+        </SlideInView>
+
+        <SlideInView delay={110} style={st.gap}>
+          <SessionActions
+            snoozed={snoozed}
+            inShade={inShade}
+            onSnooze={handleSnooze}
+            onShade={handleShade}
           />
-        </ProtectionGauge>
-      </View>
+        </SlideInView>
 
-      {/* Live conditions */}
-      <ConditionsStrip />
+        <SlideInView delay={160} style={st.gap}>
+          <SessionSparkline curve={curve} reapplyEvents={reapplyEvents} elapsed={elapsed} />
+        </SlideInView>
 
-      {/* Flexible body for future content */}
-      <View style={st.body} />
+        <SlideInView delay={210} style={st.gap}>
+          <View style={st.rowGap}>
+            <ExposureBattery fraction={dose} />
+          </View>
+        </SlideInView>
 
-      {/* Reapply button area — always at bottom, never scrolled away */}
+        <SlideInView delay={260} style={st.gap}>
+          <StatStrip tiles={statTiles} />
+        </SlideInView>
+
+        <SlideInView delay={300} style={st.gap}>
+          <StatStrip tiles={condTiles} />
+        </SlideInView>
+      </ScrollView>
+
+      {/* Pinned reapply action */}
+      <LinearGradient
+        pointerEvents="none"
+        colors={['rgba(247,244,239,0)', colors.canvas]}
+        style={st.fade}
+      />
       <View style={st.buttonArea}>
         <Animated.Text style={[st.confirmText, { opacity: confirmOpac, transform: [{ translateY: confirmSlide }] }]}>
-          Protection reset — clock restarted
+          {toastMsg.current}
         </Animated.Text>
         <TouchableOpacity onPress={handleReapply} activeOpacity={0.88}>
-          <Animated.View style={[st.reapplyBtn, { transform: [{ scale: btnScale }] }]}>
-            <Text style={st.reapplyBtnText}>Applied Sunscreen</Text>
+          <Animated.View style={[st.reapplyShadow, { transform: [{ scale: btnScale }] }]}>
+            <LinearGradient
+              colors={[colors.gradOrangeStart, colors.gradOrangeEnd]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={st.reapplyBtn}
+            >
+              <Ionicons name="water" size={18} color={colors.white} />
+              <Text style={st.reapplyBtnText}>Applied Sunscreen</Text>
+            </LinearGradient>
           </Animated.View>
         </TouchableOpacity>
       </View>
@@ -273,264 +271,102 @@ const tbSt = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 4,
     paddingBottom: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-    backgroundColor: colors.white,
+    backgroundColor: colors.canvas,
   },
   backBtn: {
-    width: 32,
-    height: 32,
-    alignItems: 'center',
-    justifyContent: 'center',
+    width: 38, height: 38, borderRadius: 19,
+    backgroundColor: colors.white,
+    borderWidth: 1, borderColor: colors.border,
+    alignItems: 'center', justifyContent: 'center',
   },
-  // Custom arrow — shaft + two diagonal lines for the head
-  arrowShaft: {
-    position: 'absolute',
-    width: 16,
-    height: 2,
-    borderRadius: 1,
-    backgroundColor: colors.ink,
-    right: 6,
-  },
-  arrowHeadTop: {
-    position: 'absolute',
-    width: 8,
-    height: 2,
-    borderRadius: 1,
-    backgroundColor: colors.ink,
-    left: 6,
-    top: 11,
-    transform: [{ rotate: '-45deg' }],
-  },
-  arrowHeadBottom: {
-    position: 'absolute',
-    width: 8,
-    height: 2,
-    borderRadius: 1,
-    backgroundColor: colors.ink,
-    left: 6,
-    bottom: 11,
-    transform: [{ rotate: '45deg' }],
-  },
-  timerWrap: {
-    flex: 1,
-    alignItems: 'center',
-    gap: 4,
-  },
+  timerWrap: { flex: 1, alignItems: 'center', gap: 4 },
   timerText: {
-    fontFamily: 'SFProDisplay-Black',
-    fontSize: 22,
-    color: colors.ink,
-    letterSpacing: -0.5,
-    fontVariant: ['tabular-nums'],
+    fontFamily: 'SpaceGrotesk-Bold',
+    fontSize: 22, color: colors.ink,
+    letterSpacing: -0.5, fontVariant: ['tabular-nums'],
   },
   livePill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    backgroundColor: colors.greenWash,
+    paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10,
   },
-  liveDot: {
-    width: 5,
-    height: 5,
-    borderRadius: 2.5,
-    backgroundColor: colors.protected,
-  },
+  liveDot: { width: 5, height: 5, borderRadius: 2.5, backgroundColor: colors.protected },
   liveLabel: {
-    fontFamily: 'SFProDisplay-Bold',
-    fontSize: 10,
-    color: colors.protected,
-    letterSpacing: 1.2,
+    fontFamily: 'SpaceGrotesk-SemiBold', fontSize: 10,
+    color: colors.protected, letterSpacing: 1.2,
   },
   endLink: {
-    fontFamily: 'SFProDisplay-Regular',
-    fontSize: 14,
-    color: colors.danger,
-    width: 32,
-    textAlign: 'right',
+    fontFamily: 'SpaceGrotesk-SemiBold', fontSize: 14,
+    color: colors.danger, width: 38, textAlign: 'right',
   },
 });
 
 // ─── Confirmation modal styles ────────────────────────────────
 const esSt = StyleSheet.create({
-  backdrop: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.4)',
-  },
+  backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.4)' },
   centerWrap: {
     ...StyleSheet.absoluteFillObject,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 32,
+    alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32,
   },
   card: {
-    width: '100%',
-    backgroundColor: colors.white,
-    borderRadius: 22,
-    padding: 24,
-    shadowColor: colors.ink,
-    shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.14,
-    shadowRadius: 28,
-    elevation: 8,
+    width: '100%', backgroundColor: colors.white, borderRadius: 22, padding: 24,
+    shadowColor: colors.ink, shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.14, shadowRadius: 28, elevation: 8,
   },
   title: {
-    fontFamily: 'SFProDisplay-Black',
-    fontSize: 20,
-    color: colors.ink,
-    letterSpacing: -0.4,
-    marginBottom: 8,
+    fontFamily: 'SpaceGrotesk-Bold', fontSize: 20, color: colors.ink,
+    letterSpacing: -0.4, marginBottom: 8,
   },
   body: {
-    fontFamily: 'SFProDisplay-Regular',
-    fontSize: 14,
-    color: colors.muted,
-    lineHeight: 21,
-    marginBottom: 24,
+    fontFamily: 'Inter-Regular', fontSize: 14, color: colors.muted,
+    lineHeight: 21, marginBottom: 24,
   },
-  btnRow: {
-    flexDirection: 'row',
-    gap: 10,
-  },
+  btnRow: { flexDirection: 'row', gap: 10 },
   cancelBtn: {
-    flex: 1,
-    height: 48,
-    borderRadius: 14,
-    borderWidth: 1.5,
-    borderColor: colors.border,
-    alignItems: 'center',
-    justifyContent: 'center',
+    flex: 1, height: 48, borderRadius: 24, borderWidth: 1.5,
+    borderColor: colors.border, alignItems: 'center', justifyContent: 'center',
   },
-  cancelText: {
-    fontFamily: 'SFProDisplay-Bold',
-    fontSize: 15,
-    color: colors.ink,
-  },
+  cancelText: { fontFamily: 'SpaceGrotesk-SemiBold', fontSize: 15, color: colors.ink },
   endBtn: {
-    flex: 1,
-    height: 48,
-    borderRadius: 14,
-    backgroundColor: colors.danger,
-    alignItems: 'center',
-    justifyContent: 'center',
+    flex: 1, height: 48, borderRadius: 24, backgroundColor: colors.danger,
+    alignItems: 'center', justifyContent: 'center',
   },
-  endText: {
-    fontFamily: 'SFProDisplay-Bold',
-    fontSize: 15,
-    color: colors.white,
-  },
-});
-
-// ─── Gauge center styles ──────────────────────────────────────
-const gcSt = StyleSheet.create({
-  wrap: {
-    alignItems: 'center',
-    paddingHorizontal: 8,
-  },
-  pct: {
-    fontFamily: 'SFProDisplay-Black',
-    fontSize: 66,
-    letterSpacing: -3,
-    lineHeight: 72,
-  },
-  sub: {
-    fontFamily: 'SFProDisplay-Regular',
-    fontSize: 13,
-    color: colors.muted,
-    marginTop: 2,
-    textAlign: 'center',
-  },
-  time: {
-    fontFamily: 'SFProDisplay-Bold',
-    fontSize: 13,
-    marginTop: 8,
-    textAlign: 'center',
-  },
-  driver: {
-    fontFamily: 'SFProDisplay-Regular',
-    fontSize: 11,
-    color: colors.muted,
-    marginTop: 5,
-    textAlign: 'center',
-    lineHeight: 15,
-  },
-});
-
-// ─── Conditions strip styles ──────────────────────────────────
-const cndSt = StyleSheet.create({
-  row: {
-    flexDirection: 'row',
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-    backgroundColor: colors.white,
-  },
-  tile: {
-    flex: 1,
-    alignItems: 'center',
-    paddingVertical: 14,
-    gap: 3,
-  },
-  tileDivider: {
-    borderRightWidth: 1,
-    borderRightColor: colors.border,
-  },
-  val: {
-    fontFamily: 'SFProDisplay-Black',
-    fontSize: 17,
-    letterSpacing: -0.4,
-  },
-  label: {
-    fontFamily: 'SFProDisplay-Regular',
-    fontSize: 10,
-    color: colors.muted,
-    letterSpacing: 0.3,
-  },
+  endText: { fontFamily: 'SpaceGrotesk-SemiBold', fontSize: 15, color: colors.white },
 });
 
 // ─── Screen styles ─────────────────────────────────────────────
 const st = StyleSheet.create({
-  safe: {
-    flex: 1,
-    backgroundColor: colors.white,
+  safe: { flex: 1, backgroundColor: colors.canvas },
+  scroll: { flex: 1 },
+  scrollContent: { paddingTop: 4, paddingBottom: 190 },
+  fade: {
+    position: 'absolute',
+    left: 0, right: 0, bottom: 0,
+    height: 220,
   },
-  heroWrap: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 24,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  body: {
-    flex: 1,
-  },
+  gap: { marginTop: 14 },
+  rowGap: { flexDirection: 'row', marginHorizontal: 16, gap: 12 },
   buttonArea: {
-    paddingHorizontal: 20,
-    paddingBottom: 104,
-    paddingTop: 8,
-    backgroundColor: colors.white,
+    position: 'absolute',
+    left: 0, right: 0, bottom: 0,
+    paddingHorizontal: 20, paddingBottom: 104, paddingTop: 12,
+    backgroundColor: 'transparent',
   },
   confirmText: {
-    fontFamily: 'SFProDisplay-Bold',
-    fontSize: 13,
-    color: colors.orange,
-    textAlign: 'center',
-    marginBottom: 10,
+    fontFamily: 'SpaceGrotesk-SemiBold', fontSize: 13,
+    color: colors.orange, textAlign: 'center', marginBottom: 10,
+  },
+  reapplyShadow: {
+    borderRadius: 31, shadowColor: colors.orange,
+    shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.32,
+    shadowRadius: 16, elevation: 6,
   },
   reapplyBtn: {
-    height: 62,
-    borderRadius: 18,
-    backgroundColor: colors.orange,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: colors.orange,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.32,
-    shadowRadius: 16,
-    elevation: 6,
+    height: 62, borderRadius: 31, flexDirection: 'row', gap: 8,
+    alignItems: 'center', justifyContent: 'center',
   },
   reapplyBtnText: {
-    fontFamily: 'SFProDisplay-Black',
-    fontSize: 17,
-    color: colors.white,
-    letterSpacing: 0.1,
+    fontFamily: 'SpaceGrotesk-Bold', fontSize: 17,
+    color: colors.white, letterSpacing: 0.1,
   },
 });

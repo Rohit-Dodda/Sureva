@@ -40,7 +40,7 @@ export default React.memo(function HistoryCard({ history }) {
 
 const st = StyleSheet.create({
   medContext: {
-    fontFamily: 'SFProDisplay-Regular',
+    fontFamily: 'Inter-Regular',
     fontSize: 13,
     color: colors.inkMid,
     lineHeight: 19,
@@ -61,7 +61,7 @@ const st = StyleSheet.create({
     justifyContent: 'center',
   },
   extremeScoreText: {
-    fontFamily: 'SFProDisplay-Black',
+    fontFamily: 'SpaceGrotesk-Bold',
     fontSize: 19,
     letterSpacing: -0.5,
   },
@@ -69,13 +69,13 @@ const st = StyleSheet.create({
     flex: 1,
   },
   extremeLabel: {
-    fontFamily: 'SFProDisplay-Bold',
+    fontFamily: 'SpaceGrotesk-SemiBold',
     fontSize: 13,
     color: colors.ink,
     marginBottom: 2,
   },
   extremeText: {
-    fontFamily: 'SFProDisplay-Regular',
+    fontFamily: 'Inter-Regular',
     fontSize: 13,
     color: colors.inkMid,
     lineHeight: 18,
