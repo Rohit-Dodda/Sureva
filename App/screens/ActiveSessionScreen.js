@@ -17,7 +17,7 @@ import StatStrip from '../components/activeSession/StatStrip';
 import SessionActions from '../components/activeSession/SessionActions';
 import {
   protectionAt, buildCurve, uvDoseFraction, statusFor,
-  uvIndexColor, keyDriver, formatElapsed,
+  uvIndexColor, keyDriver, formatElapsed, liveConditionsAt,
 } from '../components/activeSession/sessionMath';
 
 const { width: SCREEN_W } = Dimensions.get('window');
@@ -118,14 +118,20 @@ export default function ActiveSessionScreen({ sessionParams, elapsed, onBack, on
     [elapsed, reapplyEvents, sessionParams]
   );
 
+  // Live conditions drift over the session (BLE/weather seam). The chart's
+  // factor meters and the condition tiles both read from this so they move
+  // together as the session evolves.
+  const liveConditions = useMemo(() => liveConditionsAt(mockData.conditions, elapsed), [elapsed]);
+
   const dose = useMemo(() => uvDoseFraction(elapsed), [elapsed]);
   const driver = useMemo(
-    () => keyDriver(mockData.conditions.uvIndex, sessionParams.environment),
-    [sessionParams.environment]
+    () => keyDriver(liveConditions.uvIndex, sessionParams.environment),
+    [liveConditions.uvIndex, sessionParams.environment]
   );
 
   const status = statusFor(protectionPct);
-  const { uvIndex, temperature, humidity } = mockData.conditions;
+  const { uvIndex, temperature, humidity } = liveConditions;
+  const peakUv = mockData.conditions.uvIndex;
 
   const showToast = useCallback((msg) => {
     toastMsg.current = msg;
@@ -174,7 +180,7 @@ export default function ActiveSessionScreen({ sessionParams, elapsed, onBack, on
   const statTiles = [
     { label: 'ELAPSED', value: formatElapsed(elapsed) },
     { label: 'REAPPLIES', value: String(reapplyEvents.length) },
-    { label: 'PEAK UV', value: uvIndex.toFixed(1), color: uvIndexColor(uvIndex) },
+    { label: 'PEAK UV', value: peakUv.toFixed(1), color: uvIndexColor(peakUv) },
   ];
   const condTiles = [
     { label: 'UV INDEX', value: uvIndex.toFixed(1), color: uvIndexColor(uvIndex) },
@@ -211,7 +217,13 @@ export default function ActiveSessionScreen({ sessionParams, elapsed, onBack, on
         </SlideInView>
 
         <SlideInView delay={160} style={st.gap}>
-          <SessionSparkline curve={curve} reapplyEvents={reapplyEvents} elapsed={elapsed} />
+          <SessionSparkline
+            curve={curve}
+            reapplyEvents={reapplyEvents}
+            elapsed={elapsed}
+            conditions={liveConditions}
+            environment={sessionParams.environment}
+          />
         </SlideInView>
 
         <SlideInView delay={210} style={st.gap}>

@@ -106,11 +106,9 @@ function AppNavigator() {
     }
   }, [user]);
 
-  // Play the splash on every cold load, regardless of auth state, before routing.
-  if (!splashDone) {
-    return <SplashIntroScreen onComplete={() => setSplashDone(true)} />;
-  }
-
+  // Route to the correct screen. This renders underneath the splash so the
+  // splash can fade away to reveal whichever screen the user belongs on.
+  const renderRoutedScreen = () => {
   if (user === undefined) return null;
 
   // ── Signed in ─────────────────────────────────────────────────
@@ -170,6 +168,14 @@ function AppNavigator() {
       }}
       prefillError={signupError}
     />
+  );
+  };
+
+  return (
+    <View style={appSt.root}>
+      {renderRoutedScreen()}
+      {!splashDone && <SplashIntroScreen onComplete={() => setSplashDone(true)} />}
+    </View>
   );
 }
 
