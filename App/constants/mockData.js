@@ -436,7 +436,7 @@ const mockData = {
     sessionsToday: 1,
   },
   protectionPattern: {
-    totalSessions: 4,
+    totalSessions: 14, // matches history.stats' "Lifetime sessions"
     reapplyInterval: '68 minutes',
     depletionFasterPct: 23,
     firstAlertTime: '1h 15min',

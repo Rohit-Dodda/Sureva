@@ -9,6 +9,8 @@ import { useAuth } from '../context/AuthContext';
 import mockData from '../constants/mockData';
 import ProfileScreen from './ProfileScreen';
 import ConfirmDialog from '../components/ConfirmDialog';
+import { useAppTour } from '../context/AppTourContext';
+import { WELCOME_TOUR_ID, WELCOME_TOUR_STEPS } from '../constants/tourSteps';
 
 const SCREEN_W = Dimensions.get('window').width;
 // Strong ease-out: starts fast, lands smoothly. Never ease-in on UI elements.
@@ -68,6 +70,15 @@ export default function SettingsScreen({ visible, onClose, onSignOut }) {
   const initials  = `${firstName[0]}${lastName[0]}`.toUpperCase();
   const [profileVisible, setProfileVisible] = useState(false);
   const [confirmSignOutVisible, setConfirmSignOutVisible] = useState(false);
+  const { restartTour } = useAppTour();
+
+  // The tour's spotlight targets live on Home, underneath this modal — so
+  // close first, then start it once this has had time to animate away,
+  // rather than layering the tour overlay behind a still-closing sheet.
+  const handleReplayTour = useCallback(() => {
+    onClose();
+    setTimeout(() => restartTour(WELCOME_TOUR_ID, WELCOME_TOUR_STEPS), 450);
+  }, [onClose, restartTour]);
 
   const openSignOutConfirm = useCallback(() => setConfirmSignOutVisible(true), []);
   const cancelSignOut = useCallback(() => setConfirmSignOutVisible(false), []);
@@ -133,13 +144,17 @@ export default function SettingsScreen({ visible, onClose, onSignOut }) {
 
   const dragX = useRef(new Animated.Value(0)).current;
 
+  const isBackSwipe = (dx, dy) => dx > 10 && Math.abs(dx) > Math.abs(dy) * 1.5;
   const panResponder = useRef(
     PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponderCapture: (_, { dx, dy }) =>
-        dx > 10 && dx > Math.abs(dy) * 1.5,
+      // Same gesture math as the active-session swipe-back: claim only a clear
+      // rightward drag (the *Capture handler wins over the inner ScrollView),
+      // and don't let it be stolen back mid-swipe.
+      onMoveShouldSetPanResponder: (_, { dx, dy }) => isBackSwipe(dx, dy),
+      onMoveShouldSetPanResponderCapture: (_, { dx, dy }) => isBackSwipe(dx, dy),
+      onPanResponderTerminationRequest: () => false,
       onPanResponderMove: (_, { dx }) => {
-        dragX.setValue(Math.max(0, dx));
+        if (dx > 0) dragX.setValue(dx); // track the finger, right-only
       },
       onPanResponderRelease: (_, { dx, vx }) => {
         if (dx > SCREEN_W * 0.35 || vx > 0.5) {
@@ -238,6 +253,7 @@ export default function SettingsScreen({ visible, onClose, onSignOut }) {
               <Text style={st.sectionHeading}>SUPPORT</Text>
               <View style={st.card}>
                 <SettingsRow label="Help & Feedback" onPress={() => {}} />
+                <SettingsRow label="Replay App Tour" onPress={handleReplayTour} />
                 <SettingsRow
                   label="About Sureva"
                   sublabel="Version 1.0.0"

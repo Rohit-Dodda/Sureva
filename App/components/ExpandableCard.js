@@ -6,6 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import colors from '../constants/colors';
 import CardHeader from './CardHeader';
 import PressableScale from './PressableScale';
+import CleanGlassSurface from './CleanGlassSurface';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -33,6 +34,7 @@ export default React.memo(function ExpandableCard({
   linkIcon = 'arrow-forward',
   onLinkPress,
   style,
+  glass,
 }) {
   const [open, setOpen] = useState(false);
   const rotate = useRef(new Animated.Value(0)).current;
@@ -54,7 +56,8 @@ export default React.memo(function ExpandableCard({
   const spin = rotate.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '180deg'] });
 
   return (
-    <PressableScale onPress={toggle} scaleTo={0.98} style={[st.card, style]}>
+    <PressableScale onPress={toggle} scaleTo={0.98} style={[st.card, glass && st.cardGlass, style]}>
+      {glass && <CleanGlassSurface borderRadius={28} />}
       <CardHeader
         icon={icon}
         title={title}
@@ -94,6 +97,13 @@ const st = StyleSheet.create({
     shadowOpacity: 0.06,
     shadowRadius: 18,
     elevation: 3,
+  },
+  cardGlass: {
+    backgroundColor: 'transparent',
+    borderWidth: 0,
+    overflow: 'hidden',
+    shadowColor: colors.orange,
+    shadowOpacity: 0.14,
   },
   chevron: {
     width: 34,

@@ -15,10 +15,10 @@ import {
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import colors from '../constants/colors';
-import FirebaseService from '../services/FirebaseService';
+import SupabaseService from '../services/SupabaseService';
 import SlideInView from '../components/SlideInView';
 
-export default function SignInScreen({ onNavigateToSignUp }) {
+export default function SignInScreen({ onNavigateToSignUp, onForgotPassword }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -26,6 +26,7 @@ export default function SignInScreen({ onNavigateToSignUp }) {
   const [focusedField, setFocusedField] = useState(null);
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
 
   const toggleShowPassword = useCallback(() => {
     setShowPassword((prev) => !prev);
@@ -49,19 +50,20 @@ export default function SignInScreen({ onNavigateToSignUp }) {
 
     setLoading(true);
     try {
-      await FirebaseService.signIn(email.trim(), password);
-      // Navigation is handled automatically by onAuthStateChanged in AuthContext
+      const { error } = await SupabaseService.signIn(email.trim(), password);
+      if (error) throw error;
+      // Navigation is handled automatically by onAuthStateChange in AuthContext
     } catch (e) {
       const code = e?.code ?? '';
+      const message = e?.message ?? '';
       if (
-        code === 'auth/invalid-credential' ||
-        code === 'auth/wrong-password' ||
-        code === 'auth/user-not-found'
+        code === 'invalid_credentials' ||
+        /invalid login credentials/i.test(message)
       ) {
         setErrors({ email: '', password: 'Incorrect email or password' });
-      } else if (code === 'auth/invalid-email') {
+      } else if (code === 'email_address_invalid' || /invalid email/i.test(message)) {
         setErrors((prev) => ({ ...prev, email: 'Please enter a valid email address' }));
-      } else if (code === 'auth/too-many-requests') {
+      } else if (code === 'over_request_rate_limit' || /rate limit/i.test(message)) {
         setErrors({ email: '', password: 'Too many attempts. Try again later.' });
       } else {
         setErrors({ email: '', password: 'Sign in failed. Please try again.' });
@@ -71,8 +73,16 @@ export default function SignInScreen({ onNavigateToSignUp }) {
     }
   }, [email, password]);
 
-  const handleGoogleSignIn = useCallback(() => {
-    // Google auth coming soon
+  const handleGoogleSignIn = useCallback(async () => {
+    setGoogleLoading(true);
+    const { error } = await SupabaseService.signInWithGoogle();
+    setGoogleLoading(false);
+    if (error) {
+      console.log('[google signin] error:', error?.message);
+      setErrors({ email: '', password: 'Google sign-in failed. Please try again.' });
+    }
+    // On success AuthContext's listener picks up the new session and this
+    // screen unmounts automatically — nothing further to do here.
   }, []);
 
   const canSubmit = email.trim().length > 0 && password.length > 0;
@@ -104,14 +114,21 @@ export default function SignInScreen({ onNavigateToSignUp }) {
           <SlideInView delay={60}>
             <TouchableOpacity
               style={styles.googleButton}
-              onPress={handleGoogleSignIn}
-              activeOpacity={0.8}
+              onPress={googleLoading ? undefined : handleGoogleSignIn}
+              activeOpacity={googleLoading ? 1 : 0.8}
+              disabled={googleLoading}
             >
-              <Image
-                source={require('../assets/google-icon.png')}
-                style={styles.googleIcon}
-              />
-              <Text style={styles.googleText}>Continue with Google</Text>
+              {googleLoading ? (
+                <ActivityIndicator color={colors.ink} />
+              ) : (
+                <>
+                  <Image
+                    source={require('../assets/google-icon.png')}
+                    style={styles.googleIcon}
+                  />
+                  <Text style={styles.googleText}>Continue with Google</Text>
+                </>
+              )}
             </TouchableOpacity>
           </SlideInView>
 
@@ -198,7 +215,7 @@ export default function SignInScreen({ onNavigateToSignUp }) {
               <Text style={styles.rememberText}>Remember me</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity activeOpacity={0.7}>
+            <TouchableOpacity activeOpacity={0.7} onPress={onForgotPassword}>
               <Text style={styles.forgotText}>Forgot Password?</Text>
             </TouchableOpacity>
           </SlideInView>

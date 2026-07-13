@@ -81,6 +81,66 @@ export function uvIndexColor(uvi) {
   return colors.protected;
 }
 
+// Buckets a free-text / preset environment label into the physical thing that
+// strips sunscreen, with a relative depletion-pressure score. Keyword-matched so
+// it survives both the preset list and Custom free text.
+function classifyEnvironment(environment) {
+  const e = (environment || '').toLowerCase();
+  if (/(beach|water|boat|lake|sea|coast|pool|surf|marina|river)/.test(e))
+    return { label: 'Water exposure', icon: 'water', score: 7 };
+  if (/(snow|ski|glacier)/.test(e))
+    return { label: 'Snow reflection', icon: 'snow', score: 6 };
+  if (/(mountain|peak|summit|ridge|desert|dune)/.test(e))
+    return { label: 'Reflected glare', icon: 'sunny', score: 3 };
+  if (/(park|trail|garden|forest|reserve|hike)/.test(e))
+    return { label: 'Open terrain', icon: 'leaf', score: 1.6 };
+  return { label: 'Surroundings', icon: 'earth', score: 1 };
+}
+
+// Breaks live depletion into the factors driving it, each as a 0–1 share of the
+// total. Scores are relative depletion pressure; conservative thresholds (err
+// toward more depletion). Order is fixed (not sorted by share) so each meter
+// stays put and resizes in place as conditions shift. Pure — safe on render.
+export function factorBreakdown(conditions, environment) {
+  const { uvIndex = 0, temperature = 20, humidity = 0, activity = 'Low' } = conditions || {};
+
+  const uvScore = Math.max(0, uvIndex);
+  const heatScore = Math.max(0, temperature - 22) * 0.4 + Math.max(0, humidity - 45) * 0.05;
+  const activityScore = activity === 'High' ? 5 : activity === 'Moderate' ? 3 : 1.2;
+  const env = classifyEnvironment(environment);
+
+  const raw = [
+    { key: 'uv', label: 'UV intensity', icon: 'sunny', color: colors.orange, score: uvScore },
+    { key: 'heat', label: 'Heat & humidity', icon: 'thermometer', color: colors.warning, score: heatScore },
+    { key: 'env', label: env.label, icon: env.icon, color: colors.bluetooth, score: env.score },
+    { key: 'activity', label: 'Activity & sweat', icon: 'walk', color: colors.navy, score: activityScore },
+  ];
+
+  const total = raw.reduce((s, f) => s + f.score, 0) || 1;
+  return raw.map((f) => ({ key: f.key, label: f.label, icon: f.icon, color: f.color, share: f.score / total }));
+}
+
+// Demo stand-in for live BLE/weather telemetry: drifts the base conditions so
+// the factor meters visibly move. Deterministic (function of elapsed only) so it
+// never jitters between renders. Cycles are deliberately fast (tens of seconds)
+// and each factor uses a different period, so the meters shift at different rates
+// and the change is obvious while demoing. Real telemetry would update on the 5s
+// BLE cadence — when it lands, this is the single seam to replace.
+export function liveConditionsAt(base, elapsedSecs) {
+  if (!base) return base;
+  const t = elapsedSecs;
+  const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+  const actPhase = Math.sin(t / 19);
+  const activity = actPhase > 0.5 ? 'High' : actPhase < -0.4 ? 'Low' : 'Moderate';
+  return {
+    ...base,
+    uvIndex: clamp(base.uvIndex + Math.sin(t / 9) * 2.6, 0, 12),
+    temperature: Math.round(clamp(base.temperature + Math.sin(t / 13 + 1) * 4, -20, 55)),
+    humidity: Math.round(clamp(base.humidity + Math.cos(t / 7) * 14, 0, 100)),
+    activity,
+  };
+}
+
 export function keyDriver(uvIndex, environment) {
   if (environment === 'Beach / Water') return 'Water activity is your main depletion factor';
   if (environment === 'Snow / Mountains') return 'Snow reflection is amplifying your UV exposure';

@@ -1,10 +1,17 @@
-import React, { useMemo, useRef, useEffect, useState } from 'react';
-import { View, Text, StyleSheet, Animated } from 'react-native';
+import React, { useMemo, useRef, useEffect, useState, useCallback } from 'react';
+import { View, Text, StyleSheet, Animated, TouchableOpacity, LayoutAnimation, Platform, UIManager } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import Svg, { Path, Circle, Line, Defs, LinearGradient, Stop } from 'react-native-svg';
 import colors from '../../constants/colors';
 import CardHeader from '../CardHeader';
+import SlideInView from '../SlideInView';
 import TrendInfoModal from './TrendInfoModal';
-import { statusFor } from './sessionMath';
+import FactorMeter from './FactorMeter';
+import { statusFor, factorBreakdown } from './sessionMath';
+
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
@@ -16,9 +23,26 @@ const NOW_X = W - PAD; // the live "now" edge — always the right side
 // Live protection-over-time trend. The timeline scrolls: "now" is pinned to
 // the right edge, and reapply events are vertical flags planted at the moment
 // they happened — so they drift left as time passes (time moves, not the flag).
-export default React.memo(function SessionSparkline({ curve, reapplyEvents, elapsed }) {
+export default React.memo(function SessionSparkline({ curve, reapplyEvents, elapsed, conditions, environment }) {
   const pulse = useRef(new Animated.Value(0)).current;
   const [showInfo, setShowInfo] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+  const chevron = useRef(new Animated.Value(0)).current;
+
+  const factors = useMemo(
+    () => factorBreakdown(conditions, environment),
+    [conditions, environment]
+  );
+
+  const toggleExpanded = useCallback(() => {
+    LayoutAnimation.configureNext(LayoutAnimation.create(280, LayoutAnimation.Types.easeInEaseOut, LayoutAnimation.Properties.scaleXY));
+    setExpanded((prev) => {
+      Animated.spring(chevron, { toValue: prev ? 0 : 1, tension: 140, friction: 11, useNativeDriver: true }).start();
+      return !prev;
+    });
+  }, [chevron]);
+
+  const chevronRotate = chevron.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '180deg'] });
 
   // Breathing "now" head so it reads as live.
   useEffect(() => {
@@ -120,6 +144,35 @@ export default React.memo(function SessionSparkline({ curve, reapplyEvents, elap
         <Text style={[st.legend, st.nowLabel, st.legendRight]}>Now ▸</Text>
       </View>
 
+      <View style={st.divider} />
+
+      <TouchableOpacity style={st.toggle} onPress={toggleExpanded} activeOpacity={0.7}>
+        <Ionicons name="podium-outline" size={15} color={colors.orangeDark} />
+        <Text style={st.toggleLabel}>
+          {expanded ? 'Hide factor breakdown' : 'See detailed factor breakdown'}
+        </Text>
+        <Animated.View style={{ transform: [{ rotate: chevronRotate }] }}>
+          <Ionicons name="chevron-down" size={16} color={colors.muted} />
+        </Animated.View>
+      </TouchableOpacity>
+
+      {expanded ? (
+        <View style={st.breakdown}>
+          <Text style={st.breakdownHint}>How much each condition is draining your protection right now</Text>
+          {factors.map((f, i) => (
+            <SlideInView key={f.key} delay={i * 70} offset={16}>
+              <FactorMeter
+                label={f.label}
+                icon={f.icon}
+                color={f.color}
+                share={f.share}
+                delay={i * 70}
+              />
+            </SlideInView>
+          ))}
+        </View>
+      ) : null}
+
       <TrendInfoModal visible={showInfo} onClose={() => setShowInfo(false)} />
     </View>
   );
@@ -176,5 +229,32 @@ const st = StyleSheet.create({
   nowLabel: {
     fontFamily: 'SpaceGrotesk-SemiBold',
     color: colors.ink,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: colors.border,
+    marginTop: 14,
+  },
+  toggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 12,
+  },
+  toggleLabel: {
+    flex: 1,
+    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontSize: 13.5,
+    color: colors.orangeDark,
+  },
+  breakdown: {
+    marginTop: 2,
+  },
+  breakdownHint: {
+    fontFamily: 'Inter-Regular',
+    fontSize: 11.5,
+    color: colors.muted,
+    lineHeight: 16,
+    marginBottom: 14,
   },
 });

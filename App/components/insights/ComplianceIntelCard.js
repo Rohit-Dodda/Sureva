@@ -16,7 +16,7 @@ const StreakChip = React.memo(function StreakChip({ label, value, highlight }) {
 
 export default React.memo(function ComplianceIntelCard({ compliance }) {
   return (
-    <SectionCard icon="checkmark-done-outline" title="Compliance Intelligence">
+    <SectionCard glass icon="checkmark-done-outline" title="Compliance Intelligence">
       <View style={st.chips}>
         <StreakChip label="Best streak · alerts confirmed under 10 min" value={compliance.bestStreak} />
         <StreakChip label="Current streak · keep it going" value={compliance.currentStreak} highlight />

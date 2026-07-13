@@ -1,8 +1,8 @@
-import React, { useState, useCallback, useMemo, useRef } from 'react';
+import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import {
   View,
   Text,
-  FlatList,
+  ScrollView,
   TextInput,
   TouchableOpacity,
   SafeAreaView,
@@ -12,8 +12,13 @@ import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import colors from '../constants/colors';
 import mockData from '../constants/mockData';
+import SessionCard from '../components/SessionCard';
 import SessionDetailScreen from './SessionDetailScreen';
+import PassportScreen from './PassportScreen';
 import { useScrollToTop } from '../context/ScrollToTopContext';
+import { useRegisterOpener } from '../context/QuickSearchContext';
+import { useTourTarget, useAutoStartTour } from '../context/AppTourContext';
+import { MILESTONE_TOURS } from '../constants/tourSteps';
 
 // Builds a single searchable string per session covering all searchable fields
 function buildSearchIndex(s) {
@@ -23,49 +28,44 @@ function buildSearchIndex(s) {
   ].join(' ').toLowerCase();
 }
 
-const SessionCard = React.memo(function SessionCard({ session, onPress }) {
-  return (
-    <TouchableOpacity style={st.card} onPress={() => onPress(session)} activeOpacity={0.75}>
-      <View style={st.cardTop}>
-        <Text style={st.envTag}>{session.environment}</Text>
-        <Text style={st.cardDate}>{session.date}</Text>
-      </View>
-      <Text style={st.cardLocation}>{session.location}</Text>
-      <View style={st.cardBottom}>
-        <View style={st.pill}>
-          <Ionicons name="time-outline" size={13} color={colors.muted} />
-          <Text style={st.pillText}>{session.startTime} – {session.endTime}</Text>
-        </View>
-        <View style={st.pill}>
-          <Ionicons name="hourglass-outline" size={13} color={colors.muted} />
-          <Text style={st.pillText}>{session.duration}</Text>
-        </View>
-        <View style={[st.scoreDot, {
-          backgroundColor:
-            session.score >= 85 ? colors.protected :
-            session.score >= 65 ? colors.warning : colors.danger,
-        }]}>
-          <Text style={st.scoreText}>{session.score}</Text>
-        </View>
-      </View>
-    </TouchableOpacity>
-  );
-});
-
-export default function HistoryScreen() {
+export default function HistoryScreen({ isActiveTab }) {
   const [query, setQuery] = useState('');
   const [selectedSession, setSelectedSession] = useState(null);
+  const [openKey, setOpenKey] = useState(0);
+  const [passportOpen, setPassportOpen] = useState(false);
 
   const listRef = useRef(null);
   const scrollToTop = useCallback(
-    () => listRef.current?.scrollToOffset({ offset: 0, animated: true }),
+    () => listRef.current?.scrollTo({ y: 0, animated: true }),
     []
   );
   useScrollToTop('history', scrollToTop);
 
-  const handleCardPress = useCallback((session) => setSelectedSession(session), []);
+  const handleCardPress = useCallback((session) => {
+    setOpenKey((k) => k + 1); // force a fresh mount + entrance on every open
+    setSelectedSession(session);
+  }, []);
   const handleBack = useCallback(() => setSelectedSession(null), []);
   const handleClear = useCallback(() => setQuery(''), []);
+  const handleOpenPassport = useCallback(() => setPassportOpen(true), []);
+  const handleClosePassport = useCallback(() => setPassportOpen(false), []);
+  useRegisterOpener('passport', handleOpenPassport);
+
+  // Fires once, the first time this tab is opened after the user's first
+  // logged session — the same real "do they have any history yet?"
+  // condition that'll gate this once mock data is replaced with Firestore.
+  // `isActiveTab` flips true right as the tab pager *starts* its settle
+  // spring, not once it's landed — waiting a beat past that avoids
+  // measuring the card mid-swipe.
+  const firstSessionCardRef = useTourTarget('firstSessionCard');
+  const [tabSettled, setTabSettled] = useState(false);
+  useEffect(() => {
+    if (!isActiveTab) { setTabSettled(false); return undefined; }
+    const id = setTimeout(() => setTabSettled(true), 450);
+    return () => clearTimeout(id);
+  }, [isActiveTab]);
+  const milestone = MILESTONE_TOURS.historyFirstSession;
+  useAutoStartTour(milestone.id, milestone.steps, tabSettled && mockData.sessions.length > 0);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -80,7 +80,13 @@ export default function HistoryScreen() {
       {/* Header */}
       <View style={st.header}>
         <Text style={st.title}>Sessions</Text>
-        <Text style={st.count}>{filtered.length} of {mockData.sessions.length}</Text>
+        <TouchableOpacity
+          onPress={handleOpenPassport}
+          style={st.mapBtn}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        >
+          <Ionicons name="map-outline" size={22} color={colors.ink} />
+        </TouchableOpacity>
       </View>
 
       {/* Search bar */}
@@ -106,28 +112,41 @@ export default function HistoryScreen() {
         </View>
       </View>
 
-      {/* List */}
-      <FlatList
+      {/* List — ScrollView (not FlatList): the sessions list is short, and
+          FlatList's virtualized cells were swallowing the first tap on iOS. */}
+      <ScrollView
         ref={listRef}
-        data={filtered}
-        keyExtractor={(item) => item.id}
-        renderItem={({ item }) => <SessionCard session={item} onPress={handleCardPress} />}
+        style={st.scroll}
         contentContainerStyle={st.list}
         showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
+        keyboardShouldPersistTaps="always"
         keyboardDismissMode="on-drag"
-        ListEmptyComponent={
+      >
+        {filtered.length === 0 ? (
           <View style={st.empty}>
             <Ionicons name="search-outline" size={36} color={colors.border} />
             <Text style={st.emptyText}>No sessions match "{query}"</Text>
           </View>
-        }
-      />
+        ) : (
+          filtered.map((item, i) => (
+            <View key={item.id} ref={i === 0 ? firstSessionCardRef : undefined}>
+              <SessionCard session={item} onPress={handleCardPress} />
+            </View>
+          ))
+        )}
+      </ScrollView>
 
       {/* Detail overlay — always mounted when a session is selected so list shows through during swipe-back */}
       {selectedSession && (
         <View style={st.detailOverlay}>
-          <SessionDetailScreen session={selectedSession} onBack={handleBack} scrollKey="history" />
+          <SessionDetailScreen key={openKey} session={selectedSession} onBack={handleBack} scrollKey="history" />
+        </View>
+      )}
+
+      {/* Passport — full-screen push over the sessions list */}
+      {passportOpen && (
+        <View style={st.detailOverlay}>
+          <PassportScreen onBack={handleClosePassport} />
         </View>
       )}
     </SafeAreaView>
@@ -139,12 +158,15 @@ const st = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.canvas,
   },
+  scroll: {
+    flex: 1,
+  },
   detailOverlay: {
     ...StyleSheet.absoluteFillObject,
   },
   header: {
     flexDirection: 'row',
-    alignItems: 'baseline',
+    alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
     paddingTop: 16,
@@ -156,10 +178,15 @@ const st = StyleSheet.create({
     color: colors.ink,
     letterSpacing: -1,
   },
-  count: {
-    fontFamily: 'Inter-Regular',
-    fontSize: 13,
-    color: colors.muted,
+  mapBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 
   searchWrap: {
@@ -197,82 +224,6 @@ const st = StyleSheet.create({
     paddingHorizontal: 20,
     paddingBottom: 120,
     gap: 12,
-  },
-
-  card: {
-    backgroundColor: colors.white,
-    borderRadius: 28,
-    borderWidth: 1,
-    borderColor: colors.border,
-    paddingHorizontal: 18,
-    paddingVertical: 16,
-    shadowColor: colors.ink,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.06,
-    shadowRadius: 14,
-    elevation: 2,
-  },
-  cardTop: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 6,
-  },
-  envTag: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
-    fontSize: 10,
-    color: colors.orangeDark,
-    letterSpacing: 0.8,
-    textTransform: 'uppercase',
-    backgroundColor: colors.orangeWash,
-    paddingHorizontal: 9,
-    paddingVertical: 3,
-    borderRadius: 10,
-    overflow: 'hidden',
-  },
-  cardDate: {
-    fontFamily: 'Inter-Regular',
-    fontSize: 13,
-    color: colors.muted,
-  },
-  cardLocation: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
-    fontSize: 20,
-    color: colors.ink,
-    letterSpacing: -0.5,
-    marginBottom: 12,
-  },
-  cardBottom: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  pill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: colors.surface,
-    borderRadius: 8,
-    paddingHorizontal: 9,
-    paddingVertical: 5,
-  },
-  pillText: {
-    fontFamily: 'Inter-Regular',
-    fontSize: 12,
-    color: colors.muted,
-  },
-  scoreDot: {
-    marginLeft: 'auto',
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  scoreText: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
-    fontSize: 12,
-    color: colors.white,
   },
 
   empty: {

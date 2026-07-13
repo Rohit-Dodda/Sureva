@@ -8,7 +8,7 @@ export default React.memo(function SkinProfileCard({ profile }) {
   const maxSens = Math.max(...profile.sensitivities.map((s) => s.value));
 
   return (
-    <SectionCard icon="finger-print-outline" title="Your Skin Profile">
+    <SectionCard glass icon="finger-print-outline" title="Your Skin Profile">
       <View style={st.hero}>
         <Text style={st.heroPct}>{profile.heroPct}%</Text>
         <Text style={st.heroLine}>{profile.heroLine}</Text>

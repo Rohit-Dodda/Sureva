@@ -7,7 +7,7 @@ import colors from '../../constants/colors';
 
 export default React.memo(function PatternsCard({ patterns }) {
   return (
-    <SectionCard icon="analytics-outline" title="Your Patterns">
+    <SectionCard glass icon="analytics-outline" title="Your Patterns">
       <View style={st.riskBanner}>
         <View style={st.riskIconWrap}>
           <Ionicons name="time" size={18} color={colors.white} />

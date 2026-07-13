@@ -1,28 +1,42 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import {
-  View, Text, ScrollView, StyleSheet,
-  SafeAreaView, Pressable, Animated, Dimensions, Easing, Image,
+  View, Text, StyleSheet,
+  SafeAreaView, Pressable, Animated, Dimensions, Easing, Image, PanResponder,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import colors from '../constants/colors';
 import mockData from '../constants/mockData';
 import { useAuth } from '../context/AuthContext';
 import SessionSetupSheet from '../components/SessionSetupSheet';
-import SlideInView from '../components/SlideInView';
+import SlideInView, { IOS_EASE_OUT } from '../components/SlideInView';
 import CountUpText from '../components/CountUpText';
 import CardHeader from '../components/CardHeader';
 import ExpandableCard from '../components/ExpandableCard';
+import CleanGlassSurface from '../components/CleanGlassSurface';
 import DeviceGuideModal from '../components/DeviceGuideModal';
 import Device3D from '../components/onboarding/Device3D';
 import ActiveSessionScreen from './ActiveSessionScreen';
 import SettingsScreen from './SettingsScreen';
 import SessionDetailScreen from './SessionDetailScreen';
+import SessionSyncScreen from './SessionSyncScreen';
+import CheckInSheet from '../components/postSession/CheckInSheet';
 import TrendsScreen from './TrendsScreen';
 import { useScrollToTop } from '../context/ScrollToTopContext';
+import { useHideTabBar } from '../context/TabBarVisibilityContext';
+import { useTabSwipeLock } from '../context/SwipeNavContext';
+import { useQuickSearch, useRegisterOpener } from '../context/QuickSearchContext';
+import { useTourTarget, useAutoStartTour, useAppTour, tourDoneKey } from '../context/AppTourContext';
+import { WELCOME_TOUR_ID, WELCOME_TOUR_STEPS } from '../constants/tourSteps';
 
 const SCREEN_W = Dimensions.get('window').width;
+// Active-session overlay slides over a stationary home, exactly like the
+// SessionDetailScreen → list transition. Same spring/easing so it feels identical.
+const SESSION_SWIPE_THRESHOLD = 80;
+const SESSION_SPRING = { stiffness: 210, damping: 32, mass: 1, useNativeDriver: true };
+const SESSION_EASE_OUT = Easing.bezier(0.23, 1, 0.32, 1);
 
 // ─── Helpers ──────────────────────────────────────────────────
 function getGreeting(firstName) {
@@ -131,7 +145,6 @@ const ProtectionStatsCard = React.memo(function ProtectionStatsCard({ stats, con
     { icon: 'sunny-outline',       label: `UV ${conditions.uvIndex}` },
     { icon: 'thermometer-outline', label: `${conditions.temperature}°C` },
     { icon: 'water-outline',       label: `${conditions.humidity}% humidity` },
-    { icon: 'walk-outline',        label: conditions.activity },
   ];
   const doseColor =
     dosePercent < 50 ? colors.protected :
@@ -139,6 +152,7 @@ const ProtectionStatsCard = React.memo(function ProtectionStatsCard({ stats, con
 
   return (
     <ExpandableCard
+      glass
       icon="shield-checkmark"
       title="Today's Protection"
       expandedContent={
@@ -190,6 +204,7 @@ const LastSessionCard = React.memo(function LastSessionCard({ session, detail, o
 
   return (
     <ExpandableCard
+      glass
       icon="time"
       title="Last Session"
       subtitle={`${session.date} · ${session.location}`}
@@ -287,6 +302,7 @@ const WeeklySnapshotCard = React.memo(function WeeklySnapshotCard({ snapshot, we
 
   return (
     <ExpandableCard
+      glass
       icon="bar-chart"
       title="This Week"
       linkLabel="View Exposure Trends"
@@ -483,33 +499,131 @@ const ppSt = StyleSheet.create({
     color: colors.muted,
     letterSpacing: 0.4,
   },
-  insightList: {
-    gap: 0,
+  sectionSpacing: {
+    marginTop: 18,
   },
-  insightRow: {
+  heroRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 14,
+  },
+  heroTile: {
+    flex: 1.2,
+    borderRadius: 18,
+    padding: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  heroVal: {
+    fontFamily: 'SpaceGrotesk-Bold',
+    fontSize: 22,
+    color: colors.white,
+    letterSpacing: -0.5,
+    textAlign: 'center',
+  },
+  heroLabel: {
+    fontFamily: 'Inter-Medium',
+    fontSize: 12,
+    color: colors.onDarkMuted,
+    marginTop: 4,
+    textAlign: 'center',
+  },
+  miniStack: {
+    flex: 1,
+    gap: 10,
+  },
+  miniTile: {
+    flex: 1,
+    borderRadius: 14,
+    backgroundColor: colors.surface,
+    padding: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  miniVal: {
+    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontSize: 16,
+    color: colors.ink,
+    letterSpacing: -0.3,
+    textAlign: 'center',
+  },
+  miniLabel: {
+    fontFamily: 'Inter-Regular',
+    fontSize: 11,
+    color: colors.muted,
+    marginTop: 2,
+    textAlign: 'center',
+  },
+  riskBanner: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 13,
-    gap: 14,
+    gap: 12,
+    backgroundColor: colors.redWash,
+    borderRadius: 14,
+    padding: 12,
   },
-  insightRowBorder: {
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  insightIconWrap: {
-    width: 38,
-    height: 38,
-    borderRadius: 13,
-    backgroundColor: colors.orangeWash,
+  riskIconWrap: {
+    width: 32,
+    height: 32,
+    borderRadius: 11,
+    backgroundColor: colors.white,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  insightText: {
+  riskTextWrap: {
     flex: 1,
+  },
+  riskLabel: {
     fontFamily: 'Inter-Regular',
+    fontSize: 11,
+    color: colors.muted,
+  },
+  riskValue: {
+    fontFamily: 'SpaceGrotesk-SemiBold',
     fontSize: 14,
     color: colors.ink,
-    lineHeight: 20,
+    marginTop: 1,
+  },
+  compareRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 24,
+    marginTop: 10,
+    marginBottom: 10,
+    height: 92,
+  },
+  centerTitle: {
+    textAlign: 'center',
+  },
+  compareCol: {
+    alignItems: 'center',
+    width: 56,
+  },
+  compareBarBg: {
+    width: 28,
+    height: 56,
+    borderRadius: 8,
+    backgroundColor: colors.surface,
+    justifyContent: 'flex-end',
+    overflow: 'hidden',
+    marginBottom: 6,
+  },
+  compareBarFill: {
+    width: '100%',
+    borderRadius: 8,
+  },
+  compareScore: {
+    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontSize: 14,
+    color: colors.ink,
+    textAlign: 'center',
+  },
+  compareLabel: {
+    fontFamily: 'Inter-Regular',
+    fontSize: 12,
+    color: colors.muted,
+    marginTop: 1,
+    textAlign: 'center',
   },
 });
 
@@ -520,29 +634,45 @@ const ProtectionPatternCard = React.memo(function ProtectionPatternCard({ patter
   const isUnlocked = totalSessions >= THRESHOLD;
   const progress   = Math.min(totalSessions / THRESHOLD, 1);
 
-  const insights = [
-    { icon: 'timer-outline',         text: `You typically need to reapply every ${reapplyInterval}` },
-    { icon: 'trending-up-outline',   text: `Your skin depletes sunscreen ${depletionFasterPct}% faster than average` },
-    { icon: 'notifications-outline', text: `You usually get your first alert around ${firstAlertTime} into a session` },
-  ];
-
   return (
     <ExpandableCard
+      glass
       icon="sparkles"
       title="Your Protection Pattern"
       linkLabel={isUnlocked ? 'Explore All Insights' : undefined}
       onLinkPress={onExplore}
       expandedContent={isUnlocked ? (
         <View>
-          <View style={exSt.kvRow}>
-            <Text style={exSt.kvLabel}>Critical window</Text>
-            <Text style={exSt.kvValue}>{patterns.riskWindow.label}</Text>
+          <Text style={[exSt.sectionLabel, ppSt.centerTitle]}>Critical window</Text>
+          <Text style={exSt.note}>{patterns.riskWindow.text}</Text>
+
+          <Text style={[exSt.sectionLabel, ppSt.sectionSpacing, ppSt.centerTitle]}>Where your habits slip</Text>
+          <View style={ppSt.compareRow}>
+            <View style={ppSt.compareCol}>
+              <View style={ppSt.compareBarBg}>
+                <View style={[ppSt.compareBarFill, { height: '58%', backgroundColor: colors.warning }]} />
+              </View>
+              <Text style={ppSt.compareScore}>58</Text>
+              <Text style={ppSt.compareLabel}>Beach</Text>
+            </View>
+            <View style={ppSt.compareCol}>
+              <View style={ppSt.compareBarBg}>
+                <View style={[ppSt.compareBarFill, { height: '81%', backgroundColor: colors.protected }]} />
+              </View>
+              <Text style={ppSt.compareScore}>81</Text>
+              <Text style={ppSt.compareLabel}>Park</Text>
+            </View>
+          </View>
+          <Text style={exSt.note}>{patterns.weakSpot}</Text>
+
+          <View style={[exSt.kvRow, ppSt.sectionSpacing]}>
+            <Text style={exSt.kvLabel}>Top depletion driver</Text>
+            <Text style={exSt.kvValue}>UV intensity</Text>
           </View>
           <View style={exSt.kvRow}>
             <Text style={exSt.kvLabel}>Alert trigger</Text>
             <Text style={exSt.kvValue}>UV 6+ while active</Text>
           </View>
-          <Text style={exSt.note}>{patterns.weakSpot}</Text>
         </View>
       ) : (
         <View>
@@ -563,15 +693,37 @@ const ProtectionPatternCard = React.memo(function ProtectionPatternCard({ patter
       )}
     >
       {isUnlocked ? (
-        <View style={ppSt.insightList}>
-          {insights.map((item, i) => (
-            <View key={i} style={[ppSt.insightRow, i < insights.length - 1 && ppSt.insightRowBorder]}>
-              <View style={ppSt.insightIconWrap}>
-                <Ionicons name={item.icon} size={18} color={colors.orangeDark} />
+        <View>
+          <View style={ppSt.heroRow}>
+            <LinearGradient
+              colors={[colors.gradOrangeStart, colors.gradOrangeEnd]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={ppSt.heroTile}
+            >
+              <Text style={ppSt.heroVal}>{reapplyInterval}</Text>
+              <Text style={ppSt.heroLabel}>Reapply Window</Text>
+            </LinearGradient>
+            <View style={ppSt.miniStack}>
+              <View style={ppSt.miniTile}>
+                <Text style={ppSt.miniVal}>+{depletionFasterPct}%</Text>
+                <Text style={ppSt.miniLabel}>Faster Depletion</Text>
               </View>
-              <Text style={ppSt.insightText}>{item.text}</Text>
+              <View style={ppSt.miniTile}>
+                <Text style={ppSt.miniVal}>{firstAlertTime}</Text>
+                <Text style={ppSt.miniLabel}>First Alert</Text>
+              </View>
             </View>
-          ))}
+          </View>
+          <View style={ppSt.riskBanner}>
+            <View style={ppSt.riskIconWrap}>
+              <Ionicons name="flame" size={16} color={colors.danger} />
+            </View>
+            <View style={ppSt.riskTextWrap}>
+              <Text style={ppSt.riskLabel}>Highest-risk window</Text>
+              <Text style={ppSt.riskValue}>{patterns.riskWindow.label}</Text>
+            </View>
+          </View>
         </View>
       ) : (
         <View style={ppSt.lockedBody}>
@@ -600,15 +752,17 @@ const ProtectionPatternCard = React.memo(function ProtectionPatternCard({ patter
 });
 
 // ─── Device card ──────────────────────────────────────────────
-const DeviceCard = React.memo(function DeviceCard({ device }) {
+const DeviceCard = React.memo(function DeviceCard({ device, onDragStart, onDragEnd }) {
   const batColor = device.battery > 30 ? colors.protected : colors.warning;
   const dotColor = device.connected ? colors.protected : colors.danger;
   const [guideVisible, setGuideVisible] = useState(false);
   const openGuide  = useCallback(() => setGuideVisible(true), []);
   const closeGuide = useCallback(() => setGuideVisible(false), []);
+  const tourTargetRef = useTourTarget('device');
 
   return (
-    <View style={devSt.wrap}>
+    <View style={devSt.wrap} ref={tourTargetRef}>
+      <CleanGlassSurface borderRadius={28} />
       <CardHeader
         icon="bluetooth"
         title="My Device"
@@ -622,7 +776,14 @@ const DeviceCard = React.memo(function DeviceCard({ device }) {
       <View style={devSt.body}>
       {/* Centered 3D device — gently sways up and down; LED blinks green when connected */}
       <View style={devSt.illustrationArea}>
-        <Device3D gesture={device.connected ? 'connected' : 'intro'} background={colors.white} />
+        <Device3D
+          gesture={device.connected ? 'connected' : 'intro'}
+          transparent
+          draggable
+          pressable
+          onDragStart={onDragStart}
+          onDragEnd={onDragEnd}
+        />
       </View>
 
       {/* Name + connection */}
@@ -650,8 +811,8 @@ const DeviceCard = React.memo(function DeviceCard({ device }) {
 });
 
 // ─── Main screen ──────────────────────────────────────────────
-export default function HomeScreen({ onSignOut, onNavigateTab }) {
-  const { userProfile, profileImage } = useAuth();
+export default function HomeScreen({ onSignOut, onNavigateTab, isActiveTab }) {
+  const { user, userProfile, profileImage } = useAuth();
   const { conditions, lastSession, device, todayStats, weeklySnapshot, protectionPattern } = mockData;
   // Last session card runs on the full session record so it can deep-link
   // into the same detail view History uses
@@ -668,8 +829,66 @@ export default function HomeScreen({ onSignOut, onNavigateTab }) {
   const [trendsVisible, setTrendsVisible]   = useState(false);
   const [activeSession, setActiveSession] = useState(null);
   const [elapsed, setElapsed]             = useState(0);
-  const slideAnim = useRef(new Animated.Value(0)).current;
+  // 0 = session fully open (covering home); SCREEN_W = home visible underneath.
+  const sessionX = useRef(new Animated.Value(SCREEN_W)).current;
   const scrollRef = useRef(null);
+
+  // The device card's own PanResponder claims a horizontal drag, but that
+  // doesn't stop the ScrollView's separate native scroll recognizer from
+  // also starting — locking scrollEnabled for the duration is the reliable
+  // fix, same pattern used for the Skin Age scratch card.
+  const [deviceDragging, setDeviceDragging] = useState(false);
+  const handleDeviceDragStart = useCallback(() => setDeviceDragging(true), []);
+  const handleDeviceDragEnd   = useCallback(() => setDeviceDragging(false), []);
+  // Same lock the root pager already respects for pushed screens like
+  // Passport/Skin Age — reactive here since `active` toggles with the drag
+  // instead of being locked for the whole screen's lifetime.
+  useTabSwipeLock(deviceDragging);
+
+  const profileBarTourRef = useTourTarget('profileBar');
+  const profileButtonTourRef = useTourTarget('profileButton');
+  const startSessionTourRef = useTourTarget('startSession');
+  // DEBUG: force the welcome tour to replay on every refresh — flip to
+  // true only while actively testing the tour itself.
+  const FORCE_WELCOME_TOUR_EVERY_TIME = false;
+  useEffect(() => {
+    if (FORCE_WELCOME_TOUR_EVERY_TIME && user?.id) {
+      AsyncStorage.removeItem(tourDoneKey(WELCOME_TOUR_ID, user.id)).catch(() => {});
+    }
+  }, [user?.id]);
+  // Lets the user actually see Home for a couple of seconds before the
+  // tour covers it. The tour's first card is a plain welcome message (no
+  // spotlight), so this delay is the whole reason it doesn't just appear
+  // instantly.
+  const [tourReady, setTourReady] = useState(false);
+  useEffect(() => {
+    const id = setTimeout(() => setTourReady(true), 2000);
+    return () => clearTimeout(id);
+  }, []);
+  useAutoStartTour(WELCOME_TOUR_ID, WELCOME_TOUR_STEPS, tourReady && isActiveTab);
+
+  // Now part of the welcome tour itself (see tourSteps.js) instead of a
+  // separate milestone — it used to fire as its own coach mark right after
+  // the welcome tour finished, since mock data always satisfies "a week of
+  // history" from the first launch.
+  const trendsLinkTourRef = useTourTarget('trendsLink');
+
+  // The welcome tour's "device" step lives near the bottom of this
+  // ScrollView, below the fold — scroll it into view as soon as that step
+  // becomes active so TourOverlay isn't trying to spotlight something
+  // that's still off-screen. Earlier steps all live above the fold, so
+  // scroll back to the top for those.
+  const { activeTour: tourActive, stepIndex: tourStepIndex } = useAppTour();
+  useEffect(() => {
+    if (tourActive?.id !== WELCOME_TOUR_ID) return;
+    const step = tourActive.steps[tourStepIndex];
+    if (!step || step.tab !== 'home') return; // only steps that land on Home
+    if (step.target === 'device') {
+      scrollRef.current?.scrollToEnd({ animated: true });
+    } else {
+      scrollRef.current?.scrollTo({ y: 0, animated: true });
+    }
+  }, [tourActive, tourStepIndex]);
 
   const scrollToTop = useCallback(
     () => scrollRef.current?.scrollTo({ y: 0, animated: true }),
@@ -684,67 +903,163 @@ export default function HomeScreen({ onSignOut, onNavigateTab }) {
     return () => clearInterval(id);
   }, [activeSession]);
 
+  // Open: slide the overlay in from the right (matches SessionDetailScreen's enter).
   const slideToSession = useCallback(() => {
-    Animated.timing(slideAnim, {
-      toValue: 1, duration: 340, easing: Easing.out(Easing.cubic), useNativeDriver: true,
+    Animated.timing(sessionX, {
+      toValue: 0, duration: 460, easing: IOS_EASE_OUT, useNativeDriver: true,
     }).start();
-  }, [slideAnim]);
+  }, [sessionX]);
 
+  // Back button: timed ease-out slide-out, same as SessionDetailScreen's back press.
   const slideToHome = useCallback(() => {
-    Animated.timing(slideAnim, {
-      toValue: 0, duration: 320, easing: Easing.out(Easing.cubic), useNativeDriver: true,
+    Animated.timing(sessionX, {
+      toValue: SCREEN_W, duration: 260, easing: SESSION_EASE_OUT, useNativeDriver: true,
     }).start();
-  }, [slideAnim]);
+  }, [sessionX]);
+
+  // Swipe-back release: spring off-screen carrying the flick velocity.
+  const dismissSession = useCallback((velocity = 0) => {
+    Animated.spring(sessionX, {
+      toValue: SCREEN_W, velocity: velocity * 1000, ...SESSION_SPRING,
+    }).start();
+  }, [sessionX]);
+
+  // Swipe that didn't cross the threshold: spring back to fully open.
+  const settleSessionOpen = useCallback((velocity = 0) => {
+    Animated.spring(sessionX, {
+      toValue: 0, velocity: velocity * 1000, ...SESSION_SPRING,
+    }).start();
+  }, [sessionX]);
 
   const handleSessionStart = useCallback((params) => {
     setSheetVisible(false);
     setElapsed(0);
     setActiveSession(params);
+    sessionX.setValue(SCREEN_W); // start off-screen, then slide in
     slideToSession();
-  }, [slideToSession]);
+  }, [slideToSession, sessionX]);
+
+  // End of session → the post-session flow: the sync screen covers
+  // everything immediately while the session detail mounts (and runs its
+  // entrance) hidden underneath; the sync screen then fades itself out to
+  // reveal it, and 1s later the check-in sheet rises.
+  const [postFlow, setPostFlow] = useState(null); // null | 'syncing' | 'detail'
+  const [checkInVisible, setCheckInVisible] = useState(false);
+  const checkInTimer = useRef(null);
+  useEffect(() => () => clearTimeout(checkInTimer.current), []);
+  // The floating tab bar would sit on top of the sync screen and the
+  // check-in sheet's buttons — hide it for the whole flow.
+  useHideTabBar(!!postFlow);
 
   const handleSessionEnd = useCallback(() => {
-    slideToHome();
-    // Clear session only after slide-back completes so screen stays mounted during animation
-    setTimeout(() => {
-      setActiveSession(null);
-      setElapsed(0);
-    }, 340);
-  }, [slideToHome]);
+    setActiveSession(null);
+    setElapsed(0);
+    setPostFlow('syncing');
+  }, []);
+
+  const handleSyncComplete = useCallback(() => {
+    setPostFlow('detail');
+    checkInTimer.current = setTimeout(() => setCheckInVisible(true), 1000);
+  }, []);
+
+  const closePostDetail = useCallback(() => {
+    clearTimeout(checkInTimer.current);
+    setCheckInVisible(false);
+    setPostFlow(null);
+  }, []);
+
+  const dismissCheckIn = useCallback(() => setCheckInVisible(false), []);
 
   const openLastDetail  = useCallback(() => setDetailVisible(true), []);
   const closeLastDetail = useCallback(() => setDetailVisible(false), []);
   const openTrends      = useCallback(() => setTrendsVisible(true), []);
   const closeTrends     = useCallback(() => setTrendsVisible(false), []);
+  const openSettings    = useCallback(() => setSettingsVisible(true), []);
   const goInsights      = useCallback(() => onNavigateTab?.('insights'), [onNavigateTab]);
 
-  const homeTranslateX    = slideAnim.interpolate({ inputRange: [0, 1], outputRange: [0, -SCREEN_W] });
-  const sessionTranslateX = slideAnim.interpolate({ inputRange: [0, 1], outputRange: [SCREEN_W, 0] });
+  // Lets Quick Search jump straight to these without knowing this screen
+  // owns them — same registry pattern as useScrollToTop. 'lastSession'
+  // backs the Session Detail card results (they open the most recent one).
+  useRegisterOpener('settings', openSettings);
+  useRegisterOpener('trends', openTrends);
+  useRegisterOpener('lastSession', openLastDetail);
+
+  // Swipe-right on the active session drags the overlay back over a stationary
+  // home. Same gesture math as SessionDetailScreen; the *Capture handlers claim
+  // a clear rightward drag before the inner ScrollView can grab it.
+  const isBackSwipe = (dx, dy) => dx > 10 && Math.abs(dx) > Math.abs(dy) * 1.5;
+  const sessionSwipe = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_, { dx, dy }) => isBackSwipe(dx, dy),
+      onMoveShouldSetPanResponderCapture: (_, { dx, dy }) => isBackSwipe(dx, dy),
+      onPanResponderTerminationRequest: () => false,
+      onPanResponderMove: (_, { dx }) => {
+        if (dx > 0) sessionX.setValue(dx); // track the finger, right-only
+      },
+      onPanResponderRelease: (_, { dx, vx }) => {
+        if (dx > SESSION_SWIPE_THRESHOLD || vx > 0.5) dismissSession(vx);
+        else settleSessionOpen(vx);
+      },
+      onPanResponderTerminate: () => settleSessionOpen(),
+    })
+  ).current;
+
+  // Swipe-down on the profile bar opens Quick Search, tracking the finger
+  // 1:1 like the app's other swipe gestures. Claimed only on a clearly
+  // downward drag (onMoveShouldSetPanResponder, not onStart) so a plain tap
+  // on the avatar/greeting underneath still reaches their own onPress.
+  const quickSearch = useQuickSearch();
+  const quickSearchRef = useRef(quickSearch);
+  quickSearchRef.current = quickSearch;
+  const isDownSwipe = (dx, dy) => dy > 10 && Math.abs(dy) > Math.abs(dx) * 1.5;
+  const searchSwipe = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => false,
+      onMoveShouldSetPanResponder: (_, { dx, dy }) => isDownSwipe(dx, dy),
+      // The avatar/greeting underneath are Pressables that claim the
+      // responder on touch-down — without the Capture variant too, a swipe
+      // starting on top of them never reaches this at all. Same fix
+      // sessionSwipe below already uses for the same reason.
+      onMoveShouldSetPanResponderCapture: (_, { dx, dy }) => isDownSwipe(dx, dy),
+      onPanResponderTerminationRequest: () => false,
+      onPanResponderGrant: () => quickSearchRef.current.onGestureStart(),
+      onPanResponderMove: (_, { dy }) => quickSearchRef.current.onGestureMove(Math.max(0, dy)),
+      onPanResponderRelease: (_, { dy, vy }) => quickSearchRef.current.onGestureEnd(Math.max(0, dy), vy),
+      onPanResponderTerminate: (_, { dy, vy }) => quickSearchRef.current.onGestureEnd(Math.max(0, dy), vy),
+    })
+  ).current;
 
   return (
     <View style={st.root}>
-      {/* ── Home screen (slides left when session is active) ── */}
-      <Animated.View style={[StyleSheet.absoluteFill, { transform: [{ translateX: homeTranslateX }] }]}>
+      {/* ── Home screen (stationary; the session overlay slides over it) ── */}
+      <Animated.View style={StyleSheet.absoluteFill}>
         <SafeAreaView style={st.safe}>
           <StatusBar style="dark" />
 
-          <View style={st.topBar}>
-            <ProfileAvatar initials={initials} profileImage={profileImage} onPress={() => setSettingsVisible(true)} />
-            <View style={st.greetingBlock}>
-              <Text style={st.greeting}>{greeting.salutation}</Text>
-              <Text style={st.greetingName} numberOfLines={1}>{greeting.name}</Text>
+          <View style={st.topBar} ref={profileBarTourRef} {...searchSwipe.panHandlers}>
+            <View style={st.profileGroup} ref={profileButtonTourRef}>
+              <ProfileAvatar initials={initials} profileImage={profileImage} onPress={() => setSettingsVisible(true)} />
+              <Pressable style={st.greetingBlock} onPress={() => setSettingsVisible(true)} hitSlop={8}>
+                <Text style={st.greeting}>{greeting.salutation}</Text>
+                <Text style={st.greetingName} numberOfLines={1}>{greeting.name}</Text>
+              </Pressable>
             </View>
-            <StartSessionPill
-              sessionActive={!!activeSession}
-              onPress={activeSession ? slideToSession : () => setSheetVisible(true)}
-            />
+            <View ref={startSessionTourRef}>
+              <StartSessionPill
+                sessionActive={!!activeSession}
+                onPress={activeSession ? slideToSession : () => setSheetVisible(true)}
+              />
+            </View>
           </View>
 
-          <ScrollView
+          <Animated.ScrollView
             ref={scrollRef}
             style={st.scroll}
             contentContainerStyle={st.scrollContent}
             showsVerticalScrollIndicator={false}
+            scrollEventThrottle={16}
+            decelerationRate="normal"
+            scrollEnabled={!deviceDragging}
           >
             <SlideInView delay={40}>
               <ProtectionStatsCard
@@ -757,11 +1072,13 @@ export default function HomeScreen({ onSignOut, onNavigateTab }) {
               <LastSessionCard session={lastFull} detail={lastDetail} onOpenDetail={openLastDetail} />
             </SlideInView>
             <SlideInView delay={180}>
-              <WeeklySnapshotCard
-                snapshot={weeklySnapshot}
-                weeklyDose={lastDetail.pattern.weeklyDose}
-                onSeeAll={openTrends}
-              />
+              <View ref={trendsLinkTourRef}>
+                <WeeklySnapshotCard
+                  snapshot={weeklySnapshot}
+                  weeklyDose={lastDetail.pattern.weeklyDose}
+                  onSeeAll={openTrends}
+                />
+              </View>
             </SlideInView>
             <SlideInView delay={250}>
               <ProtectionPatternCard
@@ -771,10 +1088,10 @@ export default function HomeScreen({ onSignOut, onNavigateTab }) {
               />
             </SlideInView>
             <SlideInView delay={320}>
-              <DeviceCard device={device} />
+              <DeviceCard device={device} onDragStart={handleDeviceDragStart} onDragEnd={handleDeviceDragEnd} />
             </SlideInView>
             <View style={{ height: 40 }} />
-          </ScrollView>
+          </Animated.ScrollView>
 
           <SessionSetupSheet
             visible={sheetVisible}
@@ -787,7 +1104,10 @@ export default function HomeScreen({ onSignOut, onNavigateTab }) {
 
       {/* ── Active session (slides in from right, stays mounted) ── */}
       {activeSession && (
-        <Animated.View style={[StyleSheet.absoluteFill, { transform: [{ translateX: sessionTranslateX }] }]}>
+        <Animated.View
+          style={[StyleSheet.absoluteFill, { transform: [{ translateX: sessionX }] }]}
+          {...sessionSwipe.panHandlers}
+        >
           <ActiveSessionScreen
             sessionParams={activeSession}
             elapsed={elapsed}
@@ -813,6 +1133,25 @@ export default function HomeScreen({ onSignOut, onNavigateTab }) {
         onClose={() => setSettingsVisible(false)}
         onSignOut={onSignOut}
       />
+
+      {/* ── Post-session flow: sync → detail reveal → check-in sheet ── */}
+      {postFlow && (
+        <View style={StyleSheet.absoluteFill}>
+          {/* MOCK: the completed session reuses the latest mock session so
+              the flow is always demonstrable. TODO: pass the real ended
+              session's computed summary once live sessions are wired. */}
+          <SessionDetailScreen session={lastFull} onBack={closePostDetail} scrollKey="home" />
+          {checkInVisible && (
+            <CheckInSheet
+              session={lastFull}
+              // TODO: read the actual previous session's postSession answer.
+              previousSkinFeelAfter={null}
+              onDismiss={dismissCheckIn}
+            />
+          )}
+          {postFlow === 'syncing' && <SessionSyncScreen onComplete={handleSyncComplete} />}
+        </View>
+      )}
     </View>
   );
 }
@@ -836,6 +1175,14 @@ const st = StyleSheet.create({
     paddingBottom: 18,
     gap: 12,
     backgroundColor: colors.canvas,
+  },
+  // Avatar + greeting grouped so the tour can spotlight just the tappable
+  // "open Settings" region, separate from the Start Session pill.
+  profileGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    gap: 12,
   },
   avatar: {
     width: 48,
@@ -1092,14 +1439,12 @@ const wkSt = StyleSheet.create({
 // ─── Device card styles ───────────────────────────────────────
 const devSt = StyleSheet.create({
   wrap: {
-    backgroundColor: colors.white,
     borderRadius: 28,
-    borderWidth: 1,
-    borderColor: colors.border,
     padding: 20,
-    shadowColor: colors.ink,
+    overflow: 'hidden',
+    shadowColor: colors.orange,
     shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.06,
+    shadowOpacity: 0.14,
     shadowRadius: 18,
     elevation: 3,
   },

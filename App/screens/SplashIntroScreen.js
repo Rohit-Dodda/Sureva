@@ -1,68 +1,73 @@
 import React, { useEffect, useRef } from 'react';
-import { Text, View, Animated, StyleSheet } from 'react-native';
+import { Animated, Easing, StyleSheet, Image } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import colors from '../constants/colors';
 
 export default function SplashIntroScreen({ onComplete }) {
-  const opacity = useRef(new Animated.Value(0)).current;
-  const scale = useRef(new Animated.Value(0.88)).current;
+  const scale = useRef(new Animated.Value(0.9)).current;
+  const translateY = useRef(new Animated.Value(80)).current;
+  const fade = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
     Animated.sequence([
+      // Bounce the logo up into place with a visible, springy overshoot.
       Animated.parallel([
-        Animated.timing(opacity, {
-          toValue: 1,
-          duration: 500,
-          useNativeDriver: true,
-        }),
         Animated.spring(scale, {
           toValue: 1,
-          friction: 8,
-          tension: 60,
+          friction: 6,
+          tension: 90,
+          useNativeDriver: true,
+        }),
+        Animated.spring(translateY, {
+          toValue: 0,
+          friction: 5.5,
+          tension: 90,
           useNativeDriver: true,
         }),
       ]),
-      Animated.delay(900),
-      Animated.timing(opacity, {
-        toValue: 0,
-        duration: 350,
-        useNativeDriver: true,
-      }),
+      Animated.delay(650),
+      // Glide the logo down while the splash crossfades to the screen behind.
+      Animated.parallel([
+        Animated.timing(translateY, {
+          toValue: 48,
+          duration: 600,
+          easing: Easing.in(Easing.cubic),
+          useNativeDriver: true,
+        }),
+        Animated.timing(fade, {
+          toValue: 0,
+          duration: 600,
+          easing: Easing.inOut(Easing.quad),
+          useNativeDriver: true,
+        }),
+      ]),
     ]).start(() => onComplete());
   }, []);
 
   return (
-    <View style={styles.container}>
+    <Animated.View style={[styles.container, { opacity: fade }]}>
       <StatusBar style="dark" />
-      <Animated.View style={[styles.lockup, { opacity, transform: [{ scale }] }]}>
-        <Text style={styles.wordmark}>Sureva</Text>
-        <Text style={styles.tagline}>Sun smart, effortlessly.</Text>
+      <Animated.View style={{ transform: [{ translateY }, { scale }] }}>
+        <Image
+          source={require('../assets/sureva-logo.png')}
+          style={styles.logo}
+          resizeMode="contain"
+        />
       </Animated.View>
-    </View>
+    </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
+    ...StyleSheet.absoluteFillObject,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.canvas,
+    zIndex: 10,
   },
-  lockup: {
-    alignItems: 'center',
-  },
-  wordmark: {
-    fontFamily: 'SpaceGrotesk-Bold',
-    fontSize: 56,
-    color: colors.orange,
-    letterSpacing: -2.5,
-  },
-  tagline: {
-    fontFamily: 'Inter-Regular',
-    fontSize: 15,
-    color: colors.muted,
-    letterSpacing: 0.2,
-    marginTop: 8,
+  logo: {
+    width: 300,
+    height: 87,
   },
 });

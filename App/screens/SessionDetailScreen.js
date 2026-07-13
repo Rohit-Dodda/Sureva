@@ -1,4 +1,4 @@
-import React, { useRef, useCallback, useEffect } from 'react';
+import React, { useRef, useState, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
@@ -25,6 +25,11 @@ import AlertComplianceCard from '../components/sessionDetail/AlertComplianceCard
 import PatternCard from '../components/sessionDetail/PatternCard';
 import PreventedCard from '../components/sessionDetail/PreventedCard';
 import SurevaTakeCard from '../components/sessionDetail/SurevaTakeCard';
+import WhatIfEntryCard from '../components/whatIf/WhatIfEntryCard';
+import WhatIfSimulatorScreen from './WhatIfSimulatorScreen';
+// MOCK: raw 30-second readings are synthesized until Week 6 BLE
+// integration; real sessions will carry them on the session document.
+import { getSimDataForSession } from '../constants/mockSessionReadings';
 import SlideInView, { IOS_EASE_OUT } from '../components/SlideInView';
 import { useTabSwipeLock } from '../context/SwipeNavContext';
 import { useScrollToTop } from '../context/ScrollToTopContext';
@@ -38,7 +43,17 @@ const EASE_OUT = Easing.bezier(0.23, 1, 0.32, 1);
 
 export default function SessionDetailScreen({ session, onBack, scrollKey }) {
   const translateX = useRef(new Animated.Value(SCREEN_WIDTH)).current;
+  // The whole screen ignores touches until the entrance finishes, so the
+  // opening tap's release (mounted under the finger) can't reach the swipe-back
+  // and be misread as a dismiss. Both the ref (read synchronously by the pan
+  // responder) and the state (drives pointerEvents) flip together.
+  const readyRef = useRef(false);
+  const [interactive, setInteractive] = useState(false);
+  const [whatIfVisible, setWhatIfVisible] = useState(false);
+  const openWhatIf = useCallback(() => setWhatIfVisible(true), []);
+  const closeWhatIf = useCallback(() => setWhatIfVisible(false), []);
   const detail = mockData.sessionDetails[session.id];
+  const whatIfData = getSimDataForSession(session.id);
 
   // Own the back gesture while open so the root tab-swipe can't fire underneath
   // (a rightward swipe on a tab would otherwise jump to the previous tab).
@@ -52,14 +67,29 @@ export default function SessionDetailScreen({ session, onBack, scrollKey }) {
   );
   useScrollToTop(scrollKey, scrollToTop);
 
-  useEffect(() => {
+  // Start the slide-in when the view is first laid out. onLayout guarantees the
+  // native view exists; a mount-time start can silently no-op on the very first
+  // mount (the freshly mounted native view isn't ready), which is why it used to
+  // take a second tap. enteredRef keeps it to a single run.
+  const enteredRef = useRef(false);
+  const arm = useCallback(() => { readyRef.current = true; setInteractive(true); }, []);
+  const runEnter = useCallback(() => {
+    if (enteredRef.current) return;
+    enteredRef.current = true;
     Animated.timing(translateX, {
       toValue: 0,
       duration: 460,
       easing: IOS_EASE_OUT,
       useNativeDriver: true,
-    }).start();
-  }, [translateX]);
+    }).start(arm);
+  }, [translateX, arm]);
+
+  // Safety net: enter + arm even if onLayout is somehow delayed.
+  useEffect(() => {
+    const t1 = setTimeout(runEnter, 80);
+    const t2 = setTimeout(arm, 550);
+    return () => { clearTimeout(t1); clearTimeout(t2); };
+  }, [runEnter, arm]);
 
   const dismiss = useCallback((velocity = 0) => {
     Animated.spring(translateX, {
@@ -90,7 +120,7 @@ export default function SessionDetailScreen({ session, onBack, scrollKey }) {
   const panResponder = useRef(
     PanResponder.create({
       onMoveShouldSetPanResponder: (_, { dx, dy }) =>
-        dx > 8 && Math.abs(dx) > Math.abs(dy),
+        readyRef.current && dx > 8 && Math.abs(dx) > Math.abs(dy),
       onPanResponderMove: (_, { dx }) => {
         if (dx > 0) translateX.setValue(dx);
       },
@@ -106,7 +136,12 @@ export default function SessionDetailScreen({ session, onBack, scrollKey }) {
   ).current;
 
   return (
-    <Animated.View style={[st.flex, { transform: [{ translateX }] }]} {...panResponder.panHandlers}>
+    <Animated.View
+      style={[st.flex, { transform: [{ translateX }] }]}
+      pointerEvents={interactive ? 'auto' : 'none'}
+      onLayout={runEnter}
+      {...panResponder.panHandlers}
+    >
       <SafeAreaView style={st.safe}>
         <StatusBar style="dark" />
 
@@ -151,11 +186,23 @@ export default function SessionDetailScreen({ session, onBack, scrollKey }) {
               <SlideInView delay={480}><PatternCard pattern={detail.pattern} /></SlideInView>
               <SlideInView delay={530}><PreventedCard prevented={detail.prevented} /></SlideInView>
               <SlideInView delay={580}><SurevaTakeCard take={detail.aiTake} /></SlideInView>
+              {whatIfData && (
+                <SlideInView delay={630}><WhatIfEntryCard onPress={openWhatIf} /></SlideInView>
+              )}
             </>
           ) : (
             <Text style={st.empty}>Detailed breakdown isn't available for this session.</Text>
           )}
         </ScrollView>
+
+        {whatIfData && whatIfVisible && (
+          <WhatIfSimulatorScreen
+            visible={whatIfVisible}
+            onClose={closeWhatIf}
+            session={session}
+            simData={whatIfData}
+          />
+        )}
       </SafeAreaView>
     </Animated.View>
   );

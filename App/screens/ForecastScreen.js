@@ -7,6 +7,7 @@ import { Ionicons } from '@expo/vector-icons';
 import colors from '../constants/colors';
 import mockData from '../constants/mockData';
 import SectionCard from '../components/SectionCard';
+import CleanGlassSurface from '../components/CleanGlassSurface';
 import SlideInView from '../components/SlideInView';
 import UVCurveChart from '../components/forecast/UVCurveChart';
 import WeekForecastStrip from '../components/forecast/WeekForecastStrip';
@@ -32,7 +33,7 @@ const TodayForecastCard = React.memo(function TodayForecastCard({ today, locatio
   const peak = uvLevel(today.peakUV);
 
   return (
-    <SectionCard icon="sunny" title="Today's UV Forecast" subtitle={`${location} · updated ${updated}`}>
+    <SectionCard glass icon="sunny" title="Today's UV Forecast" subtitle={`${location} · updated ${updated}`}>
       {/* Headline stats — read the moment without scanning the curve */}
       <View style={st.statHeader}>
         <View style={st.statBlock}>
@@ -87,7 +88,7 @@ const RecommendedSetupCard = React.memo(function RecommendedSetupCard({ setup })
     { icon: 'timer', label: 'Reapply every', value: `${setup.reapplyMinutes} min` },
   ];
   return (
-    <SectionCard icon="shield-checkmark" title="Recommended Setup" subtitle="Tuned to your skin & today's conditions">
+    <SectionCard glass icon="shield-checkmark" title="Recommended Setup" subtitle="Tuned to your skin & today's conditions">
       {/* Prescription spec list — even rows, no awkward boxes */}
       <View style={st.specList}>
         {specs.map((s, i) => (
@@ -125,7 +126,7 @@ const WeekCard = React.memo(function WeekCard({ week }) {
     { color: colors.danger, label: 'High' },
   ];
   return (
-    <SectionCard icon="calendar" title="This Week" subtitle="Risk level for your skin, 7-day outlook">
+    <SectionCard glass icon="calendar" title="This Week" subtitle="Risk level for your skin, 7-day outlook">
       <WeekForecastStrip week={week} />
       <View style={st.legendRow}>
         {legend.map((l) => (
@@ -158,6 +159,7 @@ const ConditionAlertCard = React.memo(function ConditionAlertCard({ alert }) {
 const BestTimeCard = React.memo(function BestTimeCard({ text }) {
   return (
     <View style={st.bestCard}>
+      <CleanGlassSurface borderRadius={28} />
       <View style={st.bestIcon}>
         <Ionicons name="time" size={18} color={colors.orangeDark} />
       </View>
@@ -491,14 +493,12 @@ const st = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 14,
-    backgroundColor: colors.white,
     borderRadius: 28,
-    borderWidth: 1,
-    borderColor: colors.border,
     padding: 18,
-    shadowColor: colors.ink,
+    overflow: 'hidden',
+    shadowColor: colors.orange,
     shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.06,
+    shadowOpacity: 0.14,
     shadowRadius: 14,
     elevation: 2,
   },

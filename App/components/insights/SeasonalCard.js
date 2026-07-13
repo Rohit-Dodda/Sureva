@@ -11,7 +11,7 @@ export default React.memo(function SeasonalCard({ seasonal }) {
   const maxRate = Math.max(...rates);
 
   return (
-    <SectionCard icon="partly-sunny-outline" title="Seasonal Intelligence">
+    <SectionCard glass icon="partly-sunny-outline" title="Seasonal Intelligence">
       <Text style={st.chartLabel}>Average depletion rate by month</Text>
       <View style={st.chart}>
         {seasonal.months.map((mo, i) => {

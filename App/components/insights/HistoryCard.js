@@ -23,7 +23,7 @@ const SessionExtreme = React.memo(function SessionExtreme({ kind, score, text })
 
 export default React.memo(function HistoryCard({ history }) {
   return (
-    <SectionCard icon="albums-outline" title="Your Protection History">
+    <SectionCard glass icon="albums-outline" title="Your Protection History">
       <StatGrid stats={history.stats} />
       <Text style={st.medContext}>{history.medContext}</Text>
 

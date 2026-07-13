@@ -11,7 +11,7 @@ export default React.memo(function RiskIntelCard({ risk }) {
     dosePct < 50 ? colors.protected : dosePct < 80 ? colors.warning : colors.danger;
 
   return (
-    <SectionCard icon="telescope-outline" title="Risk Intelligence">
+    <SectionCard glass icon="telescope-outline" title="Risk Intelligence">
       <Text style={st.doseLabel}>UV dose this month</Text>
       <View style={st.doseTrack}>
         <View style={[st.doseFill, { width: `${dosePct}%`, backgroundColor: doseColor }]} />

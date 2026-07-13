@@ -7,7 +7,7 @@ import colors from '../../constants/colors';
 
 export default React.memo(function SunscreenCard({ sunscreen }) {
   return (
-    <SectionCard icon="flask-outline" title="Sunscreen Performance">
+    <SectionCard glass icon="flask-outline" title="Sunscreen Performance">
       <View style={st.spfRow}>
         <View style={st.spfBox}>
           <Text style={st.spfLabel}>On the bottle</Text>

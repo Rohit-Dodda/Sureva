@@ -14,8 +14,7 @@ import {
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
-import { fetchSignInMethodsForEmail } from 'firebase/auth';
-import { auth } from '../services/firebaseConfig';
+import SupabaseService from '../services/SupabaseService';
 import colors from '../constants/colors';
 import SlideInView from '../components/SlideInView';
 import LegalDocumentModal from '../components/LegalDocumentModal';
@@ -32,6 +31,7 @@ export default function AuthScreen({ onNavigateToSignIn, onAccountCreated, prefi
   const [tosAccepted, setTosAccepted] = useState(false);
   const [privacyAccepted, setPrivacyAccepted] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const [legalDoc, setLegalDoc] = useState(null);
 
   const lastNameRef = useRef(null);
@@ -76,14 +76,14 @@ export default function AuthScreen({ onNavigateToSignIn, onAccountCreated, prefi
 
     setLoading(true);
     try {
-      const methods = await fetchSignInMethodsForEmail(auth, email.trim());
-      if (methods.length > 0) {
+      const { data: exists } = await SupabaseService.checkEmailExists(email.trim());
+      if (exists) {
         setErrors((prev) => ({ ...prev, email: 'An account with this email already exists' }));
         setLoading(false);
         return;
       }
     } catch {
-      // email enumeration protection may be enabled — proceed and let creation fail if duplicate
+      // Lookup unavailable — proceed and let creation fail if duplicate
     }
 
     try {
@@ -95,8 +95,10 @@ export default function AuthScreen({ onNavigateToSignIn, onAccountCreated, prefi
       });
       // On success the component unmounts; no need to reset loading
     } catch (e) {
+      console.log('[signup] createUser error:', e?.code, e?.status, e?.message);
       const code = e?.code ?? '';
-      if (code === 'auth/email-already-in-use') {
+      const message = e?.message ?? '';
+      if (code === 'user_already_exists' || /already registered|already exists/i.test(message)) {
         setErrors((prev) => ({ ...prev, email: 'An account with this email already exists' }));
       } else {
         setErrors((prev) => ({ ...prev, email: 'Account creation failed. Please try again.' }));
@@ -105,8 +107,16 @@ export default function AuthScreen({ onNavigateToSignIn, onAccountCreated, prefi
     }
   }, [firstName, lastName, email, password, onAccountCreated]);
 
-  const handleGoogleSignUp = useCallback(() => {
-    // Google auth coming soon
+  const handleGoogleSignUp = useCallback(async () => {
+    setGoogleLoading(true);
+    const { error } = await SupabaseService.signInWithGoogle();
+    setGoogleLoading(false);
+    if (error) {
+      console.log('[google signup] error:', error?.message);
+      setErrors((prev) => ({ ...prev, email: 'Google sign-in failed. Please try again.' }));
+    }
+    // On success AuthContext's listener picks up the new session and this
+    // screen unmounts automatically — nothing further to do here.
   }, []);
 
   const borderColor = (field) =>
@@ -136,14 +146,21 @@ export default function AuthScreen({ onNavigateToSignIn, onAccountCreated, prefi
           <SlideInView delay={60}>
             <TouchableOpacity
               style={styles.googleButton}
-              onPress={handleGoogleSignUp}
-              activeOpacity={0.8}
+              onPress={googleLoading ? undefined : handleGoogleSignUp}
+              activeOpacity={googleLoading ? 1 : 0.8}
+              disabled={googleLoading}
             >
-              <Image
-                source={require('../assets/google-icon.png')}
-                style={styles.googleIcon}
-              />
-              <Text style={styles.googleText}>Continue with Google</Text>
+              {googleLoading ? (
+                <ActivityIndicator color={colors.ink} />
+              ) : (
+                <>
+                  <Image
+                    source={require('../assets/google-icon.png')}
+                    style={styles.googleIcon}
+                  />
+                  <Text style={styles.googleText}>Continue with Google</Text>
+                </>
+              )}
             </TouchableOpacity>
 
             {/* OR divider */}

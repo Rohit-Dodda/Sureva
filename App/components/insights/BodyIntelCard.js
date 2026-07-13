@@ -7,7 +7,7 @@ import colors from '../../constants/colors';
 
 export default React.memo(function BodyIntelCard({ body }) {
   return (
-    <SectionCard icon="body-outline" title="Body Intelligence">
+    <SectionCard glass icon="body-outline" title="Body Intelligence">
       <IconRow icon="rainy-outline" title="Your sweat profile" text={body.sweat} />
       <IconRow icon="fitness-outline" title="Activity impact" text={body.activityImpact} />
 

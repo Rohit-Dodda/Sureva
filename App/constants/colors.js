@@ -40,6 +40,7 @@ const colors = {
   // Borders
   border: '#ECE6DC',        // neutral warm hairline
   borderNeutral: '#ECE6DC',
+  borderLight: '#EEEEEE',   // check-in cards / inputs
 
   // Status washes (badge/pill backgrounds)
   greenWash: '#E2F7EB',
@@ -53,6 +54,20 @@ const colors = {
 
   // Device LED — pairing/advertising indicator
   bluetooth: '#2F80FF',
+
+  // Passport — gold ring on the user's best-session pin
+  gold: '#E8B646',
+
+  // Glassmorphism (translucent overlays on blurred surfaces)
+  glassBorder: 'rgba(255,255,255,0.6)',
+  glassOverlay: 'rgba(255,255,255,0.28)',
+  glassShine: 'rgba(255,255,255,0.9)',
+  glassBase: 'rgba(255,255,255,0.38)',
+
+  // Dark glassmorphism (Skin Age hero card — a translucent dark "wallet
+  // card" instead of a solid fill)
+  glassDarkBase: 'rgba(15,14,12,0.28)',
+  glassDarkBorder: 'rgba(255,255,255,0.14)',
 };
 
 export default colors;

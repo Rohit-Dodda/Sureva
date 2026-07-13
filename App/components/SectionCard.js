@@ -2,6 +2,7 @@ import React from 'react';
 import { View, StyleSheet } from 'react-native';
 import colors from '../constants/colors';
 import CardHeader from './CardHeader';
+import CleanGlassSurface from './CleanGlassSurface';
 
 export default React.memo(function SectionCard({
   icon,
@@ -12,9 +13,11 @@ export default React.memo(function SectionCard({
   headerRight,
   children,
   style,
+  glass,
 }) {
   return (
-    <View style={[st.card, style]}>
+    <View style={[st.card, glass && st.cardGlass, style]}>
+      {glass && <CleanGlassSurface borderRadius={28} />}
       <CardHeader
         icon={icon}
         title={title}
@@ -42,5 +45,12 @@ const st = StyleSheet.create({
     shadowOpacity: 0.06,
     shadowRadius: 14,
     elevation: 2,
+  },
+  cardGlass: {
+    backgroundColor: 'transparent',
+    borderWidth: 0,
+    overflow: 'hidden',
+    shadowColor: colors.orange,
+    shadowOpacity: 0.14,
   },
 });

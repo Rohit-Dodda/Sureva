@@ -1,8 +1,35 @@
 import React, { useMemo, useRef } from 'react';
+import { View, PanResponder } from 'react-native';
 import { Canvas, useFrame } from '@react-three/fiber/native';
 import { ContactShadows } from '@react-three/drei/native';
 import * as THREE from 'three';
 import colors from '../../constants/colors';
+
+// Horizontal drag → yaw rotation. Tuned so a full-width drag across the
+// ~130px card is a bit more than a half turn — responsive, not twitchy.
+const DRAG_SENSITIVITY = Math.PI / 110;
+// Release coasts freely on the flick's momentum first (lower friction =
+// spins longer before it noticeably slows), and only once it's nearly
+// stopped does the spring-back to the default orientation take over —
+// so a real flick gets to actually spin instead of snapping home instantly.
+const DRAG_COAST_FRICTION = 2.0;
+const DRAG_COAST_STOP_THRESHOLD = 0.05; // rad/s below which coast hands off to the spring
+const DRAG_SPRING_STIFFNESS = 55;
+const DRAG_SPRING_DAMPING = 11;
+
+// A tap (as opposed to a drag) triggers a one-shot button press + LED
+// pulse, independent of whatever the current gesture's own timeline is
+// doing to those same properties.
+const TAP_MAX_MOVEMENT = 8;   // px — beyond this it's a drag, not a tap
+const TAP_MAX_DURATION = 400; // ms
+const TAP_PRESS_DUR = 0.26;   // seconds — dip duration for the tap's own press
+
+// Collapses a possibly multi-turn accumulated rotation to the equivalent
+// angle closest to 0, so a release after several spins snaps back along
+// the short way round instead of unwinding every turn it took to get there.
+function shortestAngle(a) {
+  return a - Math.PI * 2 * Math.round(a / (Math.PI * 2));
+}
 
 // LED colors used across the timelines
 const COL = {
@@ -115,7 +142,7 @@ function evalGesture(lt, gesture, out) {
   }
 }
 
-function DeviceMesh({ gesture, spinTrigger }) {
+function DeviceMesh({ gesture, spinTrigger, drag, press }) {
   const group = useRef();
   const led   = useRef();
   const btn   = useRef();
@@ -127,6 +154,8 @@ function DeviceMesh({ gesture, spinTrigger }) {
   const out        = useMemo(() => ({ col: COL.orange, glow: 0.5, press: 0, shake: 0 }), []);
 
   const lastTrigger = useRef(spinTrigger);
+  const lastPressCount = useRef(press ? press.count : 0);
+  const pressStartT = useRef(-1);
 
   // Spin is an offset layered on top of the idle sway and eased toward a
   // multiple of 2π, so it lands exactly on the resting orientation with no snap.
@@ -156,6 +185,12 @@ function DeviceMesh({ gesture, spinTrigger }) {
       spinTarget.current += Math.PI * 2; // queue one more full turn
     }
 
+    if (press && press.count !== lastPressCount.current) {
+      lastPressCount.current = press.count;
+      pressStartT.current = t;
+    }
+    const tapDip = dip(t, pressStartT.current, TAP_PRESS_DUR);
+
     // Hold each page's sequence until the spin-in has settled, so every press
     // is performed while the device is facing the viewer.
     const delayed = gesture === 'single' || gesture === 'double' || gesture === 'triple' || gesture === 'hold';
@@ -178,22 +213,63 @@ function DeviceMesh({ gesture, spinTrigger }) {
     // frame-rate independent ease toward the queued rotation
     const k = 1 - Math.exp(-delta * 4.5);
     spinOffset.current += (spinTarget.current - spinOffset.current) * k;
-    g.rotation.y = idleY + spinOffset.current;
+
+    // User drag: direct follow while the finger is down. On release it
+    // coasts freely on whatever momentum the flick carried — no pull
+    // toward home yet — and only once that coast has nearly died out does
+    // it hand off to a spring back to the default orientation, carrying
+    // whatever velocity is left. A slow, controlled release (little to no
+    // velocity) skips straight to the spring.
+    let dragRot = 0;
+    if (drag) {
+      if (!drag.dragging) {
+        if (!drag.returning) {
+          if (drag.velocity !== 0) {
+            drag.rotation += drag.velocity * delta;
+            drag.velocity *= Math.exp(-delta * DRAG_COAST_FRICTION);
+            if (Math.abs(drag.velocity) < DRAG_COAST_STOP_THRESHOLD) {
+              drag.rotation = shortestAngle(drag.rotation);
+              drag.returning = true;
+            }
+          } else {
+            drag.rotation = shortestAngle(drag.rotation);
+            drag.returning = true;
+          }
+        } else {
+          const accel = -DRAG_SPRING_STIFFNESS * drag.rotation - DRAG_SPRING_DAMPING * drag.velocity;
+          drag.velocity += accel * delta;
+          drag.rotation += drag.velocity * delta;
+          if (Math.abs(drag.rotation) < 0.001 && Math.abs(drag.velocity) < 0.01) {
+            drag.rotation = 0;
+            drag.velocity = 0;
+          }
+        }
+      }
+      dragRot = drag.rotation;
+    }
+
+    g.rotation.y = idleY + spinOffset.current + dragRot;
+
+    // A tap layers its own brief press + glow pulse on top of whatever the
+    // active gesture's timeline is already doing, taking whichever is
+    // stronger rather than fighting or overriding it.
+    const effGlow = Math.max(out.glow, 0.35 + tapDip * 0.65);
+    const effPress = Math.max(out.press, tapDip);
 
     if (led.current) {
       const m = led.current.material;
       if (snap) m.emissive.copy(out.col);
       else m.emissive.lerp(out.col, 0.18);
       m.color.copy(m.emissive);
-      m.emissiveIntensity = 0.3 + out.glow * 3.0;
+      m.emissiveIntensity = 0.3 + effGlow * 3.0;
     }
 
     // physically depress the button into its socket to match the press pattern
     if (btn.current) {
-      btn.current.position.z = -out.press * 0.11;
+      btn.current.position.z = -effPress * 0.11;
       if (puck.current) {
         // darken as it travels down so the press reads even in flat light
-        btnTmp.copy(btnBase).lerp(btnPressed, out.press);
+        btnTmp.copy(btnBase).lerp(btnPressed, effPress);
         puck.current.material.color.copy(btnTmp);
       }
     }
@@ -253,51 +329,143 @@ function DeviceMesh({ gesture, spinTrigger }) {
   );
 }
 
-function Device3D({ gesture = 'intro', spinTrigger = 0, background = colors.canvas }) {
+// `transparent` skips painting a scene background at all (paired with an
+// alpha-enabled GL context) so the device renders over whatever sits
+// behind the canvas in the native view tree — e.g. a glass card. Ignored
+// when a solid `background` fill is wanted instead (the default).
+// `draggable` lets a horizontal finger drag spin the device in real time,
+// coasting to a stop under friction on release — same rotation offset the
+// idle sway and the tap-triggered spin already layer onto, so it composes
+// with both instead of fighting them. `onDragStart`/`onDragEnd` let the
+// caller lock its own scroll for the duration, since claiming the
+// responder here doesn't stop a parent ScrollView's separate recognizer.
+// `pressable` triggers a one-shot button-press + LED pulse on a plain tap
+// (short, low-movement touch) — detected via raw touch events alongside
+// the drag PanResponder rather than through it, since a tap never moves
+// enough to make that PanResponder become the responder in the first place.
+function Device3D({
+  gesture = 'intro', spinTrigger = 0, background = colors.canvas, transparent = false, draggable = false,
+  pressable = false, onDragStart, onDragEnd,
+}) {
+  const drag = useRef({ rotation: 0, velocity: 0, dragging: false, returning: false }).current;
+  const press = useRef({ count: 0 }).current;
+  const draggableRef = useRef(draggable);
+  draggableRef.current = draggable;
+  const pressableRef = useRef(pressable);
+  pressableRef.current = pressable;
+  const onDragStartRef = useRef(onDragStart);
+  onDragStartRef.current = onDragStart;
+  const onDragEndRef = useRef(onDragEnd);
+  onDragEndRef.current = onDragEnd;
+  const lastX = useRef(0);
+  const lastT = useRef(0);
+  const touchStart = useRef({ x: 0, y: 0, t: 0 });
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => false,
+      onMoveShouldSetPanResponder: (_, g) =>
+        draggableRef.current && Math.abs(g.dx) > 4 && Math.abs(g.dx) > Math.abs(g.dy) * 1.5,
+      onPanResponderTerminationRequest: () => true,
+      onPanResponderGrant: (e) => {
+        drag.dragging = true;
+        drag.returning = false;
+        drag.velocity = 0;
+        lastX.current = e.nativeEvent.pageX;
+        lastT.current = Date.now();
+        onDragStartRef.current?.();
+      },
+      onPanResponderMove: (e) => {
+        const now = Date.now();
+        const dt = Math.max(0.001, (now - lastT.current) / 1000);
+        const dx = e.nativeEvent.pageX - lastX.current;
+        const dRot = dx * DRAG_SENSITIVITY;
+        drag.rotation += dRot;
+        drag.velocity = Math.max(-14, Math.min(14, dRot / dt));
+        lastX.current = e.nativeEvent.pageX;
+        lastT.current = now;
+      },
+      onPanResponderRelease: () => {
+        drag.dragging = false;
+        onDragEndRef.current?.();
+      },
+      onPanResponderTerminate: () => {
+        drag.dragging = false;
+        onDragEndRef.current?.();
+      },
+    })
+  ).current;
+
+  const handleTouchStart = (e) => {
+    const { pageX, pageY } = e.nativeEvent;
+    touchStart.current = { x: pageX, y: pageY, t: Date.now() };
+  };
+  const handleTouchEnd = (e) => {
+    if (!pressableRef.current) return;
+    const { pageX, pageY } = e.nativeEvent;
+    const { x, y, t } = touchStart.current;
+    const moved = Math.hypot(pageX - x, pageY - y);
+    if (moved < TAP_MAX_MOVEMENT && Date.now() - t < TAP_MAX_DURATION) {
+      press.count += 1;
+    }
+  };
+
   return (
-    <Canvas
-      shadows
-      dpr={[1, 2]}
-      camera={{ position: [0, 0.3, 4.4], fov: 38 }}
-      gl={{ antialias: true, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.1 }}
+    <View
       style={{ flex: 1 }}
+      {...panResponder.panHandlers}
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
     >
-      <color attach="background" args={[background]} />
+      <Canvas
+        shadows
+        dpr={[1, 2]}
+        camera={{ position: [0, 0.3, 4.4], fov: 38 }}
+        gl={{
+          antialias: true,
+          alpha: transparent,
+          toneMapping: THREE.ACESFilmicToneMapping,
+          toneMappingExposure: 1.1,
+        }}
+        style={{ flex: 1, backgroundColor: 'transparent' }}
+      >
+        {!transparent && <color attach="background" args={[background]} />}
 
-      <ambientLight intensity={0.45} />
-      <directionalLight
-        position={[4, 7, 5]}
-        intensity={2.4}
-        castShadow
-        shadow-mapSize-width={1024}
-        shadow-mapSize-height={1024}
-        shadow-camera-near={1}
-        shadow-camera-far={20}
-        shadow-camera-left={-4}
-        shadow-camera-right={4}
-        shadow-camera-top={4}
-        shadow-camera-bottom={-4}
-        shadow-bias={-0.0005}
-      />
-      <directionalLight position={[-5, 2, 2]} intensity={0.7} color="#FFD9C2" />
-      <pointLight position={[-2, -1, 3]} color={colors.orange} intensity={1.1} />
-      <spotLight position={[0, 6, 2]} angle={0.5} penumbra={1} intensity={1.2} color="#FFFFFF" />
-
-      <DeviceMesh gesture={gesture} spinTrigger={spinTrigger} />
-
-      {/* Offset to the lower-right so it reads as a directional cast, not a
-          centered horizontal band that looks like a divider above the text. */}
-      <group rotation={[0, 0, -0.32]} position={[0.45, -1.28, 0]}>
-        <ContactShadows
-          scale={1.9}
-          blur={4.5}
-          opacity={0.2}
-          far={1.8}
-          resolution={512}
-          color="#7A4A1E"
+        <ambientLight intensity={0.45} />
+        <directionalLight
+          position={[4, 7, 5]}
+          intensity={2.4}
+          castShadow
+          shadow-mapSize-width={1024}
+          shadow-mapSize-height={1024}
+          shadow-camera-near={1}
+          shadow-camera-far={20}
+          shadow-camera-left={-4}
+          shadow-camera-right={4}
+          shadow-camera-top={4}
+          shadow-camera-bottom={-4}
+          shadow-bias={-0.0005}
         />
-      </group>
-    </Canvas>
+        <directionalLight position={[-5, 2, 2]} intensity={0.7} color="#FFD9C2" />
+        <pointLight position={[-2, -1, 3]} color={colors.orange} intensity={1.1} />
+        <spotLight position={[0, 6, 2]} angle={0.5} penumbra={1} intensity={1.2} color="#FFFFFF" />
+
+        <DeviceMesh gesture={gesture} spinTrigger={spinTrigger} drag={drag} press={press} />
+
+        {/* Offset to the lower-right so it reads as a directional cast, not a
+            centered horizontal band that looks like a divider above the text. */}
+        <group rotation={[0, 0, -0.32]} position={[0.45, -1.28, 0]}>
+          <ContactShadows
+            scale={1.9}
+            blur={4.5}
+            opacity={0.2}
+            far={1.8}
+            resolution={512}
+            color="#7A4A1E"
+          />
+        </group>
+      </Canvas>
+    </View>
   );
 }
 
