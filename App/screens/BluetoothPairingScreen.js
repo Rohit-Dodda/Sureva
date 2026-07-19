@@ -545,7 +545,7 @@ const styles = StyleSheet.create({
     marginBottom: 28,
   },
   heading: {
-    fontFamily: 'SpaceGrotesk-Bold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 36,
     color: colors.ink,
     letterSpacing: -1.1,
@@ -554,7 +554,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   sub: {
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 16,
     color: colors.muted,
     lineHeight: 25,
@@ -562,7 +562,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   scanLabel: {
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 15,
     color: colors.muted,
     marginBottom: 32,
@@ -601,7 +601,7 @@ const styles = StyleSheet.create({
   },
   deviceName: {
     flex: 1,
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 15,
     color: colors.ink,
   },
@@ -644,7 +644,7 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
   },
   statusIconGlyph: {
-    fontFamily: 'SpaceGrotesk-Bold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 30,
   },
   statusGlyphWarning: {
@@ -676,7 +676,7 @@ const styles = StyleSheet.create({
     elevation: 5,
   },
   primaryBtnText: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 17,
     color: colors.white,
     letterSpacing: 0.2,
@@ -687,7 +687,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   ghostBtnText: {
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 14,
     color: colors.muted,
     letterSpacing: 0.1,

@@ -46,7 +46,7 @@ export default React.memo(function SeasonalCard({ seasonal }) {
 
 const st = StyleSheet.create({
   chartLabel: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 12,
     color: colors.muted,
     letterSpacing: 0.4,
@@ -80,12 +80,12 @@ const st = StyleSheet.create({
     backgroundColor: colors.surface,
   },
   barLabel: {
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 10,
     color: colors.muted,
   },
   barLabelCurrent: {
-    fontFamily: 'SpaceGrotesk-Bold',
+    fontFamily: 'Outfit-Regular',
     color: colors.orange,
   },
 });

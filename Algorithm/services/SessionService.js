@@ -52,10 +52,14 @@ export function handleWaterEvent(durationSeconds) {
   if (eventType === 'ignored') return activeSession;
 
   const protectionBefore = activeSession.protectionPercentage;
+  // Manually-logged event, not tied to a sensor interval — use the
+  // most recently recorded activity level as the best available signal.
+  const lastActivityLevel = activeSession.readings[activeSession.readings.length - 1]?.activityLevel;
   const { newProtection, cutApplied } = applyWaterEventCut(
     protectionBefore,
     eventType,
-    activeSession.waterResistanceRating
+    activeSession.waterResistanceRating,
+    lastActivityLevel
   );
 
   activeSession = {

@@ -44,14 +44,14 @@ const st = StyleSheet.create({
   },
   textWrap: { flex: 1 },
   eyebrow: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 10,
     color: colors.orangeDark,
     letterSpacing: 1,
     marginBottom: 3,
   },
   body: {
-    fontFamily: 'Inter-Medium',
+    fontFamily: 'Outfit-Regular',
     fontSize: 13.5,
     color: colors.ink,
     lineHeight: 19,

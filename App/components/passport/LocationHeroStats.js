@@ -47,13 +47,13 @@ const st = StyleSheet.create({
     alignItems: 'center',
   },
   value: {
-    fontFamily: 'SpaceGrotesk-Bold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 22,
     color: colors.ink,
     letterSpacing: -0.5,
   },
   label: {
-    fontFamily: 'Inter-Medium',
+    fontFamily: 'Outfit-Regular',
     fontSize: 11.5,
     color: colors.muted,
     marginTop: 4,

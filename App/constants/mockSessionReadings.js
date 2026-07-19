@@ -12,6 +12,7 @@ const MOCK_USER_PROFILE = {
   skinType: 'combination',
   ageGroup: 'adult',
   medicationFlag: false,
+  skinConditionFlag: false,
   devicePlacement: 'wrist',
   personalFactor: 1.0,
 };

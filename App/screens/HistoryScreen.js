@@ -12,11 +12,17 @@ import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import colors from '../constants/colors';
 import mockData from '../constants/mockData';
+import { useAuth } from '../context/AuthContext';
+import SupabaseService from '../services/SupabaseService';
+import { onSessionSaved } from '../services/SessionEventsService';
+import { buildSessionHero } from '../services/SessionDetailMapper';
+import { engineProfileFor } from '../components/activeSession/sessionMath';
 import SessionCard from '../components/SessionCard';
+import PressableScale from '../components/PressableScale';
 import SessionDetailScreen from './SessionDetailScreen';
 import PassportScreen from './PassportScreen';
 import { useScrollToTop } from '../context/ScrollToTopContext';
-import { useRegisterOpener } from '../context/QuickSearchContext';
+import { useRegisterOpener, useQuickSearch } from '../context/QuickSearchContext';
 import { useTourTarget, useAutoStartTour } from '../context/AppTourContext';
 import { MILESTONE_TOURS } from '../constants/tourSteps';
 
@@ -28,11 +34,35 @@ function buildSearchIndex(s) {
   ].join(' ').toLowerCase();
 }
 
-export default function HistoryScreen({ isActiveTab }) {
+export default function HistoryScreen({ isActiveTab, onNavigateTab }) {
+  const { user, userProfile } = useAuth();
+  const { navigateTo } = useQuickSearch();
   const [query, setQuery] = useState('');
   const [selectedSession, setSelectedSession] = useState(null);
   const [openKey, setOpenKey] = useState(0);
   const [passportOpen, setPassportOpen] = useState(false);
+
+  // null = still loading (mock is the placeholder); a resolved array —
+  // even an empty one — is the real, honest answer, same pattern as
+  // PassportScreen/SkinAgeScreen.
+  const [realSessions, setRealSessions] = useState(null);
+  const loadSessions = useCallback(async () => {
+    if (!user?.id) { setRealSessions([]); return; }
+    try {
+      const { data } = await SupabaseService.getSessions(user.id);
+      const profile = engineProfileFor({}, userProfile);
+      setRealSessions((data ?? []).map((row) => buildSessionHero(row, profile.fitzpatrickType)));
+    } catch {
+      setRealSessions([]);
+    }
+  }, [user, userProfile]);
+  useEffect(() => { loadSessions(); }, [loadSessions]);
+  // TabPager keeps every tab (including this one) mounted for the app's
+  // whole lifetime for smooth swiping — without this, a session ending
+  // while History isn't the active tab would never be seen here, since
+  // the mount-time fetch above only ever runs once.
+  useEffect(() => onSessionSaved(loadSessions), [loadSessions]);
+  const sessions = realSessions === null ? mockData.sessions : realSessions;
 
   const listRef = useRef(null);
   const scrollToTop = useCallback(
@@ -51,6 +81,18 @@ export default function HistoryScreen({ isActiveTab }) {
   const handleClosePassport = useCallback(() => setPassportOpen(false), []);
   useRegisterOpener('passport', handleOpenPassport);
 
+  // Empty-state CTA: starting a session is Home's job (it owns the
+  // SessionSetupSheet). onNavigateTab flips the visible tab to Home, then
+  // navigateTo resolves and fires Home's registered 'startSession' opener —
+  // the same registry + 320ms cross-tab settle delay Quick Search uses for
+  // every other tab→open-something jump. navigateTo's own tab-set is an
+  // idempotent repeat of the switch above, so the sheet only opens once the
+  // pager has landed on Home.
+  const handleStartSession = useCallback(() => {
+    onNavigateTab?.('home');
+    navigateTo({ tab: 'home', opener: 'startSession' });
+  }, [onNavigateTab, navigateTo]);
+
   // Fires once, the first time this tab is opened after the user's first
   // logged session — the same real "do they have any history yet?"
   // condition that'll gate this once mock data is replaced with Firestore.
@@ -65,13 +107,13 @@ export default function HistoryScreen({ isActiveTab }) {
     return () => clearTimeout(id);
   }, [isActiveTab]);
   const milestone = MILESTONE_TOURS.historyFirstSession;
-  useAutoStartTour(milestone.id, milestone.steps, tabSettled && mockData.sessions.length > 0);
+  useAutoStartTour(milestone.id, milestone.steps, tabSettled && sessions.length > 0);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return mockData.sessions;
-    return mockData.sessions.filter((s) => buildSearchIndex(s).includes(q));
-  }, [query]);
+    if (!q) return sessions;
+    return sessions.filter((s) => buildSearchIndex(s).includes(q));
+  }, [query, sessions]);
 
   return (
     <SafeAreaView style={st.safe}>
@@ -122,7 +164,24 @@ export default function HistoryScreen({ isActiveTab }) {
         keyboardShouldPersistTaps="always"
         keyboardDismissMode="on-drag"
       >
-        {filtered.length === 0 ? (
+        {sessions.length === 0 ? (
+          // Genuinely zero sessions (realSessions resolved to an empty array,
+          // not the still-loading mock placeholder). Distinct from the
+          // search-no-matches state below, which only applies once sessions
+          // exist but none match the query.
+          <View style={st.emptyCardWrap}>
+            <View style={st.emptyCard}>
+              <Text style={st.emptyCardTitle}>No sessions yet</Text>
+              <Text style={st.emptyCardBody}>
+                Your sun sessions will show up here. Start your first outdoor session to begin
+                building your history.
+              </Text>
+              <PressableScale style={st.emptyCardButton} onPress={handleStartSession}>
+                <Text style={st.emptyCardButtonLabel}>Start Session</Text>
+              </PressableScale>
+            </View>
+          </View>
+        ) : filtered.length === 0 ? (
           <View style={st.empty}>
             <Ionicons name="search-outline" size={36} color={colors.border} />
             <Text style={st.emptyText}>No sessions match "{query}"</Text>
@@ -173,7 +232,7 @@ const st = StyleSheet.create({
     paddingBottom: 4,
   },
   title: {
-    fontFamily: 'SpaceGrotesk-Bold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 32,
     color: colors.ink,
     letterSpacing: -1,
@@ -214,7 +273,7 @@ const st = StyleSheet.create({
   },
   searchInput: {
     flex: 1,
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 14,
     color: colors.ink,
     height: '100%',
@@ -232,9 +291,57 @@ const st = StyleSheet.create({
     gap: 12,
   },
   emptyText: {
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 15,
     color: colors.muted,
     textAlign: 'center',
+  },
+
+  // Zero-sessions card — mirrors PassportEmptyCard's floating-card look
+  // (28px radius, border, soft shadow, orange CTA) for visual consistency.
+  emptyCardWrap: {
+    paddingTop: 72,
+    paddingHorizontal: 12,
+  },
+  emptyCard: {
+    backgroundColor: colors.white,
+    borderRadius: 28,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: 22,
+    paddingVertical: 24,
+    alignItems: 'center',
+    shadowColor: colors.ink,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.12,
+    shadowRadius: 18,
+    elevation: 6,
+  },
+  emptyCardTitle: {
+    fontFamily: 'Outfit-Regular',
+    fontSize: 20,
+    color: colors.ink,
+    letterSpacing: -0.5,
+    marginBottom: 8,
+  },
+  emptyCardBody: {
+    fontFamily: 'Outfit-Regular',
+    fontSize: 13,
+    lineHeight: 19,
+    color: colors.inkMid,
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  emptyCardButton: {
+    backgroundColor: colors.orange,
+    borderRadius: 22,
+    paddingVertical: 13,
+    paddingHorizontal: 36,
+    alignItems: 'center',
+  },
+  emptyCardButtonLabel: {
+    fontFamily: 'Outfit-Regular',
+    fontSize: 14,
+    color: colors.white,
   },
 });

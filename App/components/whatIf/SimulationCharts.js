@@ -65,7 +65,7 @@ const st = StyleSheet.create({
     marginTop: 8,
   },
   axisLabel: {
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 11,
     color: colors.muted,
   },
@@ -82,7 +82,7 @@ const st = StyleSheet.create({
     marginRight: 6,
   },
   legendLabel: {
-    fontFamily: 'Inter-Medium',
+    fontFamily: 'Outfit-Regular',
     fontSize: 11,
     color: colors.inkMid,
   },

@@ -65,7 +65,7 @@ const st = StyleSheet.create({
     paddingHorizontal: 4,
   },
   badgeText: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 10,
     color: colors.white,
   },

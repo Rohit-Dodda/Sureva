@@ -35,7 +35,7 @@ const st = StyleSheet.create({
     padding: 14,
   },
   heading: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 12.5,
     color: colors.ink,
     marginBottom: 10,
@@ -69,7 +69,7 @@ const st = StyleSheet.create({
     borderRadius: 3.5,
   },
   legendText: {
-    fontFamily: 'Inter-Medium',
+    fontFamily: 'Outfit-Regular',
     fontSize: 11,
     color: colors.inkMid,
   },

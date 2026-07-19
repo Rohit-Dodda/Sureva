@@ -16,6 +16,23 @@ create table public.users (
   skin_condition boolean default false,
   onboarding_complete boolean default false,
   avatar_url text,
+  -- Real, exact age — distinct from age_range (a coarse onboarding bucket
+  -- the depletion engine uses for ageGroup). Needed by SkinAgeService,
+  -- which computes skin age relative to a precise real age.
+  exact_age integer,
+  -- "Where did you hear about Sureva?" onboarding question — marketing
+  -- attribution only, never read by the depletion engine. referral_source
+  -- is the picked platform id (constants/onboardingOptions.js's
+  -- REFERRAL_SOURCES); referral_source_other is the free-text answer when
+  -- the "Other" option is picked, null otherwise.
+  referral_source text,
+  referral_source_other text,
+  -- Real, persisted personal-learning multiplier — see updatePersonalFactor
+  -- in Algorithm/js/depletionEngine.js. Null until the user has enough
+  -- sessions (PERSONAL_FACTOR.minSessionsBeforeAdjusting) for it to start
+  -- adjusting; engineProfileFor treats null as the neutral
+  -- PERSONAL_FACTOR.initial (1.0), never the mock demo profile's value.
+  personal_factor numeric,
   created_at timestamp with time zone default timezone('utc', now())
 );
 
@@ -31,18 +48,33 @@ create table public.sessions (
   water_resistance_mins integer,
   placement text,
   activity_level text,
+  environment text,
   peak_uv numeric,
   average_uv numeric,
   peak_temperature numeric,
   average_humidity numeric,
   protection_score integer,
+  -- Mean depletionRatePerInterval across the session (completedSession's
+  -- averageDepletionRate from Algorithm/services/SessionService.js) — lets
+  -- the Pattern card's calculatePersonalComparison compare against history
+  -- without re-fetching every past session's raw readings.
+  average_depletion_rate numeric,
   water_events integer default 0,
   alert_count integer default 0,
   alert_response_time_avg numeric,
   reapplication_count integer default 0,
+  -- Minutes spent below the unprotected protection threshold this
+  -- session (see UNPROTECTED_THRESHOLD_PCT in algorithmConstants.js).
+  -- Stored directly so Skin Age's gap-minute aggregate doesn't need to
+  -- re-derive it from raw readings every time.
+  unprotected_minutes numeric,
   latitude numeric,
   longitude numeric,
   location_name text,
+  -- city/region, kept separate from the free-text location_name, so
+  -- Passport can cluster/group without parsing that string.
+  city text,
+  region text,
   created_at timestamp with time zone default timezone('utc', now())
 );
 

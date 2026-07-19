@@ -47,14 +47,14 @@ const st = StyleSheet.create({
     alignItems: 'center',
   },
   value: {
-    fontFamily: 'SpaceGrotesk-Bold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 20,
     color: colors.ink,
     letterSpacing: -0.4,
     textAlign: 'center',
   },
   label: {
-    fontFamily: 'Inter-Medium',
+    fontFamily: 'Outfit-Regular',
     fontSize: 11,
     color: colors.muted,
     marginTop: 3,
@@ -70,7 +70,7 @@ const st = StyleSheet.create({
     marginHorizontal: 6,
   },
   deltaText: {
-    fontFamily: 'SpaceGrotesk-Bold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 12,
   },
 });

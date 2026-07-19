@@ -139,7 +139,7 @@ const st = StyleSheet.create({
   thresholdLabel: {
     position: 'absolute',
     right: 0,
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 10,
     color: colors.danger,
   },

@@ -53,7 +53,7 @@ function dotAt(m, pct, durationMinutes, width, height) {
 
 const st = StyleSheet.create({
   tag: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 9,
     letterSpacing: 1,
     color: colors.muted,

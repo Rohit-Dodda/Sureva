@@ -354,7 +354,7 @@ const styles = StyleSheet.create({
     paddingTop: 48,
   },
   heading: {
-    fontFamily: 'SpaceGrotesk-Bold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 38,
     color: colors.ink,
     letterSpacing: -1.2,
@@ -362,7 +362,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   sub: {
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 17,
     color: colors.muted,
     lineHeight: 26,
@@ -384,7 +384,7 @@ const styles = StyleSheet.create({
     elevation: 5,
   },
   btnText: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 17,
     color: colors.white,
     letterSpacing: 0.2,

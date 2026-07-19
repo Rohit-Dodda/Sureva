@@ -66,7 +66,7 @@ export default function CheckEmailScreen({ email, onBack }) {
           <Text style={styles.subheading}>
             We sent a confirmation link to{'\n'}
             <Text style={styles.emailText}>{email}</Text>
-            {'\n\n'}Tap the link to finish creating your account — this screen
+            {'\n\n'}Tap the link to finish creating your account, and this screen
             will move on by itself once you do.
           </Text>
         </SlideInView>
@@ -85,7 +85,7 @@ export default function CheckEmailScreen({ email, onBack }) {
                 : resending
                 ? 'Sending…'
                 : resent
-                ? 'Sent — resend again'
+                ? 'Sent, resend again'
                 : 'Didn’t get an email? Resend'}
             </Text>
           </TouchableOpacity>
@@ -128,7 +128,7 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   heading: {
-    fontFamily: 'SpaceGrotesk-Bold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 28,
     color: colors.ink,
     letterSpacing: -1,
@@ -136,19 +136,19 @@ const styles = StyleSheet.create({
     marginBottom: 14,
   },
   subheading: {
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 15,
     lineHeight: 22,
     color: colors.muted,
     textAlign: 'center',
   },
   emailText: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     color: colors.ink,
   },
 
   errorText: {
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 13,
     color: colors.danger,
     textAlign: 'center',
@@ -161,7 +161,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
   },
   resendText: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 14,
     color: colors.orange,
   },

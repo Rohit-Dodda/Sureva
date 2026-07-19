@@ -133,7 +133,7 @@ const st = StyleSheet.create({
     borderBottomColor: colors.border,
   },
   optionLabel: {
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 17,
     color: colors.ink,
   },
@@ -149,7 +149,7 @@ const st = StyleSheet.create({
     alignItems: 'center',
   },
   cancelLabel: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 17,
     color: colors.ink,
   },

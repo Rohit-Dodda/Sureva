@@ -21,7 +21,7 @@ export default React.memo(function ResultStrip({ comparison }) {
 
   let caption;
   if (stayedProtected && deltaProtectedMinutes > 0) {
-    caption = 'longer protected — you would have stayed covered the whole session.';
+    caption = 'longer protected: you would have stayed covered the whole session.';
   } else if (deltaProtectedMinutes > 0) {
     caption = 'longer before your first reapply alert.';
   } else if (worse) {
@@ -70,7 +70,7 @@ const st = StyleSheet.create({
     elevation: 8,
   },
   delta: {
-    fontFamily: 'SpaceGrotesk-Bold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 30,
     color: colors.orange,
     letterSpacing: -0.8,
@@ -79,7 +79,7 @@ const st = StyleSheet.create({
     color: colors.danger,
   },
   caption: {
-    fontFamily: 'Inter-Medium',
+    fontFamily: 'Outfit-Regular',
     fontSize: 13,
     color: colors.onDark,
     textAlign: 'center',
@@ -87,7 +87,7 @@ const st = StyleSheet.create({
     lineHeight: 18,
   },
   med: {
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 12,
     color: colors.onDarkMuted,
     marginTop: 6,

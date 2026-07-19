@@ -195,7 +195,7 @@ const st = StyleSheet.create({
     alignItems: 'flex-start',
   },
   pct: {
-    fontFamily: 'SpaceGrotesk-Bold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 64,
     letterSpacing: -2,
     lineHeight: 76,
@@ -203,7 +203,7 @@ const st = StyleSheet.create({
     paddingHorizontal: 2,
   },
   pctSign: {
-    fontFamily: 'SpaceGrotesk-Medium',
+    fontFamily: 'Outfit-Regular',
     fontSize: 26,
     color: colors.white,
     lineHeight: 40,
@@ -217,7 +217,7 @@ const st = StyleSheet.create({
     borderRadius: 14,
   },
   statusWord: {
-    fontFamily: 'SpaceGrotesk-Bold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 13,
     color: colors.white,
     letterSpacing: 0.3,
@@ -229,17 +229,17 @@ const st = StyleSheet.create({
     marginTop: 26,
   },
   countLabel: {
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 13,
     color: colors.muted,
   },
   countValue: {
-    fontFamily: 'SpaceGrotesk-Bold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 17,
     letterSpacing: -0.3,
   },
   countClock: {
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 13,
     color: colors.muted,
   },

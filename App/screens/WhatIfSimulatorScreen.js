@@ -150,13 +150,13 @@ const st = StyleSheet.create({
     flex: 1,
   },
   title: {
-    fontFamily: 'SpaceGrotesk-Bold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 28,
     color: colors.ink,
     letterSpacing: -0.8,
   },
   subtitle: {
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 13,
     color: colors.muted,
     marginTop: 2,

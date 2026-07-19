@@ -42,14 +42,14 @@ const st = StyleSheet.create({
     elevation: 6,
   },
   title: {
-    fontFamily: 'SpaceGrotesk-Bold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 20,
     color: colors.ink,
     letterSpacing: -0.5,
     marginBottom: 8,
   },
   body: {
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 13,
     lineHeight: 19,
     color: colors.inkMid,
@@ -64,7 +64,7 @@ const st = StyleSheet.create({
     alignItems: 'center',
   },
   buttonLabel: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 14,
     color: colors.white,
   },

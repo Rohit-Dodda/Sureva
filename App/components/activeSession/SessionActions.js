@@ -72,7 +72,7 @@ const st = StyleSheet.create({
     borderColor: colors.orangeWashDark,
   },
   label: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 13,
     color: colors.inkMid,
   },

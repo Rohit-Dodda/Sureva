@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import {
   View, Text, ScrollView, StyleSheet, SafeAreaView,
   TouchableOpacity, Animated, Dimensions, Easing, LayoutAnimation,
@@ -6,6 +6,9 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import colors from '../constants/colors';
 import mockData from '../constants/mockData';
+import SupabaseService from '../services/SupabaseService';
+import { buildTrends } from '../services/TrendsMapper';
+import { useAuth } from '../context/AuthContext';
 import CircleIconButton from '../components/CircleIconButton';
 import SegmentedControl from '../components/SegmentedControl';
 import TrendsChart from '../components/TrendsChart';
@@ -37,12 +40,34 @@ const SELECT_SPRING = {
 };
 
 export default function TrendsScreen({ onBack }) {
-  const { trends } = mockData;
+  const { user } = useAuth();
   const slide = useRef(new Animated.Value(SCREEN_W)).current;
 
   // Full-screen overlay: disable the root tab-swipe so horizontal swipes on the
   // chart/chips don't bleed into a tab change.
   useTabSwipeLock();
+
+  // null = fetch in flight (mock shown as a placeholder); a resolved array —
+  // even an empty one — is the real, honest answer, not a permanent fallback.
+  const [realSessions, setRealSessions] = useState(null);
+  useEffect(() => {
+    if (!user?.id) { setRealSessions([]); return undefined; }
+    let cancelled = false;
+    SupabaseService.getSessions(user.id)
+      .then((res) => { if (!cancelled) setRealSessions(res.data ?? []); })
+      // getSessions already swallows its own errors into { data: null }; this
+      // guards the rejection path too so a fetch failure degrades to an honest
+      // empty state rather than a raw error on screen.
+      .catch(() => { if (!cancelled) setRealSessions([]); });
+    return () => { cancelled = true; };
+  }, [user]);
+
+  // While loading, mock stands in; once resolved, real dose aggregates take
+  // over — grouped by day/week/month from the user's own sessions.
+  const trends = useMemo(
+    () => (realSessions === null ? mockData.trends : buildTrends(realSessions)),
+    [realSessions]
+  );
 
   useEffect(() => {
     Animated.timing(slide, { toValue: 0, duration: 340, easing: EASE_OUT, useNativeDriver: true }).start();
@@ -66,8 +91,14 @@ export default function TrendsScreen({ onBack }) {
     setSelectedBar(i);
   }, []);
 
-  const week  = trends.weeks.find((w) => w.id === weekId);
-  const month = trends.months.find((m) => m.id === monthId);
+  // When the mock→real swap lands, the previously selected id no longer exists;
+  // fall back to the same default bucket the initial state picked.
+  const week  = trends.weeks.find((w) => w.id === weekId) ?? trends.weeks[0];
+  const month = trends.months.find((m) => m.id === monthId) ?? trends.months[trends.months.length - 1];
+
+  // The swapped dataset may be shorter than the old one, so drop any stale bar
+  // selection when the underlying trends object changes.
+  useEffect(() => { setSelectedBar(null); }, [trends]);
 
   let dataset, datasetId, insight, periodLabel, labelEvery, unitNoun;
   if (mode === 'weeks') {
@@ -225,13 +256,13 @@ const st = StyleSheet.create({
     flex: 1,
   },
   title: {
-    fontFamily: 'SpaceGrotesk-Bold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 24,
     color: colors.ink,
     letterSpacing: -0.6,
   },
   subtitle: {
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 12,
     color: colors.muted,
     marginTop: 1,
@@ -260,7 +291,7 @@ const st = StyleSheet.create({
     borderColor: colors.charcoal,
   },
   chipText: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 13,
     color: colors.inkMid,
   },
@@ -281,7 +312,7 @@ const st = StyleSheet.create({
     elevation: 3,
   },
   eyebrow: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 11,
     color: colors.muted,
     letterSpacing: 1.1,
@@ -295,13 +326,13 @@ const st = StyleSheet.create({
     marginBottom: 10,
   },
   heroVal: {
-    fontFamily: 'SpaceGrotesk-Bold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 40,
     color: colors.ink,
     letterSpacing: -1.2,
   },
   heroUnit: {
-    fontFamily: 'Inter-Medium',
+    fontFamily: 'Outfit-Regular',
     fontSize: 13,
     color: colors.muted,
   },
@@ -318,12 +349,12 @@ const st = StyleSheet.create({
     alignItems: 'center',
   },
   detailLabel: {
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 13,
     color: colors.muted,
   },
   detailPct: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 14,
   },
   detailTrack: {
@@ -340,7 +371,7 @@ const st = StyleSheet.create({
     marginBottom: 12,
   },
   insight: {
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 14,
     color: colors.ink,
     lineHeight: 21,

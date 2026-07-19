@@ -16,7 +16,7 @@ export default React.memo(function ExposureBattery({ fraction }) {
       : [colors.gradGreenStart, colors.gradGreenEnd];
   const caption =
     fraction > 0.66
-      ? 'High accumulated exposure — limit further sun'
+      ? 'High accumulated exposure, limit further sun'
       : fraction > 0.33
       ? 'Moderate dose building up'
       : 'Low exposure so far today';
@@ -77,7 +77,7 @@ const st = StyleSheet.create({
     marginLeft: 3,
   },
   caption: {
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 11,
     color: colors.muted,
     marginTop: 10,

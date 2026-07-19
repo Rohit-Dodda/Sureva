@@ -156,6 +156,12 @@ export const PRIVACY_POLICY = {
         'Enforcing our Terms of Service and protecting our legal rights',
       ],
     },
+    { kind: 'sub', text: '3.6 AI-Generated Insights' },
+    {
+      kind: 'p',
+      text:
+        'Sureva uses (and may in the future expand its use of) third-party artificial intelligence and large language model technology, including services provided by Anthropic PBC, to generate personalized narrative summaries and wellness insights from your session and profile data ("AI-Generated Insights"). This is separate and distinct from the deterministic protection algorithm described elsewhere in this policy: AI-Generated Insights involve transmitting a limited set of your session data (such as protection percentages, UV exposure figures, and profile inputs you have provided) to the third-party AI provider for the sole purpose of generating this narrative text. That provider processes this data under its own confidentiality and data-processing terms and does not use it to train its models on your data or share it further. AI-Generated Insights are optional, best-effort, and are never required for core Services functionality — if unavailable, the App displays your session summary without the AI insight content. AI-Generated Insights are wellness commentary only and do not constitute medical advice.',
+    },
     {
       kind: 'p',
       text:
@@ -628,6 +634,12 @@ export const TERMS_OF_SERVICE = {
       text:
         "YOU ACKNOWLEDGE THAT: (a) the algorithm's outputs are estimates, not precise measurements; (b) the algorithm has been designed to provide conservative (protective) recommendations but may not account for all factors affecting sunscreen performance; (c) the algorithm's estimates do not guarantee a specific level of UV protection; and (d) you have received appropriate disclosure regarding automated processing of your personal data for these purposes as required under applicable privacy law.",
     },
+    { kind: 'sub', text: '9.1 AI-Generated Narrative Insights' },
+    {
+      kind: 'p',
+      text:
+        'Separately from the protection algorithm described above, Sureva uses (and may expand its use of) third-party artificial intelligence and large language model ("AI") technology, including services provided by Anthropic PBC, to generate personalized narrative summaries and insights based on your session and profile data ("AI-Generated Insights"). AI-Generated Insights are provided for general wellness and informational purposes only, do not constitute medical advice, and are never required for core Services functionality. If the AI provider is unavailable or a request fails, the Services will display your session summary without AI-Generated Insights rather than blocking your access to the Services. Use of AI-Generated Insights involves transmitting a limited set of your data to the third-party AI provider as described in our Privacy Policy, Section 3.6.',
+    },
 
     { kind: 'h', text: '10. Bluetooth and Location Permissions' },
     {
@@ -897,5 +909,39 @@ export const TERMS_OF_SERVICE = {
     { kind: 'p', text: 'For privacy requests and inquiries: privacy@sureva.com' },
     { kind: 'p', text: 'For legal notices: legal@sureva.com' },
     { kind: 'p', text: '© 2026 Sureva, Inc. All rights reserved.' },
+  ],
+};
+
+export const ACCESSIBILITY_STATEMENT = {
+  title: 'Accessibility Statement',
+  intro:
+    'Sureva, Inc. is committed to making the Sureva App usable by everyone, including people with disabilities. This statement describes our current accessibility posture and how to reach us about accessibility issues.',
+  blocks: [
+    { kind: 'h', text: 'Our Commitment' },
+    {
+      kind: 'p',
+      text:
+        'We are working toward conformance with the Web Content Accessibility Guidelines (WCAG) 2.1 Level AA, adapted for a native mobile context, and with applicable requirements under the Americans with Disabilities Act (ADA). Accessibility is an ongoing effort rather than a one-time project, and we review and improve the App on a continuing basis.',
+    },
+    { kind: 'h', text: 'What the App Currently Supports' },
+    {
+      kind: 'bullets',
+      items: [
+        'High-contrast color choices and large, legible text sizing throughout the App, designed for outdoor/bright-sunlight readability',
+        'Standard iOS system behaviors inherited automatically where we have not overridden them (e.g. system-level display and interaction settings)',
+      ],
+    },
+    { kind: 'h', text: 'Known Gaps' },
+    {
+      kind: 'p',
+      text:
+        'Full screen-reader support (VoiceOver) and complete Dynamic Type (adjustable system text size) support are not yet implemented consistently across every screen. We are actively working to add these. If a specific screen or feature is not usable with an assistive technology you rely on, please tell us — see Contact below — so we can prioritize it.',
+    },
+    { kind: 'h', text: 'Feedback and Contact' },
+    {
+      kind: 'p',
+      text:
+        'If you experience any difficulty accessing any part of the Sureva App, or if you have suggestions for improving accessibility, please contact us at accessibility@sureva.com. We aim to respond within 5 business days and will work with you to provide the information, item, or service you seek through an alternative means if possible.',
+    },
   ],
 };

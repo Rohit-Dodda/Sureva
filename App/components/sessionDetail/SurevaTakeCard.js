@@ -52,14 +52,14 @@ const st = StyleSheet.create({
     justifyContent: 'center',
   },
   title: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 12,
     color: colors.orange,
     letterSpacing: 1.3,
     textTransform: 'uppercase',
   },
   body: {
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 14,
     color: 'rgba(255,255,255,0.86)',
     lineHeight: 22,

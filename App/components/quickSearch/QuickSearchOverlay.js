@@ -5,6 +5,7 @@ import {
 } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { Ionicons } from '@expo/vector-icons';
+import Fuse from 'fuse.js';
 import colors from '../../constants/colors';
 import SEARCH_INDEX, { SEARCH_PAGES } from '../../constants/searchIndex';
 import { useQuickSearch } from '../../context/QuickSearchContext';
@@ -12,13 +13,22 @@ import { useHideTabBar } from '../../context/TabBarVisibilityContext';
 import { useTabSwipeLock } from '../../context/SwipeNavContext';
 import QuickSearchResultRow from './QuickSearchResultRow';
 
-// Matches the card/page name, the page it lives on, and any keywords, so
-// "sunscreen", "insights", or "spf" all surface the right cards.
-function matchEntry(e, q) {
-  if (e.title.toLowerCase().includes(q)) return true;
-  if (e.page.toLowerCase().includes(q)) return true;
-  return e.keywords?.some((k) => k.includes(q)) ?? false;
-}
+// SEARCH_INDEX is a static import, so one Fuse instance covers the whole
+// app lifetime — no need to rebuild it per search or per render. Weighted
+// toward title (what a result is actually called) with page and keywords
+// (including hand-picked synonyms — "sunblock" finds "Sunscreen
+// Performance") pulling in fuzzy/typo-tolerant matches Fuse can't get
+// from title alone. threshold 0.35 allows real typos ("sesion" ->
+// "session") without matching on totally unrelated words.
+const fuse = new Fuse(SEARCH_INDEX, {
+  keys: [
+    { name: 'title', weight: 0.5 },
+    { name: 'keywords', weight: 0.35 },
+    { name: 'page', weight: 0.15 },
+  ],
+  threshold: 0.35,
+  ignoreLocation: true,
+});
 
 // Full-app "jump to a page" search, opened by a downward swipe on the
 // Home profile bar (see HomeScreen.js) — a dark blurred takeover in the
@@ -50,12 +60,13 @@ export default function QuickSearchOverlay() {
     return () => setFocusHandler(null);
   }, [setFocusHandler]);
 
-  // Empty query shows just the pages as suggestions; typing searches every
-  // card header across the whole app.
+  // Empty query shows just the pages as suggestions; typing fuzzy-searches
+  // every card/page (and its synonym keywords) across the whole app, so
+  // typos and near-misses ("sesion", "sunblock") still surface a result.
   const results = useMemo(() => {
-    const q = query.trim().toLowerCase();
+    const q = query.trim();
     if (!q) return SEARCH_PAGES;
-    return SEARCH_INDEX.filter((e) => matchEntry(e, q));
+    return fuse.search(q).map((r) => r.item);
   }, [query]);
 
   const handleSelect = useCallback((entry) => {
@@ -220,13 +231,13 @@ const st = StyleSheet.create({
   },
   searchInput: {
     flex: 1,
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 15,
     color: colors.onDark,
     height: '100%',
   },
   cancelText: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 15,
     color: colors.orangeLight,
   },
@@ -242,7 +253,7 @@ const st = StyleSheet.create({
     minHeight: 24,
   },
   sectionLabel: {
-    fontFamily: 'Inter-Medium',
+    fontFamily: 'Outfit-Regular',
     fontSize: 12,
     color: colors.onDarkMuted,
     textTransform: 'uppercase',
@@ -250,7 +261,7 @@ const st = StyleSheet.create({
     marginBottom: 10,
   },
   empty: {
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 14,
     color: colors.onDarkMuted,
     textAlign: 'center',

@@ -120,7 +120,8 @@ export function simulateSession({ readings, overrides, userProfile }) {
           const { newProtection, cutApplied } = applyWaterEventCut(
             protection,
             eventType,
-            waterResistanceRating
+            waterResistanceRating,
+            snapshot.activityLevel
           );
           protection = newProtection;
           waterEvents.push({ m: minute, eventType, cutApplied });

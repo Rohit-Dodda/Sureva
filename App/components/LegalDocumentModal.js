@@ -164,7 +164,7 @@ const st = StyleSheet.create({
     justifyContent: 'space-between',
   },
   title: {
-    fontFamily: 'SpaceGrotesk-Bold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 24,
     color: colors.ink,
     letterSpacing: -0.6,
@@ -187,20 +187,20 @@ const st = StyleSheet.create({
     paddingTop: 20,
   },
   dateLine: {
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 13,
     color: colors.muted,
     marginBottom: 2,
   },
   intro: {
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 14,
     lineHeight: 22,
     color: colors.inkMid,
     marginTop: 16,
   },
   heading: {
-    fontFamily: 'SpaceGrotesk-Bold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 17,
     color: colors.orange,
     letterSpacing: -0.3,
@@ -208,14 +208,14 @@ const st = StyleSheet.create({
     marginBottom: 10,
   },
   subheading: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 15,
     color: colors.ink,
     marginTop: 16,
     marginBottom: 6,
   },
   paragraph: {
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 14,
     lineHeight: 22,
     color: colors.inkMid,
@@ -228,7 +228,7 @@ const st = StyleSheet.create({
     marginTop: 14,
   },
   calloutText: {
-    fontFamily: 'Inter-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 13,
     lineHeight: 20,
     color: colors.orangeDark,
@@ -250,7 +250,7 @@ const st = StyleSheet.create({
   },
   bulletText: {
     flex: 1,
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 14,
     lineHeight: 21,
     color: colors.inkMid,

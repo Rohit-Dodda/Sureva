@@ -77,12 +77,12 @@ const st = StyleSheet.create({
     paddingVertical: 8,
   },
   closeText: {
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 15,
     color: colors.inkMid,
   },
   topTitle: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 16,
     color: colors.ink,
   },
@@ -95,7 +95,7 @@ const st = StyleSheet.create({
     justifyContent: 'center',
   },
   shareText: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 14,
     color: colors.white,
   },

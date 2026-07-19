@@ -29,14 +29,14 @@ const st = StyleSheet.create({
     paddingVertical: 14,
   },
   value: {
-    fontFamily: 'SpaceGrotesk-Bold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 24,
     color: colors.ink,
     letterSpacing: -0.6,
     marginBottom: 3,
   },
   label: {
-    fontFamily: 'Inter-Medium',
+    fontFamily: 'Outfit-Regular',
     fontSize: 12,
     color: colors.muted,
     letterSpacing: 0.2,

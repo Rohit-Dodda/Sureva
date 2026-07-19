@@ -51,7 +51,7 @@ const st = StyleSheet.create({
     backgroundColor: colors.orange,
   },
   chipValue: {
-    fontFamily: 'SpaceGrotesk-Bold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 26,
     color: colors.ink,
     letterSpacing: -0.8,
@@ -61,7 +61,7 @@ const st = StyleSheet.create({
     color: colors.white,
   },
   chipLabel: {
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 11,
     color: colors.muted,
     lineHeight: 15,
@@ -84,7 +84,7 @@ const st = StyleSheet.create({
     marginTop: 2,
   },
   flagText: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 13,
     color: colors.inkMid,
     lineHeight: 19,

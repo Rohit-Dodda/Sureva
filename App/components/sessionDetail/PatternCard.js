@@ -20,8 +20,12 @@ export default React.memo(function PatternCard({ pattern }) {
 
   return (
     <SectionCard icon="analytics-outline" title="Your Pattern">
-      <PatternRow icon="swap-vertical-outline" text={pattern.comparison} />
-      <PatternRow icon="git-merge-outline" text={pattern.tippingPoint} />
+      {pattern.comparison ? (
+        <PatternRow icon="swap-vertical-outline" text={pattern.comparison} />
+      ) : null}
+      {pattern.tippingPoint ? (
+        <PatternRow icon="git-merge-outline" text={pattern.tippingPoint} />
+      ) : null}
       {pattern.factorUpdate ? (
         <PatternRow icon="construct-outline" text={pattern.factorUpdate} />
       ) : null}
@@ -55,7 +59,7 @@ const st = StyleSheet.create({
     marginTop: 2,
   },
   rowText: {
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 13,
     color: colors.inkMid,
     lineHeight: 19,
@@ -65,7 +69,7 @@ const st = StyleSheet.create({
     marginTop: 2,
   },
   doseLabel: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 12,
     color: colors.muted,
     letterSpacing: 0.4,
@@ -84,7 +88,7 @@ const st = StyleSheet.create({
     borderRadius: 4,
   },
   doseText: {
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 13,
     color: colors.inkMid,
     lineHeight: 19,

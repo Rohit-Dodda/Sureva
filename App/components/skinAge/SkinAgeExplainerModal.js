@@ -48,7 +48,7 @@ export default React.memo(function SkinAgeExplainerModal({ onDismiss }) {
           </View>
           <Text style={st.title}>What is Skin Age?</Text>
           <Text style={st.body}>
-            Skin Age estimates how your skin has aged from real UV exposure — not the calendar.
+            Skin Age estimates how your skin has aged from real UV exposure, not the calendar.
             Consistent protection keeps it lower than your real age; unprotected exposure pushes
             it higher. It updates as Sureva learns more about your habits.
           </Text>
@@ -100,7 +100,7 @@ const st = StyleSheet.create({
     marginBottom: 14,
   },
   title: {
-    fontFamily: 'SpaceGrotesk-Bold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 19,
     color: colors.ink,
     letterSpacing: -0.4,
@@ -108,7 +108,7 @@ const st = StyleSheet.create({
     textAlign: 'center',
   },
   body: {
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 14,
     lineHeight: 21,
     color: colors.inkMid,
@@ -123,7 +123,7 @@ const st = StyleSheet.create({
     alignItems: 'center',
   },
   buttonText: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 15,
     color: colors.white,
   },

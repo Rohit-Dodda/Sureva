@@ -1,17 +1,41 @@
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
+// Narrative fallback ONLY — the exact same still-mock insight prose the
+// live Insights screen shows today (see InsightsService.js's header note on
+// which fields are real vs. not-yet-wired). Every field the real signed-in
+// user has actual data for (profile, lifetime numbers, sensitivities, top
+// culprit, risk combo, computed Skin Age, full session log) is sourced from
+// Supabase below and overrides this — so this report matches, field-for-
+// field, what the user sees in-app rather than a hardcoded persona.
 import mockData from '../constants/mockData';
+import { calculateSkinAge, calculateWithoutSureva } from './SkinAgeService';
+import SupabaseService from './SupabaseService';
+import { buildComputedInsights } from './InsightsService';
+import {
+  buildCompletedSessionLike,
+  buildSessionHero,
+  estimateSedFromHero,
+} from './SessionDetailMapper';
+import { engineProfileFor } from '../components/activeSession/sessionMath';
+import { AGE_RANGES, BURN_OPTIONS, SKIN_TYPES } from '../constants/onboardingOptions';
 
 // A personal "Your Sun Profile" report — everything Sureva has learned about
-// the user: who they are, their numbers, trends, patterns, and what it means.
-// Deliberately NOT session-by-session; it's the synthesized picture.
+// the user: who they are (including the clinical-adjacent onboarding
+// answers a doctor or another AI would actually need), their numbers,
+// trends, patterns, computed Skin Age, and what it means. A machine-
+// readable data block closes the report so another chatbot can read the
+// numbers precisely instead of re-parsing prose. The full session-by-
+// session log is optional (includeFullLog) since it can run long.
 
-const PROFILE = {
-  name: 'Rohit Dodda',
-  age: 24,
-  fitzpatrick: 'Type III',
-  typicalSpf: 'SPF 50, water-resistant (80 min rated)',
+const FITZPATRICK_LABELS = {
+  1: 'Always burns, never tans',
+  2: 'Usually burns, tans minimally',
+  3: 'Sometimes burns mildly, tans gradually',
+  4: 'Rarely burns, tans well',
+  5: 'Very rarely burns, tans very easily',
+  6: 'Never burns',
 };
+const ROMAN = { 1: 'I', 2: 'II', 3: 'III', 4: 'IV', 5: 'V', 6: 'VI' };
 
 function esc(s) {
   return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -21,49 +45,317 @@ function todayStr() {
   return new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
 }
 
-// ─── Section builders ─────────────────────────────────────────
+function cap(s) {
+  return s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
+}
 
-function headerHtml() {
+// ─── Real-data assembly ───────────────────────────────────────────
+// Mirrors the exact real-data patterns already established in the app:
+// engineProfileFor()/getUserProfile for the profile, InsightsService's
+// buildComputedInsights over SessionDetailMapper's completedSession-like
+// rows for the numbers (same as InsightsScreen), and SkinAgeService over
+// real aggregates (same as SkinAgeScreen).
+
+// Context-shaped profile (camelCase) that engineProfileFor + fallbackRealAge
+// expect — built from the raw Supabase `users` row exactly the way
+// AuthContext maps it, so depletion/Fitzpatrick math here matches the app.
+function toCtxProfile(row) {
+  if (!row) return null;
+  return {
+    skinTone: row.skin_tone ?? null,
+    ageRange: row.age_range ?? null,
+    skinType: row.skin_type ?? null,
+    burnRate: row.burn_rate ?? null,
+    medications: !!row.medications,
+    skinCondition: !!row.skin_condition,
+    exactAge: row.exact_age ?? null,
+  };
+}
+
+// Same coarse age-range → realAge fallback SkinAgeScreen uses (age_range is
+// an onboarding bucket; exactAge always wins when present).
+const AGE_RANGE_MIDPOINTS = { 0: 10, 1: 31, 2: 57, 3: 70 };
+function fallbackRealAge(ctxProfile) {
+  if (ctxProfile?.exactAge != null) return ctxProfile.exactAge;
+  return AGE_RANGE_MIDPOINTS[ctxProfile?.ageRange] ?? 30;
+}
+
+// All-time aggregates across every recorded session — mirrors
+// SkinAgeScreen.buildRealAggregates exactly (that helper isn't exported).
+function buildRealAggregates(sessions) {
+  const totalUVUnits = sessions.reduce((a, s) => a + estimateSedFromHero(s), 0);
+  const totalGapMinutes = sessions.reduce((a, s) => a + (s.unprotected_minutes ?? 0), 0);
+  const avgSessionScore = sessions.reduce((a, s) => a + (s.protection_score ?? 0), 0) / sessions.length;
+  const responseTimes = sessions.map((s) => s.alert_response_time_avg).filter((v) => v != null);
+  const avgAlertResponseMinutes = responseTimes.length
+    ? responseTimes.reduce((a, b) => a + b, 0) / responseTimes.length
+    : null;
+
+  const days = [...new Set(sessions.map((s) => new Date(s.start_time).toISOString().slice(0, 10)))].sort();
+  let longest = 1;
+  let run = 1;
+  for (let i = 1; i < days.length; i++) {
+    const gapDays = Math.round((new Date(days[i]) - new Date(days[i - 1])) / 86400000);
+    run = gapDays === 1 ? run + 1 : 1;
+    longest = Math.max(longest, run);
+  }
+  const daysSinceLast = Math.round((Date.now() - new Date(days[days.length - 1])) / 86400000);
+  const currentStreakDays = daysSinceLast <= 1 ? run : 0;
+
+  return {
+    totalUVUnits: Math.round(totalUVUnits * 100) / 100,
+    totalGapMinutes: Math.round(totalGapMinutes),
+    avgSessionScore: Math.round(avgSessionScore),
+    avgAlertResponseMinutes: avgAlertResponseMinutes != null ? Math.round(avgAlertResponseMinutes * 10) / 10 : null,
+    currentStreakDays,
+    longestStreakDays: longest,
+  };
+}
+
+// Best/worst by real protection score, labeled off the real session hero.
+function bestWorstFrom(sessions, fitzpatrickType) {
+  if (!sessions.length) return { best: null, worst: null };
+  const scored = sessions.map((row) => {
+    const h = buildSessionHero(row, fitzpatrickType);
+    return { score: h.score, text: `${h.date} · ${h.location}` };
+  });
+  const best = scored.reduce((a, b) => (b.score > a.score ? b : a));
+  const worst = scored.reduce((a, b) => (b.score < a.score ? b : a));
+  return { best, worst };
+}
+
+// Fetches the real profile + sessions, computes real insights (the same way
+// InsightsScreen does) and a real Skin Age (the same way SkinAgeScreen does),
+// and assembles the single data object every section builder reads from.
+// Throws on a hard fetch failure so generateReport surfaces the friendly
+// error; a signed-in user with zero completed sessions is NOT a failure —
+// the report still generates, just with the session-dependent sections
+// gracefully noted as "needs more sessions."
+async function buildReportData(uid) {
+  if (!uid) throw new Error('Not signed in');
+
+  const [profileRes, sessionsRes] = await Promise.all([
+    SupabaseService.getUserProfile(uid),
+    SupabaseService.getSessions(uid),
+  ]);
+  if (profileRes.error) throw profileRes.error;
+
+  const row = profileRes.data ?? {};
+  const ctxProfile = toCtxProfile(row);
+  const engineProfile = engineProfileFor({}, ctxProfile ?? {});
+  const fitzpatrickType = engineProfile.fitzpatrickType;
+
+  // Most-recent-first completed sessions (hero-level columns).
+  const sessions = sessionsRes.error ? [] : (sessionsRes.data ?? []);
+  const hasSessions = sessions.length > 0;
+
+  // Real computed numbers — same N+1 getSessionById → completedSession-like →
+  // buildComputedInsights pipeline InsightsScreen uses. Rows without joined
+  // readings can't be reconstructed, so they're filtered out (buildComputed-
+  // Insights is safe on an empty array — see calculateLifetimeStats guards).
+  let built = [];
+  if (hasSessions) {
+    const fullRows = await Promise.all(
+      sessions.map((r) =>
+        SupabaseService.getSessionById(r.id)
+          .then(({ data }) => (data ? buildCompletedSessionLike(data, engineProfile) : null))
+          .catch(() => null)
+      )
+    );
+    built = fullRows.filter(Boolean);
+  }
+  const computed = buildComputedInsights(built);
+
+  // Real numbers merged over the still-mock narrative prose — the exact same
+  // object InsightsScreen renders its cards from (see InsightsScreen.js).
+  const insights = {
+    ...mockData.insights,
+    sessionsAnalyzed: computed.sessionsAnalyzed,
+    history: {
+      ...mockData.insights.history,
+      stats: computed.stats,
+      alerts: computed.alerts,
+      water: computed.water,
+    },
+    skinProfile: {
+      ...mockData.insights.skinProfile,
+      sensitivities: computed.sensitivities ?? mockData.insights.skinProfile.sensitivities,
+    },
+    patterns: {
+      ...mockData.insights.patterns,
+      topCulprit: computed.topCulprit ?? mockData.insights.patterns.topCulprit,
+      riskCombo: computed.riskCombo ?? mockData.insights.patterns.riskCombo,
+    },
+  };
+
+  // Real Skin Age — computed only when there's real session history to build
+  // aggregates from (mirrors SkinAgeScreen's hasRealSessions gate). A brand-
+  // new user's report omits it with a note rather than showing a persona.
+  let skinAge = null;
+  if (hasSessions) {
+    const firstSessionDate = sessions.reduce(
+      (min, s) => (s.start_time < min ? s.start_time : min),
+      sessions[0].start_time
+    );
+    const skinAgeProfile = {
+      realAge: fallbackRealAge(ctxProfile),
+      fitzpatrickType,
+      firstSessionDate,
+    };
+    const agg = buildRealAggregates(sessions);
+    const { skinAge: computedAge, modifiers } = calculateSkinAge(skinAgeProfile, agg);
+    skinAge = {
+      realAge: skinAgeProfile.realAge,
+      firstSessionDate,
+      value: computedAge,
+      withoutSureva: calculateWithoutSureva(skinAgeProfile, agg),
+      modifiers,
+    };
+  }
+
+  const { best, worst } = bestWorstFrom(sessions, fitzpatrickType);
+
+  // Display strings for the medical summary, mapped from the raw onboarding
+  // columns the same way the in-app profile screens label them.
+  const ageRangeLabel = AGE_RANGES.find((a) => a.id === row.age_range)?.label ?? 'Not specified';
+  const burn = BURN_OPTIONS.find((b) => b.id === row.burn_rate);
+  const burnLabel = burn ? (burn.sub ? `${burn.label} — ${burn.sub}` : burn.label) : 'Not specified';
+  const skinTypeLabel = SKIN_TYPES.find((t) => t.id === row.skin_type)?.label ?? 'Not specified';
+  const skinToneLabel = row.skin_tone != null
+    ? `Shade ${row.skin_tone} of 6 (1 = lightest, 6 = deepest)`
+    : 'Not specified';
+
+  const latest = hasSessions ? buildSessionHero(sessions[0], fitzpatrickType) : null;
+  const sunscreenLabel = latest && latest.spf != null
+    ? `SPF ${latest.spf}${latest.waterResistance != null ? `, water-resistant (${latest.waterResistance} min rated)` : ''}`
+    : 'Not recorded yet';
+
+  const name = `${row.first_name ?? ''} ${row.last_name ?? ''}`.trim() || 'Sureva User';
+
+  return {
+    name,
+    fitzpatrickType,
+    ageLabel: row.exact_age != null ? String(row.exact_age) : ageRangeLabel,
+    profile: {
+      ageRangeLabel,
+      exactAge: row.exact_age ?? null,
+      skinToneLabel,
+      burnLabel,
+      skinTypeLabel,
+      medicationsText: row.medications ? 'Photosensitizing medications reported' : 'None reported',
+      skinConditionText: row.skin_condition ? 'Skin condition reported' : 'None reported',
+      sunscreenLabel,
+    },
+    insights,
+    skinAge,
+    best,
+    worst,
+    sessions,
+    fitzLabel: FITZPATRICK_LABELS[fitzpatrickType] ?? '',
+  };
+}
+
+// ─── Section builders ─────────────────────────────────────────
+// Each takes the assembled report data `d` and reads real values from it,
+// never the module-level mock imports.
+
+function headerHtml(d) {
   return `
     <div class="rep-header">
       <div class="logo">SUREVA</div>
       <div class="rep-title">Your Sun Profile</div>
     </div>
     <div class="profile-line">
-      <span><strong>${esc(PROFILE.name)}</strong></span>
-      <span>Age ${PROFILE.age}</span>
-      <span>Fitzpatrick ${esc(PROFILE.fitzpatrick)}</span>
-      <span>${mockData.insights.sessionsAnalyzed} sessions analyzed</span>
+      <span><strong>${esc(d.name)}</strong></span>
+      <span>Age ${esc(d.ageLabel)}</span>
+      <span>Fitzpatrick Type ${ROMAN[d.fitzpatrickType] ?? '—'}</span>
+      <span>${d.insights.sessionsAnalyzed} sessions analyzed</span>
       <span>Generated ${esc(todayStr())}</span>
     </div>
     <hr class="rule" />`;
 }
 
-function aboutYouHtml() {
-  const i = mockData.insights;
+// Everything a doctor would ask at an appointment: skin type, burn
+// pattern, medications, conditions — self-reported at onboarding, not
+// clinically verified, and labeled as such.
+function medicalSummaryHtml(d) {
+  const p = d.profile;
   return `
-    <h2>The Short Version</h2>
-    <p class="lead">${esc(i.aiRead)}</p>`;
+    <h2>Medical Summary</h2>
+    <table class="kv">
+      <tr><td class="k">Reported age</td><td>${esc(p.exactAge != null ? String(p.exactAge) : p.ageRangeLabel)}</td></tr>
+      <tr><td class="k">Fitzpatrick skin type</td><td>Type ${ROMAN[d.fitzpatrickType] ?? '—'}: ${esc(d.fitzLabel)}</td></tr>
+      <tr><td class="k">Skin tone / burn response</td><td>${esc(p.skinToneLabel)}</td></tr>
+      <tr><td class="k">Typical burn/tan pattern</td><td>${esc(p.burnLabel)}</td></tr>
+      <tr><td class="k">Skin type (oiliness)</td><td>${esc(p.skinTypeLabel)}</td></tr>
+      <tr><td class="k">Medications</td><td>${esc(p.medicationsText)}</td></tr>
+      <tr><td class="k">Skin conditions</td><td>${esc(p.skinConditionText)}</td></tr>
+      <tr><td class="k">Typical sunscreen used</td><td>${esc(p.sunscreenLabel)}</td></tr>
+    </table>
+    <p class="note">Self-reported at onboarding; not clinically verified. Share alongside your own history for a doctor's full picture.</p>`;
 }
 
-function yourNumbersHtml() {
-  const i = mockData.insights;
+function aboutYouHtml(d) {
+  return `
+    <h2>The Short Version</h2>
+    <p class="lead">${esc(d.insights.aiRead)}</p>`;
+}
+
+// Computed live from SkinAgeService off the user's real session aggregates —
+// the same numbers the Skin Age screen shows. Omitted with a note when the
+// user has no completed sessions yet to compute it from.
+function skinAgeHtml(d) {
+  const sa = d.skinAge;
+  if (!sa) {
+    return `
+    <h2>Skin Age Model</h2>
+    <p>Your Skin Age is computed from the UV dose accumulated across your recorded sessions.
+    No completed sessions are on record yet, so this section unlocks once you've logged your first one.</p>`;
+  }
+  const m = sa.modifiers;
+  const sign = (n) => (n >= 0 ? '+' : '');
+  const startDate = new Date(sa.firstSessionDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+  return `
+    <h2>Skin Age Model</h2>
+    <p>Sureva's evidence-informed model estimates a <strong>Skin Age of ${sa.value}</strong> against
+    a tracked age of ${sa.realAge}, derived from accumulated UV dose since ${esc(startDate)}.
+    This can only add photoaging risk relative to tracked age, never subtract below it. There is no
+    scientific basis for a below-real-age result, only for accumulating less added photoaging than
+    unprotected behavior would produce.</p>
+    <table class="kv">
+      <tr><td class="k">Tracked age (model input)</td><td>${sa.realAge}</td></tr>
+      <tr><td class="k">Computed Skin Age</td><td><strong>${sa.value}</strong></td></tr>
+      <tr><td class="k">Projected Skin Age without Sureva</td><td>${sa.withoutSureva}</td></tr>
+      <tr><td class="k">UV-dose contribution</td><td>${sign(m.uvDose)}${m.uvDose.toFixed(1)} yrs (of which ${m.gaps.toFixed(1)} yrs from unprotected gaps)</td></tr>
+      <tr><td class="k">Fitzpatrick adjustment</td><td>${sign(m.fitzpatrick)}${m.fitzpatrick.toFixed(1)} yrs</td></tr>
+    </table>
+    <p class="note">Behavioral factors (session consistency, alert response time) are tracked as
+    separate habit indicators and are not summed into the Skin Age number above.</p>`;
+}
+
+function yourNumbersHtml(d) {
+  const i = d.insights;
   const cards = i.history.stats
     .map((s) => `<div class="stat"><div class="stat-val">${esc(s.value)}</div><div class="stat-label">${esc(s.label)}</div></div>`)
     .join('');
+  const best = d.best;
+  const worst = d.worst;
+  const bestWorst = (best && worst)
+    ? `<table class="kv">
+      <tr><td class="k">Best session</td><td><strong>${best.score}/100</strong>: ${esc(best.text)}</td></tr>
+      <tr><td class="k">Hardest session</td><td><strong>${worst.score}/100</strong>: ${esc(worst.text)}</td></tr>
+    </table>`
+    : '';
   return `
     <h2>Your Numbers</h2>
     <div class="stat-grid">${cards}</div>
     <p>${esc(i.history.medContext)}</p>
     <p>${esc(i.history.alerts)} ${esc(i.history.water)}</p>
-    <table class="kv">
-      <tr><td class="k">Best session</td><td><strong>${i.history.best.score}/100</strong> — ${esc(i.history.best.text)}</td></tr>
-      <tr><td class="k">Hardest session</td><td><strong>${i.history.worst.score}/100</strong> — ${esc(i.history.worst.text)}</td></tr>
-    </table>`;
+    ${bestWorst}`;
 }
 
-function yourSkinHtml() {
-  const i = mockData.insights;
+function yourSkinHtml(d) {
+  const i = d.insights;
   const bars = i.skinProfile.sensitivities
     .map(
       (s) => `
@@ -86,8 +378,8 @@ function yourSkinHtml() {
 }
 
 // Monthly depletion-rate line for the year so far.
-function seasonalChartSvg() {
-  const months = mockData.insights.seasonal.months;
+function seasonalChartSvg(i) {
+  const months = i.seasonal.months;
   const W = 640, H = 180, PAD = 36;
   const known = months.filter((m) => m.rate != null);
   const maxRate = Math.max(...known.map((m) => m.rate), 0.8);
@@ -116,12 +408,12 @@ function seasonalChartSvg() {
   </svg>`;
 }
 
-function yourTrendsHtml() {
-  const i = mockData.insights;
+function yourTrendsHtml(d) {
+  const i = d.insights;
   return `
     <h2>Your Trends</h2>
     <h3>Depletion rate through the year</h3>
-    ${seasonalChartSvg()}
+    ${seasonalChartSvg(i)}
     <p>${esc(i.seasonal.yoy)}</p>
     <p><strong>Your riskiest stretch.</strong> ${esc(i.seasonal.highestRiskMonth)}</p>
     <p><strong>Where you're heading.</strong> ${esc(mockData.trends.year.insight)}</p>
@@ -129,8 +421,8 @@ function yourTrendsHtml() {
     <p class="note">${esc(i.seasonal.complianceShift)}</p>`;
 }
 
-function yourPatternsHtml() {
-  const i = mockData.insights;
+function yourPatternsHtml(d) {
+  const i = d.insights;
   return `
     <h2>Your Patterns</h2>
     <p><strong>What depletes you most.</strong> ${esc(i.patterns.topCulprit)}</p>
@@ -144,8 +436,8 @@ function yourPatternsHtml() {
     </table>`;
 }
 
-function yourSunscreenHtml() {
-  const i = mockData.insights;
+function yourSunscreenHtml(d) {
+  const i = d.insights;
   return `
     <h2>Your Sunscreen</h2>
     <p>Across your sessions, your sunscreen performed like an
@@ -155,10 +447,10 @@ function yourSunscreenHtml() {
     <p><strong>Heat.</strong> ${esc(i.sunscreen.heat)}</p>`;
 }
 
-function yourBodyHtml() {
-  const i = mockData.insights;
+function yourBodyHtml(d) {
+  const i = d.insights;
   const rows = i.body.thresholds
-    .map((t) => `<tr><td class="k">${esc(t.label)} — ${esc(t.value)}</td><td>${esc(t.note)}</td></tr>`)
+    .map((t) => `<tr><td class="k">${esc(t.label)}: ${esc(t.value)}</td><td>${esc(t.note)}</td></tr>`)
     .join('');
   return `
     <h2>Your Body</h2>
@@ -168,8 +460,8 @@ function yourBodyHtml() {
     <table class="kv">${rows}</table>`;
 }
 
-function yourOutlookHtml() {
-  const i = mockData.insights;
+function yourOutlookHtml(d) {
+  const i = d.insights;
   const pct = Math.round((i.risk.monthDose.current / i.risk.monthDose.limit) * 100);
   return `
     <h2>Your Outlook</h2>
@@ -184,8 +476,8 @@ function yourOutlookHtml() {
     <p><strong>Overall trend: ${esc(i.risk.trend.label)}.</strong> ${esc(i.risk.trend.text)}</p>`;
 }
 
-function whatToDoHtml() {
-  const i = mockData.insights;
+function whatToDoHtml(d) {
+  const i = d.insights;
   return `
     <h2>What Would Help You Most</h2>
     <p><strong>Step up your SPF.</strong> ${esc(i.sunscreen.recommendation)} For your summer depletion rate, ${esc(i.seasonal.spfReco)}</p>
@@ -193,19 +485,117 @@ function whatToDoHtml() {
     <p><strong>Mind your one vulnerable scenario.</strong> ${esc(i.risk.vulnerableType)} That single situation is where most of your risk lives.</p>`;
 }
 
-function footerHtml() {
+// Every session, not just the best/worst two narrated elsewhere — for a
+// doctor or anyone reviewing the whole history rather than the highlights.
+// Sourced from the user's real Supabase session rows.
+function fullSessionLogHtml(d) {
+  const sessions = [...d.sessions].sort((a, b) => (a.start_time < b.start_time ? 1 : -1));
+  if (!sessions.length) {
+    return `
+    <h2>Full Session Log</h2>
+    <p class="note">No sessions recorded yet. Your session-by-session history will appear here once you've logged your first outdoor session.</p>`;
+  }
+  const rows = sessions
+    .map((row) => {
+      const h = buildSessionHero(row, d.fitzpatrickType);
+      const activity = row.activity_level ? esc(cap(row.activity_level)) : 'N/A';
+      const resp = row.alert_response_time_avg != null ? `${row.alert_response_time_avg} min` : 'N/A';
+      const gap = (row.unprotected_minutes ?? 0) > 0 ? 'Yes' : 'No';
+      return `
+      <tr>
+        <td>${esc(h.date)}</td>
+        <td>${esc(h.location)}</td>
+        <td>${esc(h.duration)}</td>
+        <td>${h.peakUV}</td>
+        <td>${h.score}/100</td>
+        <td>${activity}</td>
+        <td>${resp}</td>
+        <td>${gap}</td>
+      </tr>`;
+    })
+    .join('');
   return `
-    <hr class="rule thin" />
-    <p class="note">This profile is built from your Sureva wearable, which measures UV, temperature,
-    humidity, motion, and water contact during your sessions, plus a depletion model calibrated to your
-    skin across ${mockData.insights.sessionsAnalyzed} sessions. One MED (minimal erythema dose) is the
-    UV dose expected to barely redden your skin. The model errs conservative on purpose. This is your
-    personal summary, not medical advice.</p>`;
+    <h2>Full Session Log</h2>
+    <p class="note">Every recorded session (${sessions.length} total), most recent first.</p>
+    <table class="log">
+      <thead>
+        <tr>
+          <th>Date</th><th>Location</th><th>Duration</th><th>Peak UV</th>
+          <th>Score</th><th>Activity</th><th>Alert response</th><th>Protection gap</th>
+        </tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+}
+
+function methodologyHtml(d) {
+  const i = d.insights;
+  return `
+    <h2>Methodology &amp; Data Provenance</h2>
+    <p>This profile is built from your Sureva wearable, which measures UV index, temperature, humidity,
+    motion/activity, and water contact every 30 seconds during a session, plus a depletion model calibrated
+    to your skin across ${i.sessionsAnalyzed} sessions.</p>
+    <p><strong>Units.</strong> 1 SED (Standard Erythemal Dose) = 100 J/m² of erythemally-weighted UV.
+    1 MED (Minimal Erythemal Dose) is the UV dose expected to just barely redden a given skin type's
+    skin — it varies by Fitzpatrick type, so "MEDs accumulated" in this report is already scaled to
+    your reported skin type, not a population average.</p>
+    <p><strong>Combined-conditions model.</strong> Heat, humidity, and activity are modeled jointly (via a
+    WBGT-style heat-stress index combined with activity intensity) rather than as independent multipliers,
+    since they share the same underlying mechanism — sweat-driven sunscreen wash-off.</p>
+    <p class="note">This is your personal summary, generated from self-reported onboarding answers and
+    sensor-derived session data. The model errs conservative on purpose. This is not medical advice and
+    has not been reviewed by a clinician.</p>`;
+}
+
+// A compact, labeled key:value block so another AI/chatbot (or a doctor's
+// EHR-adjacent tool) can read the exact figures precisely instead of
+// re-parsing the prose above. Built from the same real objects the rest of
+// this report reads from, so it can't drift out of sync with them.
+function structuredDataHtml(d) {
+  const i = d.insights;
+  const p = d.profile;
+
+  const data = {
+    generatedAt: new Date().toISOString(),
+    name: d.name,
+    profile: {
+      age: p.exactAge != null ? p.exactAge : p.ageRangeLabel,
+      fitzpatrickType: `Type ${ROMAN[d.fitzpatrickType] ?? '—'}`,
+      skinTone: p.skinToneLabel,
+      burnRate: p.burnLabel,
+      skinTypeOiliness: p.skinTypeLabel,
+      medications: p.medicationsText,
+      skinConditions: p.skinConditionText,
+    },
+    skinAge: d.skinAge
+      ? {
+        trackedAge: d.skinAge.realAge,
+        computed: d.skinAge.value,
+        projectedWithoutSureva: d.skinAge.withoutSureva,
+        modifiers: d.skinAge.modifiers,
+      }
+      : 'Not enough session data yet',
+    lifetime: {
+      sessionsAnalyzed: i.sessionsAnalyzed,
+      stats: Object.fromEntries(i.history.stats.map((s) => [s.label, s.value])),
+      bestSession: d.best,
+      hardestSession: d.worst,
+    },
+    sunscreen: {
+      typicalUsed: p.sunscreenLabel,
+    },
+    skinSensitivities: i.skinProfile.sensitivities,
+  };
+
+  return `
+    <h2>Structured Data (for AI / clinical tools)</h2>
+    <p class="note">The figures above, restated as machine-readable key:value data.</p>
+    <pre class="datablock">${esc(JSON.stringify(data, null, 2))}</pre>`;
 }
 
 // ─── Public API ───────────────────────────────────────────────
 
-export function buildReportHtml() {
+export function buildReportHtml(d, { includeFullLog = false } = {}) {
   return `<!DOCTYPE html><html><head><meta charset="utf-8" />
   <style>
     @page { margin: 48px 44px 56px 44px; }
@@ -234,26 +624,34 @@ export function buildReportHtml() {
     .bar-label { width: 150px; font-size: 10.5px; color: #2A2620; }
     .bar-track { flex: 1; height: 9px; background: #F0EAE1; border-radius: 5px; overflow: hidden; }
     .bar-fill { height: 9px; background: #FF5A1F; border-radius: 5px; }
-    .bar-val { width: 46px; text-align: right; font-size: 10px; color: #555; }
     .keep { page-break-inside: avoid; }
+    table.log { width: 100%; border-collapse: collapse; margin: 6px 0 10px; font-size: 9.5px; }
+    table.log th { text-align: left; padding: 5px 6px; background: #FBF8F3; color: #555; font-weight: 700; border-bottom: 1px solid #eee; }
+    table.log td { padding: 5px 6px; border-bottom: 0.5px solid #eee; }
+    .datablock { background: #F7F4EF; border: 1px solid #eee; border-radius: 8px; padding: 12px 14px; font-family: 'Courier New', monospace; font-size: 9px; line-height: 1.5; white-space: pre-wrap; word-break: break-word; }
   </style></head><body>
-  ${headerHtml()}
-  ${aboutYouHtml()}
-  ${yourNumbersHtml()}
-  ${yourSkinHtml()}
-  ${yourTrendsHtml()}
-  ${yourPatternsHtml()}
-  ${yourSunscreenHtml()}
-  ${yourBodyHtml()}
-  ${yourOutlookHtml()}
-  ${whatToDoHtml()}
-  ${footerHtml()}
+  ${headerHtml(d)}
+  ${medicalSummaryHtml(d)}
+  ${aboutYouHtml(d)}
+  ${skinAgeHtml(d)}
+  ${yourNumbersHtml(d)}
+  ${yourSkinHtml(d)}
+  ${yourTrendsHtml(d)}
+  ${yourPatternsHtml(d)}
+  ${yourSunscreenHtml(d)}
+  ${yourBodyHtml(d)}
+  ${yourOutlookHtml(d)}
+  ${whatToDoHtml(d)}
+  ${includeFullLog ? fullSessionLogHtml(d) : ''}
+  ${methodologyHtml(d)}
+  ${structuredDataHtml(d)}
   </body></html>`;
 }
 
-export async function generateReport() {
+export async function generateReport(uid, { includeFullLog = false } = {}) {
   try {
-    const html = buildReportHtml();
+    const data = await buildReportData(uid);
+    const html = buildReportHtml(data, { includeFullLog });
     const { uri } = await Print.printToFileAsync({ html });
     return { ok: true, uri };
   } catch (e) {

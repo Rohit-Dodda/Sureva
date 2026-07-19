@@ -1,27 +1,32 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
-  View, Text, TouchableOpacity, Modal, Animated,
+  View, Text, TouchableOpacity, Modal, Animated, Switch, ScrollView,
   ActivityIndicator, PanResponder, StyleSheet, Dimensions, Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import colors from '../../constants/colors';
 import { generateReport } from '../../services/ReportService';
+import { useAuth } from '../../context/AuthContext';
 import ReportPreviewModal from './ReportPreviewModal';
 
 const { height: SCREEN_H } = Dimensions.get('window');
 
 // What the profile PDF covers — shown so the user knows it's the whole picture.
 const CONTENTS = [
-  { icon: 'person-outline', label: 'Who you are', detail: 'Skin type, baseline, sensitivities' },
+  { icon: 'medkit-outline', label: 'Medical summary', detail: 'Skin type, burn pattern, medications, conditions' },
+  { icon: 'time-outline', label: 'Skin Age', detail: 'Computed model, not narrated — with its full breakdown' },
   { icon: 'stats-chart-outline', label: 'Your numbers', detail: 'Lifetime exposure, alerts, best & hardest' },
   { icon: 'trending-up-outline', label: 'Your trends', detail: 'How your skin changes through the year' },
   { icon: 'sparkles-outline', label: 'Your patterns', detail: 'Habits, weak spots, reapplication' },
   { icon: 'shield-checkmark-outline', label: 'Outlook & advice', detail: 'Where you stand and what helps most' },
+  { icon: 'code-slash-outline', label: 'Structured data', detail: 'Machine-readable, for a doctor’s tool or another AI' },
 ];
 
 export default function ExportReportSheet({ visible, onDismiss }) {
+  const { user } = useAuth();
   const [generating, setGenerating] = useState(false);
   const [previewUri, setPreviewUri] = useState(null);
+  const [includeFullLog, setIncludeFullLog] = useState(false);
   const slideAnim = useRef(new Animated.Value(SCREEN_H)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const dragY = useRef(new Animated.Value(0)).current;
@@ -51,7 +56,7 @@ export default function ExportReportSheet({ visible, onDismiss }) {
     if (generating) return;
     setGenerating(true);
     try {
-      const result = await generateReport();
+      const result = await generateReport(user?.id, { includeFullLog });
       if (!result.ok) {
         Alert.alert('Export Report', result.message);
       } else {
@@ -60,7 +65,7 @@ export default function ExportReportSheet({ visible, onDismiss }) {
     } finally {
       setGenerating(false);
     }
-  }, [generating]);
+  }, [generating, includeFullLog, user]);
 
   const closePreview = useCallback(() => setPreviewUri(null), []);
 
@@ -107,18 +112,38 @@ export default function ExportReportSheet({ visible, onDismiss }) {
           <Text style={st.sub}>One PDF with everything Sureva knows about you — your skin, trends, patterns, and what helps most. Yours to keep or share.</Text>
 
           <Text style={st.fieldLabel}>What's inside</Text>
-          <View style={st.contentsList}>
-            {CONTENTS.map((c, idx) => (
-              <View key={c.label} style={[st.contentRow, idx < CONTENTS.length - 1 && st.contentRowBorder]}>
-                <View style={st.contentIcon}>
-                  <Ionicons name={c.icon} size={17} color={colors.orangeDark} />
+          <ScrollView
+            style={st.scrollArea}
+            contentContainerStyle={st.scrollContent}
+            showsVerticalScrollIndicator={false}
+            bounces={false}
+          >
+            <View style={st.contentsList}>
+              {CONTENTS.map((c, idx) => (
+                <View key={c.label} style={[st.contentRow, idx < CONTENTS.length - 1 && st.contentRowBorder]}>
+                  <View style={st.contentIcon}>
+                    <Ionicons name={c.icon} size={17} color={colors.orangeDark} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={st.contentLabel}>{c.label}</Text>
+                    <Text style={st.contentDetail}>{c.detail}</Text>
+                  </View>
                 </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={st.contentLabel}>{c.label}</Text>
-                  <Text style={st.contentDetail}>{c.detail}</Text>
-                </View>
-              </View>
-            ))}
+              ))}
+            </View>
+          </ScrollView>
+
+          <View style={st.toggleRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={st.toggleLabel}>Include full session-by-session log</Text>
+              <Text style={st.toggleDetail}>Every session, not just your best & hardest — makes the PDF longer.</Text>
+            </View>
+            <Switch
+              value={includeFullLog}
+              onValueChange={setIncludeFullLog}
+              trackColor={{ false: colors.border, true: colors.orangeLight }}
+              thumbColor={includeFullLog ? colors.orange : colors.white}
+            />
           </View>
 
           <TouchableOpacity
@@ -159,11 +184,18 @@ const st = StyleSheet.create({
     borderTopRightRadius: 26,
     paddingHorizontal: 24,
     paddingBottom: 48,
+    maxHeight: SCREEN_H * 0.86,
   },
   handleWrap: {
     alignItems: 'center',
     paddingTop: 12,
     paddingBottom: 16,
+  },
+  scrollArea: {
+    flexShrink: 1,
+  },
+  scrollContent: {
+    paddingBottom: 4,
   },
   handle: {
     width: 36,
@@ -172,21 +204,21 @@ const st = StyleSheet.create({
     backgroundColor: colors.border,
   },
   heading: {
-    fontFamily: 'SpaceGrotesk-Bold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 26,
     color: colors.ink,
     letterSpacing: -0.8,
     marginBottom: 6,
   },
   sub: {
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 14,
     color: colors.muted,
     lineHeight: 20,
     marginBottom: 20,
   },
   fieldLabel: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 13,
     color: colors.inkMid,
     marginBottom: 8,
@@ -217,12 +249,30 @@ const st = StyleSheet.create({
     justifyContent: 'center',
   },
   contentLabel: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 14,
     color: colors.ink,
   },
   contentDetail: {
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
+    fontSize: 12,
+    color: colors.muted,
+    marginTop: 1,
+  },
+  toggleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginTop: 16,
+    marginBottom: 18,
+  },
+  toggleLabel: {
+    fontFamily: 'Outfit-Regular',
+    fontSize: 14,
+    color: colors.ink,
+  },
+  toggleDetail: {
+    fontFamily: 'Outfit-Regular',
     fontSize: 12,
     color: colors.muted,
     marginTop: 1,
@@ -245,7 +295,7 @@ const st = StyleSheet.create({
     elevation: 0,
   },
   generateBtnText: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 17,
     color: colors.white,
     letterSpacing: 0.2,
@@ -257,7 +307,7 @@ const st = StyleSheet.create({
     marginTop: 4,
   },
   cancelText: {
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 14,
     color: colors.muted,
   },

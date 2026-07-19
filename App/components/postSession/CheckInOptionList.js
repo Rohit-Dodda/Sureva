@@ -69,7 +69,7 @@ const st = StyleSheet.create({
     backgroundColor: colors.orange,
   },
   badgeText: {
-    fontFamily: 'SpaceGrotesk-Bold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 13,
     color: colors.muted,
   },
@@ -78,7 +78,7 @@ const st = StyleSheet.create({
   },
   label: {
     flex: 1,
-    fontFamily: 'Inter-Medium',
+    fontFamily: 'Outfit-Regular',
     fontSize: 14,
     color: colors.ink,
   },

@@ -1,17 +1,27 @@
-import React, { useRef, useCallback } from 'react';
+import React, { useRef, useCallback, useState, useEffect } from 'react';
 import {
-  View, Text, ScrollView, StyleSheet, SafeAreaView, Dimensions,
+  View, Text, ScrollView, StyleSheet, SafeAreaView, Dimensions, ActivityIndicator, TouchableOpacity,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import colors from '../constants/colors';
-import mockData from '../constants/mockData';
+import { useAuth } from '../context/AuthContext';
+import { engineProfileFor } from '../components/activeSession/sessionMath';
+import { getForecast } from '../services/WeatherService';
 import SectionCard from '../components/SectionCard';
 import CleanGlassSurface from '../components/CleanGlassSurface';
 import SlideInView from '../components/SlideInView';
 import UVCurveChart from '../components/forecast/UVCurveChart';
 import WeekForecastStrip from '../components/forecast/WeekForecastStrip';
 import { useScrollToTop } from '../context/ScrollToTopContext';
+
+function currentHourLabel() {
+  const h = new Date().getHours();
+  if (h === 0) return '12a';
+  if (h < 12) return `${h}a`;
+  if (h === 12) return '12p';
+  return `${h - 12}p`;
+}
 
 const SCREEN_W = Dimensions.get('window').width;
 const CHART_W = SCREEN_W - 16 * 2 - 18 * 2; // screen padding + card padding
@@ -25,10 +35,23 @@ function uvLevel(uv) {
 
 // ─── Today's UV Forecast ──────────────────────────────────────
 const TodayForecastCard = React.memo(function TodayForecastCard({ today, location, updated }) {
-  const peakStartIndex = today.hourly.findIndex((h) => h.hour === '11a');
-  const peakEndIndex = today.hourly.findIndex((h) => h.hour === '2p');
-  const nowIndex = today.hourly.findIndex((h) => h.hour === '10a'); // current hour (9:42 AM → 10a)
-  const nowUV = today.hourly[nowIndex].uv;
+  // peakStartIndex/peakEndIndex come pre-computed from WeatherService —
+  // peakWindow.start/end are a human-readable "11 AM" format for the text
+  // below, a deliberately different format from hourly[].hour's compact
+  // chart-axis labels ('11a'), so they can't be string-matched against
+  // each other to find the chart index.
+  const { peakStartIndex, peakEndIndex } = today;
+  // Clamped to 0 (the day's first tracked hour) if the real current time
+  // falls outside the tracked daylight window (e.g. checking the forecast
+  // late at night) — there's no "now" to mark on the chart in that case,
+  // so it defaults to the start rather than crashing on a -1 index.
+  const nowIndex = Math.max(0, today.hourly.findIndex((h) => h.hour === currentHourLabel()));
+  // A fresh nowcast, not today.hourly[nowIndex] — that array's UV values
+  // come from EPA's once-daily forecast (accurate for the day's peak, but
+  // never updated intraday), which can go stale for "right now" if real
+  // sky conditions have shifted since this morning. currentUV is a
+  // separately-sourced live reading for exactly that reason.
+  const nowUV = today.currentUV;
   const now = uvLevel(nowUV);
   const peak = uvLevel(today.peakUV);
 
@@ -63,6 +86,7 @@ const TodayForecastCard = React.memo(function TodayForecastCard({ today, locatio
           peakStartIndex={peakStartIndex}
           peakEndIndex={peakEndIndex}
           nowIndex={nowIndex}
+          nowUV={today.currentUV}
           width={CHART_W}
           height={CHART_H}
         />
@@ -173,8 +197,28 @@ const BestTimeCard = React.memo(function BestTimeCard({ text }) {
 
 // ─── Main screen ──────────────────────────────────────────────
 export default function ForecastScreen() {
-  const { forecast } = mockData;
-  const { today, recommendedSetup, week, alert, location, updated } = forecast;
+  const { userProfile } = useAuth();
+  // null = still loading. Weather-fetch failure (permission denied, no
+  // network) is common enough here that it gets its own visible state
+  // rather than silently falling back to fake LA weather forever.
+  const [forecast, setForecast] = useState(null);
+  const [error, setError] = useState(null); // 'denied' | 'error' | null
+
+  const loadForecast = useCallback(async () => {
+    setError(null);
+    try {
+      const profile = engineProfileFor({}, userProfile);
+      const result = await getForecast(profile.fitzpatrickType);
+      if (result?.error === 'location_denied') {
+        setError('denied');
+        return;
+      }
+      setForecast(result);
+    } catch {
+      setError('error');
+    }
+  }, [userProfile]);
+  useEffect(() => { loadForecast(); }, [loadForecast]);
 
   const scrollRef = useRef(null);
   const scrollToTop = useCallback(
@@ -182,6 +226,48 @@ export default function ForecastScreen() {
     []
   );
   useScrollToTop('forecast', scrollToTop);
+
+  if (error) {
+    return (
+      <View style={st.root}>
+        <SafeAreaView style={st.safe}>
+          <StatusBar style="dark" />
+          <View style={st.topBar}>
+            <View style={st.titleBlock}>
+              <Text style={st.kicker}>Forecast & Planning</Text>
+              <Text style={st.heading}>Plan your sun</Text>
+            </View>
+          </View>
+          <View style={st.stateWrap}>
+            <Ionicons name={error === 'denied' ? 'location-outline' : 'cloud-offline-outline'} size={36} color={colors.border} />
+            <Text style={st.stateText}>
+              {error === 'denied'
+                ? 'Enable location access to see your personalized UV and temperature forecast.'
+                : "Couldn't load the forecast. Check your connection and try again."}
+            </Text>
+            <TouchableOpacity style={st.retryBtn} onPress={loadForecast} activeOpacity={0.85}>
+              <Text style={st.retryText}>Try Again</Text>
+            </TouchableOpacity>
+          </View>
+        </SafeAreaView>
+      </View>
+    );
+  }
+
+  if (!forecast) {
+    return (
+      <View style={st.root}>
+        <SafeAreaView style={st.safe}>
+          <StatusBar style="dark" />
+          <View style={st.stateWrap}>
+            <ActivityIndicator size="large" color={colors.orange} />
+          </View>
+        </SafeAreaView>
+      </View>
+    );
+  }
+
+  const { today, recommendedSetup, week, alert, location, updated } = forecast;
 
   return (
     <View style={st.root}>
@@ -242,14 +328,14 @@ const st = StyleSheet.create({
   },
   titleBlock: { flex: 1 },
   kicker: {
-    fontFamily: 'Inter-Medium',
+    fontFamily: 'Outfit-Regular',
     fontSize: 13,
     color: colors.muted,
     letterSpacing: 0.2,
     marginBottom: 2,
   },
   heading: {
-    fontFamily: 'SpaceGrotesk-Bold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 24,
     lineHeight: 28,
     color: colors.ink,
@@ -266,7 +352,7 @@ const st = StyleSheet.create({
     paddingVertical: 7,
   },
   locText: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 12,
     color: colors.orangeDark,
   },
@@ -275,6 +361,31 @@ const st = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 6,
     paddingBottom: 120,
+  },
+  stateWrap: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 40,
+    gap: 16,
+  },
+  stateText: {
+    fontFamily: 'Outfit-Regular',
+    fontSize: 14,
+    color: colors.muted,
+    textAlign: 'center',
+    lineHeight: 21,
+  },
+  retryBtn: {
+    backgroundColor: colors.orange,
+    borderRadius: 20,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+  },
+  retryText: {
+    fontFamily: 'Outfit-Regular',
+    fontSize: 14,
+    color: colors.white,
   },
 
   // Today — stat header
@@ -290,7 +401,7 @@ const st = StyleSheet.create({
     gap: 8,
   },
   statVal: {
-    fontFamily: 'SpaceGrotesk-Bold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 34,
     letterSpacing: -1,
   },
@@ -300,11 +411,11 @@ const st = StyleSheet.create({
     paddingVertical: 3,
   },
   statPillText: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 11,
   },
   statLabel: {
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 12,
     color: colors.muted,
   },
@@ -335,12 +446,12 @@ const st = StyleSheet.create({
     paddingVertical: 5,
   },
   peakBadgeText: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 12,
     color: colors.danger,
   },
   peakLine: {
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 13.5,
     lineHeight: 20,
     color: colors.inkMid,
@@ -373,30 +484,30 @@ const st = StyleSheet.create({
   },
   specLabel: {
     flex: 1,
-    fontFamily: 'Inter-Medium',
+    fontFamily: 'Outfit-Regular',
     fontSize: 14,
     color: colors.inkMid,
   },
   specValue: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 15,
     color: colors.ink,
     letterSpacing: -0.2,
   },
   specValueAccent: {
-    fontFamily: 'SpaceGrotesk-Bold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 17,
     color: colors.orange,
   },
   recoLine: {
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 13.5,
     lineHeight: 20,
     color: colors.inkMid,
     marginBottom: 16,
   },
   whyLabel: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 11,
     color: colors.muted,
     letterSpacing: 1.1,
@@ -418,7 +529,7 @@ const st = StyleSheet.create({
     paddingVertical: 7,
   },
   chipText: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 12,
     color: colors.inkMid,
   },
@@ -444,7 +555,7 @@ const st = StyleSheet.create({
     borderRadius: 4.5,
   },
   legendLabel: {
-    fontFamily: 'Inter-Medium',
+    fontFamily: 'Outfit-Regular',
     fontSize: 12,
     color: colors.muted,
   },
@@ -476,13 +587,13 @@ const st = StyleSheet.create({
     justifyContent: 'center',
   },
   alertTitle: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 16,
     color: colors.onDark,
     letterSpacing: -0.3,
   },
   alertLine: {
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 13.5,
     lineHeight: 21,
     color: colors.onDarkMuted,
@@ -512,12 +623,12 @@ const st = StyleSheet.create({
   },
   bestTextWrap: { flex: 1, gap: 2 },
   bestLabel: {
-    fontFamily: 'Inter-Medium',
+    fontFamily: 'Outfit-Regular',
     fontSize: 12,
     color: colors.muted,
   },
   bestText: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 15,
     lineHeight: 21,
     color: colors.ink,

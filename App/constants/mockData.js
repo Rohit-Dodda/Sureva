@@ -9,17 +9,17 @@ function genMonthDays(seed, scale, len) {
 
 const TREND_MONTHS = [
   { id: 'jan', label: 'January',  short: 'Jan', days: genMonthDays(1, 0.45, 31),
-    insight: 'Winter baseline — your average daily dose was 0.2 MEDs and you never crossed half your daily limit. Low UV did most of the protecting for you.' },
+    insight: 'Winter baseline: your average daily dose was 0.2 MEDs and you never crossed half your daily limit. Low UV did most of the protecting for you.' },
   { id: 'feb', label: 'February', short: 'Feb', days: genMonthDays(2, 0.5, 28),
     insight: 'Quiet month with one outlier: your Feb 21 ski day delivered 3x your winter daily average. Snow reflection is the only winter condition that can burn you.' },
   { id: 'mar', label: 'March',    short: 'Mar', days: genMonthDays(3, 0.65, 31),
-    insight: 'Spring ramp-up began — your daily average rose 28% over February as UV climbed, but your session frequency rose faster than your dose. Good sign: more time outside, managed exposure.' },
+    insight: 'Spring ramp-up began: your daily average rose 28% over February as UV climbed, but your session frequency rose faster than your dose. Good sign: more time outside, managed exposure.' },
   { id: 'apr', label: 'April',    short: 'Apr', days: genMonthDays(4, 0.9, 30),
-    insight: 'April was your turning point: first month above 6 MEDs total. Your skin’s depletion rate also began its seasonal acceleration — reapplication windows started shrinking here.' },
+    insight: 'April was your turning point: first month above 6 MEDs total. Your skin’s depletion rate also began its seasonal acceleration, and reapplication windows started shrinking here.' },
   { id: 'may', label: 'May',      short: 'May', days: genMonthDays(5, 1.15, 31),
-    insight: 'Your heaviest full month so far — 3 beach days drove 40% of the monthly dose. Your weekday exposure stayed flat; weekends are where May got expensive.' },
+    insight: 'Your heaviest full month so far: 3 beach days drove 40% of the monthly dose. Your weekday exposure stayed flat; weekends are where May got expensive.' },
   { id: 'jun', label: 'June',     short: 'Jun', days: genMonthDays(6, 1.4, 12), partial: true,
-    insight: 'June is tracking 22% hotter per day than May. At this pace you’ll hit your highest monthly dose of the year — July and August will demand SPF 50 as your default.' },
+    insight: 'June is tracking 22% hotter per day than May. At this pace you’ll hit your highest monthly dose of the year, and July and August will demand SPF 50 as your default.' },
 ];
 
 const mockData = {
@@ -27,13 +27,13 @@ const mockData = {
     dayLabels: ['M', 'T', 'W', 'T', 'F', 'S', 'S'],
     weeks: [
       { id: 'jun8',  label: 'Jun 8 – 14',  days: [0.4, 0, 1.1, 0.6, 0, 1.6, 0.8],
-        insight: 'Saturday drove 36% of this week’s dose — your weekend sessions consistently run hotter than weekdays. Wednesday was your most efficient day: high UV, 91% protected time.' },
+        insight: 'Saturday drove 36% of this week’s dose: your weekend sessions consistently run hotter than weekdays. Wednesday was your most efficient day: high UV, 91% protected time.' },
       { id: 'jun1',  label: 'Jun 1 – 7',   days: [0.7, 0.5, 0, 1.2, 0.4, 1.8, 1.1],
-        insight: 'Your Malibu session on Saturday was the week’s biggest dose, but also your best-scored — both alerts answered inside six minutes. Volume isn’t your problem; midday timing is.' },
+        insight: 'Your Malibu session on Saturday was the week’s biggest dose, but also your best-scored: both alerts answered inside six minutes. Volume isn’t your problem; midday timing is.' },
       { id: 'may25', label: 'May 25 – 31', days: [0.3, 0.6, 0.9, 0, 0.5, 1.4, 0.7],
-        insight: 'A balanced week — no single day above 1.5 MEDs and zero red-zone time. Weeks shaped like this are what keep your seasonal totals on budget.' },
+        insight: 'A balanced week: no single day above 1.5 MEDs and zero red-zone time. Weeks shaped like this are what keep your seasonal totals on budget.' },
       { id: 'may18', label: 'May 18 – 24', days: [0.5, 0, 0.4, 0.8, 0.6, 1.1, 0],
-        insight: 'Your Santa Monica Pier session on Wednesday included your only ignored alert this month — 22 unprotected minutes that accounted for a third of the week’s dose.' },
+        insight: 'Your Santa Monica Pier session on Wednesday included your only ignored alert this month: 22 unprotected minutes that accounted for a third of the week’s dose.' },
     ],
     months: TREND_MONTHS,
     year: {
@@ -43,7 +43,7 @@ const mockData = {
         { label: 'J', meds: null }, { label: 'A', meds: null }, { label: 'S', meds: null },
         { label: 'O', meds: null }, { label: 'N', meds: null }, { label: 'D', meds: null },
       ],
-      insight: 'Halfway through 2026 you’ve accumulated well under the pace dermatologists flag for photoaging — and your dose per outdoor hour is falling even as UV rises, which means your habits are outpacing the season. July is historically your riskiest month: last year it alone was 2.1x your winter baseline.',
+      insight: 'Halfway through 2026 you’ve accumulated well under the pace dermatologists flag for photoaging, and your dose per outdoor hour is falling even as UV rises, which means your habits are outpacing the season. July is historically your riskiest month: last year it alone was 2.1x your winter baseline.',
     },
   },
   sessions: [
@@ -104,7 +104,7 @@ const mockData = {
   ],
   sessionDetails: {
     '1': {
-      verdict: 'Excellent session — two fast reapplications kept you above 20% the entire time.',
+      verdict: 'Excellent session: two fast reapplications kept you above 20% the entire time.',
       timeline: [
         { m: 0, pct: 100, factor: 'UV intensity' }, { m: 10, pct: 96, factor: 'UV intensity' },
         { m: 20, pct: 91, factor: 'UV intensity' }, { m: 30, pct: 85, factor: 'UV intensity' },
@@ -134,15 +134,15 @@ const mockData = {
         ],
         aggressiveAt: {
           time: '11:24 AM',
-          note: 'UV and heat crossed high thresholds together — your depletion rate jumped from 0.4%/min to 1.1%/min.',
+          note: 'UV and heat crossed high thresholds together: your depletion rate jumped from 0.4%/min to 1.1%/min.',
         },
       },
       skin: {
-        effectiveSpf: { labeled: 50, line: 'Your SPF 50 performed like SPF 31 today — two immersions and salt water stripped coverage faster than the label assumes.' },
+        effectiveSpf: { labeled: 50, line: 'Your SPF 50 performed like SPF 31 today: two immersions and salt water stripped coverage faster than the label assumes.' },
         sebum: 'Your skin’s sebum production reduced effective coverage by an estimated 7 SPF points by the second hour.',
         sweat: 'An estimated 290ml of sweat displaced sunscreen across your shoulders and back during your active periods.',
-        stress: { level: 'Moderate', note: 'for your Fitzpatrick Type III skin — driven mostly by accumulated UV dose, not unprotected time.' },
-        med: { accumulated: 1.6, threshold: 2.5, line: 'You accumulated 1.6 MEDs today — a mild burn threshold for your skin type is 2.5 MEDs.' },
+        stress: { level: 'Moderate', note: 'for your Fitzpatrick Type III skin, driven mostly by accumulated UV dose, not unprotected time.' },
+        med: { accumulated: 1.6, threshold: 2.5, line: 'You accumulated 1.6 MEDs today; a mild burn threshold for your skin type is 2.5 MEDs.' },
       },
       moments: {
         fastestDrop: { time: '11:24 AM', text: 'You lost 2.8% in 60 seconds as you toweled off after your first swim.' },
@@ -160,24 +160,24 @@ const mockData = {
           { id: 1, confirmed: true, detail: 'Confirmed in 4 minutes' },
           { id: 2, confirmed: true, detail: 'Confirmed in 6 minutes' },
         ],
-        rating: 'You responded to both alerts within minutes — this is what kept you out of the red zone all session.',
+        rating: 'You responded to both alerts within minutes; this is what kept you out of the red zone all session.',
       },
       pattern: {
-        comparison: 'Today you depleted 11% slower than your historical average — calmer surf meant fewer immersions than your usual beach day.',
+        comparison: 'Today you depleted 11% slower than your historical average: calmer surf meant fewer immersions than your usual beach day.',
         tippingPoint: 'When UV is above 7 and you’re in the water, your protection depletes 2.3x faster than when only one condition is true. Both were true for 31 minutes today.',
         factorUpdate: null,
         seasonalDrift: 'Your depletion rate has increased 18% since March, consistent with summer changes in skin oil production.',
-        weeklyDose: { meds: 1.6, limit: 3, line: '1.6 MEDs this week — dermatologists recommend under 3 MEDs weekly for your skin type.' },
+        weeklyDose: { meds: 1.6, limit: 3, line: '1.6 MEDs this week: dermatologists recommend under 3 MEDs weekly for your skin type.' },
       },
       prevented: {
         simulated: 'Without your reapplication at 11:32 AM you would have reached 0% by 11:54 AM and spent 42 minutes fully unprotected.',
         doseComparison: { withSureva: 1.6, without: 2.9 },
         weeklyTotal: 'Sureva has prevented an estimated 1.3 MEDs of excess UV exposure across your sessions this week.',
       },
-      aiTake: 'Your reapplication discipline carried this session — both alerts answered inside six minutes, and your unprotected time was effectively zero. But notice that water, not UV, drove 38% of your depletion: your SPF 50 lost its water resistance rating after the second immersion at 12:14 PM, well before its 80-minute label claim, because salt water and toweling accelerate stripping. Next beach day, reapply immediately after any towel-dry rather than waiting for the alert — for your skin type in these conditions, that single habit would have kept you above 50% for the entire session.',
+      aiTake: 'Your reapplication discipline carried this session: both alerts answered inside six minutes, and your unprotected time was effectively zero. But notice that water, not UV, drove 38% of your depletion: your SPF 50 lost its water resistance rating after the second immersion at 12:14 PM, well before its 80-minute label claim, because salt water and toweling accelerate stripping. Next beach day, reapply immediately after any towel-dry rather than waiting for the alert; for your skin type in these conditions, that single habit would have kept you above 50% for the entire session.',
     },
     '2': {
-      verdict: 'Solid morning session — gradual depletion, one well-timed reapplication, no red-zone time.',
+      verdict: 'Solid morning session: gradual depletion, one well-timed reapplication, no red-zone time.',
       timeline: [
         { m: 0, pct: 100, factor: 'UV intensity' }, { m: 10, pct: 97, factor: 'UV intensity' },
         { m: 20, pct: 93, factor: 'UV intensity' }, { m: 30, pct: 88, factor: 'Activity' },
@@ -187,7 +187,7 @@ const mockData = {
         { m: 84, pct: 90, factor: 'UV intensity' }, { m: 92, pct: 86, factor: 'UV intensity' },
       ],
       drivers: {
-        culprit: 'Physical activity was your dominant depletion factor — sweat, not sun, did the work today.',
+        culprit: 'Physical activity was your dominant depletion factor: sweat, not sun, did the work today.',
         factors: [
           { label: 'Activity', pct: 41 },
           { label: 'UV intensity', pct: 27 },
@@ -202,15 +202,15 @@ const mockData = {
         ],
         aggressiveAt: {
           time: '8:47 AM',
-          note: 'Activity and rising UV crossed high thresholds together on the steep section — depletion rate jumped from 0.3%/min to 0.7%/min.',
+          note: 'Activity and rising UV crossed high thresholds together on the steep section: depletion rate jumped from 0.3%/min to 0.7%/min.',
         },
       },
       skin: {
-        effectiveSpf: { labeled: 30, line: 'Your SPF 30 performed like SPF 24 today — sweat during the climb was the only meaningful loss.' },
+        effectiveSpf: { labeled: 30, line: 'Your SPF 30 performed like SPF 24 today: sweat during the climb was the only meaningful loss.' },
         sebum: 'Your skin’s sebum production reduced effective coverage by an estimated 4 SPF points over the session.',
         sweat: 'An estimated 410ml of sweat displaced sunscreen across your forehead and arms during the sustained climb.',
-        stress: { level: 'Low', note: 'for your Fitzpatrick Type III skin — morning UV kept your accumulated dose minimal.' },
-        med: { accumulated: 0.7, threshold: 2.5, line: 'You accumulated 0.7 MEDs today — well under the 2.5 MED mild burn threshold for your skin type.' },
+        stress: { level: 'Low', note: 'for your Fitzpatrick Type III skin; morning UV kept your accumulated dose minimal.' },
+        med: { accumulated: 0.7, threshold: 2.5, line: 'You accumulated 0.7 MEDs today, well under the 2.5 MED mild burn threshold for your skin type.' },
       },
       moments: {
         fastestDrop: { time: '8:52 AM', text: 'You lost 1.4% in 60 seconds at peak exertion on the steepest part of the trail.' },
@@ -221,21 +221,21 @@ const mockData = {
       alerts: {
         fired: 1,
         log: [{ id: 1, confirmed: true, detail: 'Confirmed in 5 minutes' }],
-        rating: 'You responded to the only alert in 5 minutes — a clean session.',
+        rating: 'You responded to the only alert in 5 minutes, a clean session.',
       },
       pattern: {
-        comparison: 'Today you depleted 8% slower than your historical average — early-morning UV is consistently your most forgiving window.',
+        comparison: 'Today you depleted 8% slower than your historical average: early-morning UV is consistently your most forgiving window.',
         tippingPoint: 'When UV is above 7 and you’re physically active, your protection depletes 2.3x faster than when only one condition is true. Neither held today.',
         factorUpdate: null,
         seasonalDrift: null,
-        weeklyDose: { meds: 0.7, limit: 3, line: '0.7 MEDs this week — dermatologists recommend under 3 MEDs weekly for your skin type.' },
+        weeklyDose: { meds: 0.7, limit: 3, line: '0.7 MEDs this week: dermatologists recommend under 3 MEDs weekly for your skin type.' },
       },
       prevented: {
-        simulated: 'Without your reapplication at 8:53 AM you would have reached 0% by 9:41 AM — just past your actual end time, so today’s risk was modest.',
+        simulated: 'Without your reapplication at 8:53 AM you would have reached 0% by 9:41 AM, just past your actual end time, so today’s risk was modest.',
         doseComparison: { withSureva: 0.7, without: 1.1 },
         weeklyTotal: 'Sureva has prevented an estimated 0.4 MEDs of excess UV exposure across your sessions this week.',
       },
-      aiTake: 'This was your cleanest session pattern to date — but it’s worth understanding why it worked. You started before 8 AM, when UV was under 3, so your sunscreen only had to fight sweat, not sun. Your 410ml sweat load on the climb is high for a 90-minute session, which means on a midday version of this same trail your depletion would roughly double. If you ever run Griffith after 11 AM, treat it like a beach day: SPF 50 instead of 30, and expect two alerts instead of one.',
+      aiTake: 'This was your cleanest session pattern to date, but it’s worth understanding why it worked. You started before 8 AM, when UV was under 3, so your sunscreen only had to fight sweat, not sun. Your 410ml sweat load on the climb is high for a 90-minute session, which means on a midday version of this same trail your depletion would roughly double. If you ever run Griffith after 11 AM, treat it like a beach day: SPF 50 instead of 30, and expect two alerts instead of one.',
     },
     '3': {
       verdict: 'Decent session, but one ignored alert cost you 22 unprotected minutes at peak UV.',
@@ -252,7 +252,7 @@ const mockData = {
         { m: 180, pct: 94, factor: 'UV intensity' }, { m: 185, pct: 91, factor: 'UV intensity' },
       ],
       drivers: {
-        culprit: 'Peak midday UV was the dominant force — it alone drove nearly half your depletion.',
+        culprit: 'Peak midday UV was the dominant force: it alone drove nearly half your depletion.',
         factors: [
           { label: 'UV intensity', pct: 46 },
           { label: 'Heat & humidity', pct: 26 },
@@ -268,20 +268,20 @@ const mockData = {
         ],
         aggressiveAt: {
           time: '1:36 PM',
-          note: 'UV, heat, and activity all crossed high thresholds simultaneously — depletion rate jumped from 0.5%/min to 1.6%/min.',
+          note: 'UV, heat, and activity all crossed high thresholds simultaneously: depletion rate jumped from 0.5%/min to 1.6%/min.',
         },
       },
       skin: {
-        effectiveSpf: { labeled: 50, line: 'Your SPF 50 performed like SPF 26 today — the ignored alert and a splash event left you exposed at the worst hour.' },
+        effectiveSpf: { labeled: 50, line: 'Your SPF 50 performed like SPF 26 today: the ignored alert and a splash event left you exposed at the worst hour.' },
         sebum: 'Your skin’s sebum production reduced effective coverage by an estimated 9 SPF points by the second hour.',
         sweat: 'An estimated 380ml of sweat displaced sunscreen across most of your application area during your active period.',
-        stress: { level: 'High', note: 'for your Fitzpatrick Type III skin — 22 unprotected minutes at UV 9+ is the main driver.' },
-        med: { accumulated: 2.1, threshold: 2.5, line: 'You accumulated 2.1 MEDs today — a mild burn threshold for your skin type is 2.5 MEDs.' },
+        stress: { level: 'High', note: 'for your Fitzpatrick Type III skin; 22 unprotected minutes at UV 9+ is the main driver.' },
+        med: { accumulated: 2.1, threshold: 2.5, line: 'You accumulated 2.1 MEDs today; a mild burn threshold for your skin type is 2.5 MEDs.' },
       },
       moments: {
         fastestDrop: { time: '1:52 PM', text: 'You lost 3.1% in 60 seconds during your swim at peak UV.' },
         bestWindow: { duration: '38 min', text: 'Your longest stretch above 60% protection, early in the session before noon.' },
-        longestUnprotected: { duration: '22 min', text: 'From 1:54 PM to 2:16 PM you were below 20% — directly after the unconfirmed alert.' },
+        longestUnprotected: { duration: '22 min', text: 'From 1:54 PM to 2:16 PM you were below 20%, directly after the unconfirmed alert.' },
         waterEvents: [
           { time: '1:49 PM', type: 'Immersion', cut: 21 },
           { time: '2:31 PM', type: 'Splash', cut: 5 },
@@ -291,24 +291,24 @@ const mockData = {
         fired: 3,
         log: [
           { id: 1, confirmed: true, detail: 'Confirmed in 3 minutes' },
-          { id: 2, confirmed: false, detail: 'Not confirmed — you were below 20% for 22 minutes' },
+          { id: 2, confirmed: false, detail: 'Not confirmed: you were below 20% for 22 minutes' },
           { id: 3, confirmed: true, detail: 'Confirmed in 11 minutes' },
         ],
-        rating: 'You responded to 2 of 3 alerts — the missed alert was your longest unprotected window of the session.',
+        rating: 'You responded to 2 of 3 alerts: the missed alert was your longest unprotected window of the session.',
       },
       pattern: {
-        comparison: 'Today you depleted 19% faster than your historical average — midday starts are consistently your hardest sessions.',
+        comparison: 'Today you depleted 19% faster than your historical average: midday starts are consistently your hardest sessions.',
         tippingPoint: 'When UV is above 7 and you’re physically active, your protection depletes 2.3x faster than when only one condition is true. Both were true for 47 minutes today.',
         factorUpdate: 'Your skin depleted 14% faster than predicted in peak heat. We’ve made your protection model slightly more conservative going forward.',
         seasonalDrift: 'Your depletion rate has increased 21% since March, consistent with summer changes in skin oil production.',
-        weeklyDose: { meds: 2.1, limit: 3, line: '2.1 MEDs this week — dermatologists recommend under 3 MEDs weekly for your skin type.' },
+        weeklyDose: { meds: 2.1, limit: 3, line: '2.1 MEDs this week: dermatologists recommend under 3 MEDs weekly for your skin type.' },
       },
       prevented: {
         simulated: 'Without your reapplication at 2:17 PM you would have reached 0% by 2:41 PM and spent 1 hour 9 minutes fully unprotected.',
         doseComparison: { withSureva: 2.1, without: 3.6 },
         weeklyTotal: 'Sureva has prevented an estimated 1.5 MEDs of excess UV exposure across your sessions this week.',
       },
-      aiTake: 'The session turned on a single decision: the 1:51 PM alert you didn’t confirm. Everything before it was textbook — fast first response, good early pacing. But that one miss put you below 20% for 22 minutes while UV sat above 9, and it accounts for most of your 2.1 MED dose, which is uncomfortably close to your 2.5 MED burn threshold. Your history shows midday sessions deplete 19% faster for you than average, so the margin for a missed alert simply doesn’t exist after 1 PM. Next time you plan a midday pier day, set the device to its persistent alert mode — for your skin type, that second buzz is worth more than an extra reapplication.',
+      aiTake: 'The session turned on a single decision: the 1:51 PM alert you didn’t confirm. Everything before it was textbook: fast first response, good early pacing. But that one miss put you below 20% for 22 minutes while UV sat above 9, and it accounts for most of your 2.1 MED dose, which is uncomfortably close to your 2.5 MED burn threshold. Your history shows midday sessions deplete 19% faster for you than average, so the margin for a missed alert simply doesn’t exist after 1 PM. Next time you plan a midday pier day, set the device to its persistent alert mode; for your skin type, that second buzz is worth more than an extra reapplication.',
     },
   },
   insights: {
@@ -316,22 +316,22 @@ const mockData = {
     skinProfile: {
       heroPct: 23,
       heroLine: 'faster depletion than the average person with your Fitzpatrick type and skin profile',
-      modelAccuracy: 'Your personal factor has been adjusted 6 times across 14 sessions — your model is now 34% more accurate than when you started.',
+      modelAccuracy: 'Your personal factor has been adjusted 6 times across 14 sessions: your model is now 34% more accurate than when you started.',
       sensitivities: [
         { label: 'UV intensity', value: 92 },
         { label: 'Heat & humidity', value: 71 },
         { label: 'Water events', value: 54 },
         { label: 'Activity', value: 38 },
       ],
-      baseline: 'On a calm day with no elevated conditions, your skin depletes sunscreen at 0.31% per minute — full depletion in roughly 5 hours 20 minutes.',
+      baseline: 'On a calm day with no elevated conditions, your skin depletes sunscreen at 0.31% per minute, for full depletion in roughly 5 hours 20 minutes.',
       population: 'Your skin depletes sunscreen 18% faster than average for your age group and skin type.',
     },
     patterns: {
-      riskWindow: { label: '1 – 3 PM', text: 'Your protection most commonly falls critical between 1pm and 3pm — 8 of your 12 critical alerts fired in this window.' },
+      riskWindow: { label: '1 – 3 PM', text: 'Your protection most commonly falls critical between 1pm and 3pm: 8 of your 12 critical alerts fired in this window.' },
       riskCombo: '91% of your alerts have occurred when UV was above 6 and you were physically active simultaneously.',
-      firstReapply: 'Your average time to first reapplication is 68 minutes — 9 minutes earlier than three months ago, and trending better.',
-      topCulprit: 'UV intensity has driven 44% of all depletion across your history — more than heat, water, and activity combined with each other.',
-      weakSpot: 'Your beach sessions average a 58 compliance score vs 81 for your park sessions — water days are where your habits slip.',
+      firstReapply: 'Your average time to first reapplication is 68 minutes, 9 minutes earlier than three months ago, and trending better.',
+      topCulprit: 'UV intensity has driven 44% of all depletion across your history, more than heat, water, and activity combined with each other.',
+      weakSpot: 'Your beach sessions average a 58 compliance score vs 81 for your park sessions: water days are where your habits slip.',
       reapplyWindow: 'For your skin type in your typical conditions, you need to reapply every 73 minutes on average.',
     },
     history: {
@@ -341,12 +341,12 @@ const mockData = {
         { label: 'Lifetime UV dose', value: '19.4 MEDs' },
         { label: 'Dose prevented', value: '11.2 MEDs' },
       ],
-      medContext: '19.4 lifetime MEDs is well-managed exposure for your skin type — without Sureva it would have been an estimated 30.6 MEDs.',
-      best: { score: 92, text: 'Jun 4 · Malibu Beach — both alerts answered inside six minutes, zero red-zone time.' },
-      worst: { score: 61, text: 'Apr 12 · pool day — three ignored alerts and 44 unprotected minutes.' },
-      trend: 'Your average session score has climbed from 71 to 84 over your last ten sessions — you are measurably getting better at this.',
-      alerts: 'You have received 31 alerts lifetime and confirmed 25 of them — an 81% overall compliance rate.',
-      water: '22 water events detected lifetime — you reapplied within 15 minutes after 17 of them.',
+      medContext: '19.4 lifetime MEDs is well-managed exposure for your skin type; without Sureva it would have been an estimated 30.6 MEDs.',
+      best: { score: 92, text: 'Jun 4 · Malibu Beach: both alerts answered inside six minutes, zero red-zone time.' },
+      worst: { score: 61, text: 'Apr 12 · pool day: three ignored alerts and 44 unprotected minutes.' },
+      trend: 'Your average session score has climbed from 71 to 84 over your last ten sessions: you are measurably getting better at this.',
+      alerts: 'You have received 31 alerts lifetime and confirmed 25 of them, an 81% overall compliance rate.',
+      water: '22 water events detected lifetime: you reapplied within 15 minutes after 17 of them.',
     },
     seasonal: {
       months: [
@@ -356,23 +356,23 @@ const mockData = {
         { m: 'O', rate: null }, { m: 'N', rate: null }, { m: 'D', rate: null },
       ],
       currentMonthIndex: 5,
-      highestRiskMonth: 'July is historically your highest-risk month — last year your depletion rate peaked at 2.1x your winter baseline.',
+      highestRiskMonth: 'July is historically your highest-risk month: last year your depletion rate peaked at 2.1x your winter baseline.',
       yoy: 'Your current depletion rate is 9% higher than this same week last year, consistent with a hotter early summer.',
-      spfReco: 'In summer your depletion rate suggests SPF 50 minimum — you’ve used SPF 30 in 3 of your last 5 sessions.',
-      complianceShift: 'Your alert response time grows by an average of 4 minutes in summer sessions — busier days, slower reapplication.',
+      spfReco: 'In summer your depletion rate suggests SPF 50 minimum, but you’ve used SPF 30 in 3 of your last 5 sessions.',
+      complianceShift: 'Your alert response time grows by an average of 4 minutes in summer sessions: busier days, slower reapplication.',
     },
     sunscreen: {
       labeled: 50,
       observed: 33,
-      effectiveLine: 'Average observed performance across all sessions — the gap comes mostly from water events and late reapplication.',
+      effectiveLine: 'Average observed performance across all sessions: the gap comes mostly from water events and late reapplication.',
       waterVsDry: 'In dry sessions your sunscreen holds 89% of its rated protection. In water sessions it holds 61%.',
-      waterResistance: 'Your SPF 50 water-resistant sunscreen loses an average of 31% protection per immersion — reapplication should happen sooner than the 80-minute water resistance label claims for your activity level.',
-      heat: 'Above 30°C your sunscreen degrades 1.4x faster than in moderate heat — a pattern consistent with chemical-filter formulations.',
+      waterResistance: 'Your SPF 50 water-resistant sunscreen loses an average of 31% protection per immersion; reapplication should happen sooner than the 80-minute water resistance label claims for your activity level.',
+      heat: 'Above 30°C your sunscreen degrades 1.4x faster than in moderate heat, a pattern consistent with chemical-filter formulations.',
       recommendation: 'Your observed effective SPF suggests stepping up to SPF 70+ or a more water-resistant formulation for beach sessions.',
     },
     body: {
-      sweat: 'You produce an estimated 340ml of sweat per hour in your typical conditions — about 15% above average. Your highest sweat loads came from your Griffith Park trail sessions.',
-      activityImpact: 'Physical activity degrades your protection 1.3x faster than population average — your sweat composition appears more disruptive to sunscreen film than most people’s.',
+      sweat: 'You produce an estimated 340ml of sweat per hour in your typical conditions, about 15% above average. Your highest sweat loads came from your Griffith Park trail sessions.',
+      activityImpact: 'Physical activity degrades your protection 1.3x faster than population average: your sweat composition appears more disruptive to sunscreen film than most people’s.',
       thresholds: [
         { icon: 'thermometer-outline', label: 'Heat', value: '29°C', note: 'Depletion accelerates sharply above this temperature' },
         { icon: 'water-outline', label: 'Humidity', value: '74%', note: 'Sweat stops evaporating and starts displacing sunscreen' },
@@ -380,25 +380,44 @@ const mockData = {
       ],
     },
     compliance: {
-      responseTrend: 'Your average alert response time is 6.2 minutes — down from 9.8 minutes in your first month. You are getting faster.',
+      responseTrend: 'Your average alert response time is 6.2 minutes, down from 9.8 minutes in your first month. You are getting faster.',
       fastSlow: 'You respond to alerts 3x faster in the morning than in the afternoon.',
-      ignoreCondition: 'You’ve ignored 4 of your 5 alerts that fired while you were swimming — water is when you tune the device out.',
+      ignoreCondition: 'You’ve ignored 4 of your 5 alerts that fired while you were swimming: water is when you tune the device out.',
       bestStreak: 9,
       currentStreak: 4,
-      flag: 'You consistently delay reapplication when UV is at its peak — which is the highest-risk window for your skin type.',
+      flag: 'You consistently delay reapplication when UV is at its peak, which is the highest-risk window for your skin type.',
     },
     risk: {
       monthDose: { current: 4.8, limit: 12, line: '4.8 MEDs accumulated this month against a recommended 12 MED monthly limit for your skin type.' },
-      projected: 'At your current usage rate you’ll accumulate roughly 58 MEDs this year — a level dermatologists associate with measurable photoaging when unmanaged. Yours is managed.',
-      vulnerableType: 'Midday beach sessions with swimming remain your most vulnerable scenario — they account for 70% of your lifetime unprotected minutes.',
-      skinAge: 'Your managed exposure this year is tracking roughly 40% below what unprotected behavior would produce — meaningfully slowing UV-driven photoaging for your skin type.',
+      projected: 'At your current usage rate you’ll accumulate roughly 58 MEDs this year, a level dermatologists associate with measurable photoaging when unmanaged. Yours is managed.',
+      vulnerableType: 'Midday beach sessions with swimming remain your most vulnerable scenario: they account for 70% of your lifetime unprotected minutes.',
+      skinAge: 'Your managed exposure this year is tracking roughly 40% below what unprotected behavior would produce, meaningfully slowing UV-driven photoaging for your skin type.',
       trend: { label: 'Improving', text: 'Compliance, response time, and session scores have all trended upward across your 14 sessions. The honest read: you are genuinely better at this than when you started.' },
     },
-    aiRead: 'Fourteen sessions in, a clear picture has formed: you are disciplined in the morning and vulnerable in the water. Your response times before noon rival the best users on record, but 4 of your 5 ignored alerts came mid-swim — and your skin, which depletes 23% faster than your profile predicted, can’t afford those gaps at peak UV. The single most important change you could make is treating every exit from the water as a hard reapplication trigger, not waiting for the next alert. Do that, and your beach compliance should close the 23-point gap with your park sessions — and your riskiest scenario becomes just another session.',
+    aiRead: 'Fourteen sessions in, a clear picture has formed: you are disciplined in the morning and vulnerable in the water. Your response times before noon rival the best users on record, but 4 of your 5 ignored alerts came mid-swim, and your skin, which depletes 23% faster than your profile predicted, can’t afford those gaps at peak UV. The single most important change you could make is treating every exit from the water as a hard reapplication trigger, not waiting for the next alert. Do that, and your beach compliance should close the 23-point gap with your park sessions, and your riskiest scenario becomes just another session.',
   },
   user: {
     firstName: 'Rohit',
     lastName: 'Dodda',
+  },
+  // Onboarding answers — field names match the real Supabase columns
+  // (age_range, skin_tone, skin_type, burn_rate, medications,
+  // skin_condition) so swapping to a real profile later is just
+  // changing the source, not the shape. fitzpatrickType/devicePlacement/
+  // personalFactor aren't collected by onboarding yet (see
+  // SupabaseService.completeOnboarding) — they're the algorithm's own
+  // defaults, kept here only so report/session code has one place to
+  // read a full profile from until onboarding asks for them directly.
+  profile: {
+    ageRange: '25–34',
+    skinTone: 'Medium: burns mildly, tans with more exposure',
+    skinType: 'Oily',
+    burnRate: 'Sometimes burns, then tans',
+    medications: 'None reported',
+    skinCondition: 'None reported',
+    fitzpatrickType: 3,
+    devicePlacement: 'shoulder_strap',
+    personalFactor: 1.08,
   },
   device: {
     battery: 78,

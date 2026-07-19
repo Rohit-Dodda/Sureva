@@ -88,7 +88,7 @@ const st = StyleSheet.create({
   },
   rank: {
     width: 22,
-    fontFamily: 'SpaceGrotesk-Bold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 16,
     color: colors.orange,
   },
@@ -103,14 +103,14 @@ const st = StyleSheet.create({
   },
   name: {
     flex: 1,
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 16,
     color: colors.ink,
     letterSpacing: -0.2,
     marginRight: 8,
   },
   region: {
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 12,
     color: colors.muted,
   },
@@ -120,7 +120,7 @@ const st = StyleSheet.create({
     paddingVertical: 3,
   },
   uvBadgeText: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 11,
     color: colors.white,
   },

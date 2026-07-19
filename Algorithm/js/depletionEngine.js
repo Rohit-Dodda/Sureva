@@ -13,16 +13,18 @@ import {
   INTERVAL_MS,
   UV_MULTIPLIERS,
   UV_MULTIPLIER_CAP,
-  HEAT_HUMIDITY_TIERS,
-  HEAT_HUMIDITY_DEFAULT,
-  ACTIVITY_MULTIPLIERS,
+  WBGT_APPROX,
+  HEAT_BANDS,
+  HEAT_ACTIVITY_MULTIPLIERS,
   SKIN_TYPE_MULTIPLIERS,
   FITZPATRICK_ALERT_THRESHOLDS,
   AGE_THRESHOLD_ADJUSTMENTS,
   MEDICATION_THRESHOLD_ADJUSTMENT,
+  SKIN_CONDITION_THRESHOLD_ADJUSTMENT,
   PLACEMENT_CORRECTION_FACTORS,
   WATER_EVENT_CUTS,
   WATER_EVENT_DURATIONS,
+  WATER_EVENT_ACTIVITY_SCALARS,
   PERSONAL_FACTOR,
   ALERT_ESCALATION,
   SESSION_SCORE_WEIGHTS,
@@ -50,24 +52,54 @@ export function calculateUVMultiplier(uvIndex) {
   return Math.max(multiplier, UV_MULTIPLIERS[0]);
 }
 
-export function calculateHeatHumidityMultiplier(temperature, humidity) {
-  // Tiers are ordered highest first; a tier only activates when BOTH
-  // thresholds are met simultaneously.
-  for (const tier of HEAT_HUMIDITY_TIERS) {
-    if (temperature >= tier.minTempC && humidity >= tier.minHumidityPct) {
-      return tier.multiplier;
-    }
-  }
-  return HEAT_HUMIDITY_DEFAULT;
+// WBGT approximation (Australian Bureau of Meteorology formula) from
+// air temperature + humidity, used in place of the full outdoor WBGT
+// since there's no black-globe/solar sensor. See algorithmConstants.js
+// for the derivation and citations.
+export function calculateWBGTApprox(temperature, humidity) {
+  const c = WBGT_APPROX;
+  const vaporPressure =
+    (humidity / 100) *
+    c.vaporPressureBase *
+    Math.exp((c.vaporPressureExpCoefficient * temperature) / (c.vaporPressureExpOffset + temperature));
+  return c.tempCoefficient * temperature + c.vaporPressureCoefficient * vaporPressure + c.constant;
 }
 
-export function calculateActivityMultiplier(activityLevel) {
-  const multiplier = ACTIVITY_MULTIPLIERS[activityLevel];
-  if (multiplier === undefined) {
-    console.warn(`Unrecognized activity level "${activityLevel}" — defaulting to 1.0x`);
+function heatBandFor(wbgt) {
+  // HEAT_BANDS is ordered highest-first; the first match wins.
+  for (const band of HEAT_BANDS) {
+    if (wbgt >= band.minWbgtC) return band.key;
+  }
+  return HEAT_BANDS[HEAT_BANDS.length - 1].key;
+}
+
+// Returns the "pure heat" component of the joint heat×activity table
+// (its sedentary column) — heat's effect held at baseline exertion.
+// Combined with calculateActivityMultiplier below, their product
+// always reproduces the true joint table value; see
+// calculateCombinedMultiplier and algorithmConstants.js for why they
+// aren't computed as independent factors.
+export function calculateHeatHumidityMultiplier(temperature, humidity) {
+  const wbgt = calculateWBGTApprox(temperature, humidity);
+  const band = heatBandFor(wbgt);
+  return HEAT_ACTIVITY_MULTIPLIERS[band].sedentary;
+}
+
+// Returns how much activity adds on TOP of the current heat baseline
+// (jointTableValue / sedentaryTableValue) — this ratio grows with
+// heat because the underlying table is a joint lookup, not a flat
+// per-activity constant, so "high activity" costs more in a heat wave
+// than it does on a mild day.
+export function calculateActivityMultiplier(temperature, humidity, activityLevel) {
+  const wbgt = calculateWBGTApprox(temperature, humidity);
+  const band = heatBandFor(wbgt);
+  const row = HEAT_ACTIVITY_MULTIPLIERS[band];
+  const jointValue = row[activityLevel];
+  if (jointValue === undefined) {
+    console.warn(`Unrecognized activity level "${activityLevel}" — defaulting to 1.0x on top of heat`);
     return 1.0;
   }
-  return multiplier;
+  return jointValue / row.sedentary;
 }
 
 export function calculateSkinTypeMultiplier(skinType) {
@@ -85,11 +117,16 @@ export function calculateCombinedMultiplier(sensorSnapshot, userProfile) {
   const correctedUvIndex = sensorSnapshot.uvIndex * placementCorrection;
 
   const uvMultiplier = calculateUVMultiplier(correctedUvIndex);
+  const wbgt = calculateWBGTApprox(sensorSnapshot.temperature, sensorSnapshot.humidity);
   const heatHumidityMultiplier = calculateHeatHumidityMultiplier(
     sensorSnapshot.temperature,
     sensorSnapshot.humidity
   );
-  const activityMultiplier = calculateActivityMultiplier(sensorSnapshot.activityLevel);
+  const activityMultiplier = calculateActivityMultiplier(
+    sensorSnapshot.temperature,
+    sensorSnapshot.humidity,
+    sensorSnapshot.activityLevel
+  );
   const skinTypeMultiplier = calculateSkinTypeMultiplier(userProfile.skinType);
   const personalFactor = userProfile.personalFactor ?? PERSONAL_FACTOR.initial;
 
@@ -104,6 +141,7 @@ export function calculateCombinedMultiplier(sensorSnapshot, userProfile) {
     skinTypeMultiplier,
     personalFactor,
     correctedUvIndex,
+    wbgt,
     depletionRatePerInterval: BASE_DEPLETION_RATE * combinedMultiplier,
   };
 }
@@ -115,7 +153,8 @@ export function calculateAlertThreshold(userProfile) {
   const base = FITZPATRICK_ALERT_THRESHOLDS[userProfile.fitzpatrickType] ?? FITZPATRICK_ALERT_THRESHOLDS[3];
   const ageAdjustment = AGE_THRESHOLD_ADJUSTMENTS[userProfile.ageGroup] ?? 0;
   const medicationAdjustment = userProfile.medicationFlag ? MEDICATION_THRESHOLD_ADJUSTMENT : 0;
-  return base + ageAdjustment + medicationAdjustment;
+  const skinConditionAdjustment = userProfile.skinConditionFlag ? SKIN_CONDITION_THRESHOLD_ADJUSTMENT : 0;
+  return base + ageAdjustment + medicationAdjustment + skinConditionAdjustment;
 }
 
 // ─── Water events ─────────────────────────────────────────────
@@ -126,12 +165,16 @@ export function classifyWaterEvent(durationSeconds) {
   return 'immersion';
 }
 
-export function applyWaterEventCut(currentProtection, eventType, waterResistanceRating) {
+export function applyWaterEventCut(currentProtection, eventType, waterResistanceRating, activityLevel) {
   const cuts = WATER_EVENT_CUTS[waterResistanceRating] ?? WATER_EVENT_CUTS[40];
-  let cutApplied = 0;
-  if (eventType === 'splash') cutApplied = cuts.splash;
-  else if (eventType === 'briefImmersion') cutApplied = cuts.briefImmersion;
-  else if (eventType === 'immersion') cutApplied = cuts.fullImmersion;
+  let baseCut = 0;
+  if (eventType === 'splash') baseCut = cuts.splash;
+  else if (eventType === 'briefImmersion') baseCut = cuts.briefImmersion;
+  else if (eventType === 'immersion') baseCut = cuts.fullImmersion;
+  // Activity level is optional — omitting it (unknown activity at the
+  // moment of the event) leaves the base cut unchanged.
+  const activityScalar = WATER_EVENT_ACTIVITY_SCALARS[activityLevel] ?? 1.0;
+  const cutApplied = Math.round(baseCut * activityScalar * 100) / 100;
   const newProtection = Math.max(0, currentProtection - cutApplied);
   return { newProtection, cutApplied };
 }
@@ -230,7 +273,8 @@ export function runSessionInterval(sessionState, sensorSnapshot, userProfile) {
       const { newProtection, cutApplied } = applyWaterEventCut(
         protection,
         eventType,
-        sessionState.waterResistanceRating
+        sessionState.waterResistanceRating,
+        sensorSnapshot.activityLevel
       );
       protection = newProtection;
       waterEvent = {

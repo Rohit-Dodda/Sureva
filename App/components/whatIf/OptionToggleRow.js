@@ -42,7 +42,7 @@ const st = StyleSheet.create({
     borderColor: colors.orange,
   },
   pillLabel: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 13,
     color: colors.inkMid,
   },

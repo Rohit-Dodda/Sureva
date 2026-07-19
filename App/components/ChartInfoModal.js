@@ -56,7 +56,7 @@ export default React.memo(function ChartInfoModal({ visible, onClose }) {
           <Text style={st.title}>Reading your timeline</Text>
 
           <InfoRow icon="pulse-outline" title="The curve" body="Your protection level from session start to finish. Drops are depletion or water events, jumps back to 100% are reapplications." />
-          <InfoRow icon="remove-outline" title="Threshold lines" body="The amber dashed line marks 60% — below it, plan to reapply soon. The red line marks 20% — below it you're effectively unprotected." />
+          <InfoRow icon="remove-outline" title="Threshold lines" body="The amber dashed line marks 60%: below it, plan to reapply soon. The red line marks 20%: below it you're effectively unprotected." />
           <InfoRow icon="hand-left-outline" title="Drag to inspect" body="Press and slide your finger along the chart to see the exact time, protection percent, and what was driving depletion at that moment." />
           <InfoRow icon="expand-outline" title="Tap to expand" body="A quick tap grows the chart for a closer look. Tap again to shrink it back." />
 
@@ -99,7 +99,7 @@ const st = StyleSheet.create({
     paddingVertical: 24,
   },
   title: {
-    fontFamily: 'SpaceGrotesk-Bold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 20,
     color: colors.ink,
     letterSpacing: -0.5,
@@ -122,19 +122,19 @@ const st = StyleSheet.create({
     flex: 1,
   },
   rowTitle: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 14,
     color: colors.ink,
     marginBottom: 2,
   },
   rowText: {
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 13,
     color: colors.inkMid,
     lineHeight: 18,
   },
   legendTitle: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 12,
     color: colors.muted,
     letterSpacing: 0.5,
@@ -162,7 +162,7 @@ const st = StyleSheet.create({
     borderRadius: 4,
   },
   legendText: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 12,
     color: colors.inkMid,
   },
@@ -173,7 +173,7 @@ const st = StyleSheet.create({
     alignItems: 'center',
   },
   buttonText: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 15,
     color: colors.white,
   },

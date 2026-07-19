@@ -46,7 +46,7 @@ const st = StyleSheet.create({
     elevation: 2,
   },
   label: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 13,
     color: colors.muted,
     letterSpacing: 0.2,

@@ -125,7 +125,7 @@ const st = StyleSheet.create({
   },
   left: { flex: 1 },
   label: {
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 12,
     color: colors.muted,
     marginBottom: 3,
@@ -133,7 +133,7 @@ const st = StyleSheet.create({
     textTransform: 'uppercase',
   },
   value: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 15,
     color: colors.ink,
   },
@@ -154,7 +154,7 @@ const st = StyleSheet.create({
     minHeight: 3,
   },
   chartLabel: {
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 11,
     color: colors.muted,
     marginTop: 8,

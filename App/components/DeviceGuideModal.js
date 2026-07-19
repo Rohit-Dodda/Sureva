@@ -112,14 +112,14 @@ const st = StyleSheet.create({
     paddingVertical: 24,
   },
   title: {
-    fontFamily: 'SpaceGrotesk-Bold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 20,
     color: colors.ink,
     letterSpacing: -0.5,
     marginBottom: 6,
   },
   subtitle: {
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 13,
     color: colors.muted,
     lineHeight: 18,
@@ -140,7 +140,7 @@ const st = StyleSheet.create({
     alignItems: 'center',
   },
   patternText: {
-    fontFamily: 'SpaceGrotesk-Bold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 10,
     letterSpacing: 1.2,
     color: colors.white,
@@ -149,13 +149,13 @@ const st = StyleSheet.create({
     flex: 1,
   },
   rowTitle: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 14,
     color: colors.ink,
     marginBottom: 2,
   },
   rowText: {
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 13,
     color: colors.inkMid,
     lineHeight: 18,
@@ -168,7 +168,7 @@ const st = StyleSheet.create({
     marginTop: 4,
   },
   buttonText: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 15,
     color: colors.white,
   },

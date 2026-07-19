@@ -168,14 +168,14 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   heading: {
-    fontFamily: 'SpaceGrotesk-Bold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 28,
     color: colors.ink,
     letterSpacing: -1,
     marginBottom: 10,
   },
   subheading: {
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 15,
     lineHeight: 22,
     color: colors.muted,
@@ -183,7 +183,7 @@ const styles = StyleSheet.create({
   },
 
   fieldLabel: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 13,
     color: colors.ink,
     marginBottom: 6,
@@ -204,7 +204,7 @@ const styles = StyleSheet.create({
   },
   passwordInput: {
     flex: 1,
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 15,
     color: colors.ink,
     height: '100%',
@@ -213,7 +213,7 @@ const styles = StyleSheet.create({
     paddingLeft: 8,
   },
   errorText: {
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 12,
     color: colors.danger,
     marginTop: 5,
@@ -238,7 +238,7 @@ const styles = StyleSheet.create({
     elevation: 0,
   },
   ctaText: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 17,
     color: colors.white,
     letterSpacing: 0.2,

@@ -81,13 +81,13 @@ const gcSt = StyleSheet.create({
     justifyContent: 'center',
   },
   pctDefault: {
-    fontFamily: 'SpaceGrotesk-Bold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 44,
     letterSpacing: -2,
     lineHeight: 50,
   },
   subDefault: {
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 13,
     color: colors.muted,
     marginTop: 4,

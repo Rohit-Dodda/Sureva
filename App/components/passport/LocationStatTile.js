@@ -30,7 +30,7 @@ const st = StyleSheet.create({
     flexBasis: '100%',
   },
   label: {
-    fontFamily: 'Inter-Medium',
+    fontFamily: 'Outfit-Regular',
     fontSize: 11.5,
     color: colors.muted,
     marginBottom: 5,
@@ -38,14 +38,14 @@ const st = StyleSheet.create({
     textAlign: 'center',
   },
   value: {
-    fontFamily: 'SpaceGrotesk-Bold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 18,
     color: colors.ink,
     letterSpacing: -0.3,
     textAlign: 'center',
   },
   sub: {
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 11,
     color: colors.muted,
     marginTop: 3,

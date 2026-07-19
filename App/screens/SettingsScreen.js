@@ -1,13 +1,20 @@
 import React, { useRef, useEffect, useCallback, useState } from 'react';
 import {
   View, Text, StyleSheet, SafeAreaView, Pressable,
-  Modal, Animated, Dimensions, Easing, ScrollView, Image, PanResponder,
+  Modal, Animated, Dimensions, Easing, ScrollView, Image, PanResponder, Alert,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import colors from '../constants/colors';
 import { useAuth } from '../context/AuthContext';
 import mockData from '../constants/mockData';
+import SupabaseService from '../services/SupabaseService';
+import { exportAndShareAccountData } from '../services/DataExportService';
+import { authenticateWithDevice } from '../utils/deviceAuth';
 import ProfileScreen from './ProfileScreen';
+import HelpSupportScreen from './HelpSupportScreen';
+import AboutSurevaScreen from './AboutSurevaScreen';
+import NotificationSettingsScreen from './NotificationSettingsScreen';
+import EditSkinProfileScreen from './EditSkinProfileScreen';
 import ConfirmDialog from '../components/ConfirmDialog';
 import { useAppTour } from '../context/AppTourContext';
 import { WELCOME_TOUR_ID, WELCOME_TOUR_STEPS } from '../constants/tourSteps';
@@ -69,7 +76,14 @@ export default function SettingsScreen({ visible, onClose, onSignOut }) {
   const email     = user?.email || '';
   const initials  = `${firstName[0]}${lastName[0]}`.toUpperCase();
   const [profileVisible, setProfileVisible] = useState(false);
-  const [confirmSignOutVisible, setConfirmSignOutVisible] = useState(false);
+  const [helpVisible, setHelpVisible] = useState(false);
+  const [aboutVisible, setAboutVisible] = useState(false);
+  const [notificationSettingsVisible, setNotificationSettingsVisible] = useState(false);
+  const openNotificationSettings = useCallback(() => setNotificationSettingsVisible(true), []);
+  const [editSkinProfileVisible, setEditSkinProfileVisible] = useState(false);
+  const [confirmDeleteVisible, setConfirmDeleteVisible] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const { restartTour } = useAppTour();
 
   // The tour's spotlight targets live on Home, underneath this modal — so
@@ -80,12 +94,54 @@ export default function SettingsScreen({ visible, onClose, onSignOut }) {
     setTimeout(() => restartTour(WELCOME_TOUR_ID, WELCOME_TOUR_STEPS), 450);
   }, [onClose, restartTour]);
 
-  const openSignOutConfirm = useCallback(() => setConfirmSignOutVisible(true), []);
-  const cancelSignOut = useCallback(() => setConfirmSignOutVisible(false), []);
-  const confirmSignOut = useCallback(() => {
-    setConfirmSignOutVisible(false);
+  const [confirmFinalVisible, setConfirmFinalVisible] = useState(false);
+
+  const openDeleteConfirm = useCallback(() => setConfirmDeleteVisible(true), []);
+  const cancelDelete = useCallback(() => setConfirmDeleteVisible(false), []);
+  const cancelFinalDelete = useCallback(() => setConfirmFinalVisible(false), []);
+
+  // First tap starts device authentication (Face ID/Touch ID/passcode —
+  // see utils/deviceAuth); a second, explicit confirmation follows only
+  // once that succeeds — two separate deliberate steps before anything
+  // is actually deleted.
+  const confirmDelete = useCallback(async () => {
+    setConfirmDeleteVisible(false);
+    const authenticated = await authenticateWithDevice('Confirm it’s you before deleting your account');
+    if (!authenticated) return;
+    setConfirmFinalVisible(true);
+  }, []);
+
+  // Deletes the account's auth credential itself via the server-side
+  // Edge Function (cascades to every row of app data automatically),
+  // then signs out.
+  const finalConfirmDelete = useCallback(async () => {
+    setConfirmFinalVisible(false);
+    if (!user?.id) return;
+    setDeleting(true);
+    const { error } = await SupabaseService.deleteAccountData();
+    setDeleting(false);
+    if (error) {
+      Alert.alert('Delete Account', 'Couldn’t delete your account. Please try again.');
+      return;
+    }
     onSignOut?.();
-  }, [onSignOut]);
+  }, [user, onSignOut]);
+
+  // "Export your data" user right — gathers the full account (profile,
+  // sessions, readings, events, skin age history) into JSON and hands it to
+  // the OS share sheet.
+  const handleExportData = useCallback(async () => {
+    if (exporting || !user?.id) return;
+    setExporting(true);
+    try {
+      const result = await exportAndShareAccountData(user.id);
+      if (!result.ok && result.message) {
+        Alert.alert('Export My Data', result.message);
+      }
+    } finally {
+      setExporting(false);
+    }
+  }, [exporting, user]);
 
   const slideAnim = useRef(new Animated.Value(SCREEN_W)).current;
   const fade0  = useRef(new Animated.Value(0)).current;
@@ -215,8 +271,7 @@ export default function SettingsScreen({ visible, onClose, onSignOut }) {
             <Animated.View style={{ opacity: fade1, transform: [{ translateY: slide1 }] }}>
               <Text style={st.sectionHeading}>ACCOUNT</Text>
               <View style={st.card}>
-                <SettingsRow label="Notifications" onPress={() => {}} />
-                <SettingsRow label="Privacy" isLast onPress={() => {}} />
+                <SettingsRow label="Notifications" isLast onPress={openNotificationSettings} />
               </View>
             </Animated.View>
 
@@ -236,15 +291,10 @@ export default function SettingsScreen({ visible, onClose, onSignOut }) {
               <Text style={st.sectionHeading}>APP</Text>
               <View style={st.card}>
                 <SettingsRow
-                  label="Default SPF"
-                  sublabel="SPF 50"
-                  onPress={() => {}}
-                />
-                <SettingsRow
-                  label="UV Index Display"
-                  sublabel="0–11+ scale"
+                  label="Skin Profile"
+                  sublabel="Update your onboarding answers"
                   isLast
-                  onPress={() => {}}
+                  onPress={() => setEditSkinProfileVisible(true)}
                 />
               </View>
             </Animated.View>
@@ -252,23 +302,34 @@ export default function SettingsScreen({ visible, onClose, onSignOut }) {
             <Animated.View style={{ opacity: fade4, transform: [{ translateY: slide4 }] }}>
               <Text style={st.sectionHeading}>SUPPORT</Text>
               <View style={st.card}>
-                <SettingsRow label="Help & Feedback" onPress={() => {}} />
+                <SettingsRow label="Help & Support" onPress={() => setHelpVisible(true)} />
                 <SettingsRow label="Replay App Tour" onPress={handleReplayTour} />
                 <SettingsRow
                   label="About Sureva"
                   sublabel="Version 1.0.0"
                   isLast
-                  onPress={() => {}}
+                  onPress={() => setAboutVisible(true)}
                 />
               </View>
 
-              <View style={[st.card, st.signOutCard]}>
+              <Text style={st.sectionHeading}>PRIVACY</Text>
+              <View style={st.card}>
                 <SettingsRow
-                  label="Sign Out"
+                  label={exporting ? 'Preparing export…' : 'Export My Data'}
+                  sublabel="Download everything Sureva has on your account"
+                  isLast
+                  onPress={exporting ? undefined : handleExportData}
+                />
+              </View>
+
+              <Text style={[st.sectionHeading, st.dangerHeading]}>DANGER ZONE</Text>
+              <View style={[st.card, st.dangerCard]}>
+                <SettingsRow
+                  label={deleting ? 'Deleting…' : 'Delete Account'}
                   danger
                   hideChevron
                   isLast
-                  onPress={openSignOutConfirm}
+                  onPress={deleting ? undefined : openDeleteConfirm}
                 />
               </View>
             </Animated.View>
@@ -282,20 +343,58 @@ export default function SettingsScreen({ visible, onClose, onSignOut }) {
         onClose={() => setProfileVisible(false)}
         initials={initials}
         name={`${firstName} ${lastName}`}
+        firstName={firstName}
+        lastName={lastName}
+        onSignOut={onSignOut}
         email={email}
         profileImage={profileImage}
         onProfileImageChange={setProfileImage}
       />
 
+      {/* HelpSupportScreen slides over settings within the same Modal */}
+      <HelpSupportScreen
+        visible={helpVisible}
+        onClose={() => setHelpVisible(false)}
+      />
+
+      {/* NotificationSettingsScreen slides over settings within the same Modal */}
+      <NotificationSettingsScreen
+        visible={notificationSettingsVisible}
+        onClose={() => setNotificationSettingsVisible(false)}
+      />
+
+      {/* EditSkinProfileScreen slides over settings within the same Modal */}
+      <EditSkinProfileScreen
+        visible={editSkinProfileVisible}
+        onClose={() => setEditSkinProfileVisible(false)}
+      />
+
+      {/* AboutSurevaScreen slides over settings within the same Modal */}
+      <AboutSurevaScreen
+        visible={aboutVisible}
+        onClose={() => setAboutVisible(false)}
+      />
+
       <ConfirmDialog
-        visible={confirmSignOutVisible}
-        title="Sign out of Sureva?"
-        message="Your session history and skin profile stay safely synced to your account."
-        confirmLabel="Sign Out"
+        visible={confirmDeleteVisible}
+        title="Delete your account?"
+        message="This permanently deletes your session history, skin profile, and all Sureva data. This cannot be undone."
+        confirmLabel="Continue"
         cancelLabel="Cancel"
         danger
-        onConfirm={confirmSignOut}
-        onCancel={cancelSignOut}
+        onConfirm={confirmDelete}
+        onCancel={cancelDelete}
+      />
+
+      <ConfirmDialog
+        visible={confirmFinalVisible}
+        title="Are you absolutely sure?"
+        message="This is the last step: once deleted, your data cannot be recovered."
+        confirmLabel="Yes, Delete Everything"
+        cancelLabel="Cancel"
+        danger
+        onConfirm={finalConfirmDelete}
+        onCancel={cancelFinalDelete}
       />
     </Modal>
   );
@@ -330,14 +429,14 @@ const st = StyleSheet.create({
     justifyContent: 'center',
   },
   backArrow: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 18,
     color: colors.ink,
     textAlign: 'center',
     includeFontPadding: false,
   },
   headerTitle: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 22,
     color: colors.ink,
     letterSpacing: -0.4,
@@ -385,7 +484,7 @@ const st = StyleSheet.create({
     borderRadius: 26,
   },
   profileInitials: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 18,
     color: colors.white,
     letterSpacing: 0.5,
@@ -395,13 +494,13 @@ const st = StyleSheet.create({
     gap: 3,
   },
   profileName: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 17,
     color: colors.ink,
     letterSpacing: -0.3,
   },
   profileEmail: {
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 13,
     color: colors.muted,
   },
@@ -411,7 +510,7 @@ const st = StyleSheet.create({
     lineHeight: 24,
   },
   sectionHeading: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 11,
     color: colors.muted,
     letterSpacing: 1.2,
@@ -436,8 +535,11 @@ const st = StyleSheet.create({
     shadowRadius: 10,
     elevation: 1,
   },
-  signOutCard: {
-    marginTop: 12,
+  dangerHeading: {
+    color: colors.danger,
+  },
+  dangerCard: {
+    borderColor: colors.danger,
   },
   row: {
     flexDirection: 'row',
@@ -455,12 +557,12 @@ const st = StyleSheet.create({
     gap: 2,
   },
   rowLabel: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 15,
     color: colors.ink,
   },
   rowSublabel: {
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 12,
     color: colors.muted,
   },

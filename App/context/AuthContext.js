@@ -13,6 +13,27 @@ const ONBOARDED_KEY_PREFIX = '@sureva_onboarded_';
 
 const AuthContext = createContext(null);
 
+// Single source of truth for the raw Supabase `users` row → camelCase
+// userProfile shape, used both by the auth-state-change listener below and
+// by refreshUserProfile, so the two can never drift out of sync.
+function mapUserRow(userRow) {
+  return userRow ? {
+    firstName: userRow.first_name ?? '',
+    lastName: userRow.last_name ?? '',
+    skinTone: userRow.skin_tone ?? null,
+    ageRange: userRow.age_range ?? null,
+    skinType: userRow.skin_type ?? null,
+    burnRate: userRow.burn_rate ?? null,
+    medications: !!userRow.medications,
+    skinCondition: !!userRow.skin_condition,
+    exactAge: userRow.exact_age ?? null,
+    // null (not the mock demo profile's 1.08) is the correct "not enough
+    // sessions yet" state — engineProfileFor treats null as the neutral
+    // PERSONAL_FACTOR.initial.
+    personalFactor: userRow.personal_factor ?? null,
+  } : null;
+}
+
 export function AuthProvider({ children }) {
   // undefined = still checking, null = signed out, object = signed in
   const [user, setUser] = useState(undefined);
@@ -53,6 +74,61 @@ export function AuthProvider({ children }) {
     }
   }, []);
 
+  // Same optimistic-write pattern as setProfileImage above: updates
+  // public.users in the background, but only applies it to local state
+  // once the write actually succeeds, so a failed save can't leave the
+  // UI showing a name that was never persisted.
+  const updateProfileName = useCallback(async (firstName, lastName) => {
+    const uid = currentUserIdRef.current;
+    if (!uid) return { error: new Error('Not signed in') };
+    const { error } = await SupabaseService.updateUserProfile(uid, {
+      first_name: firstName,
+      last_name: lastName,
+    });
+    if (!error) setUserProfile((prev) => ({ ...(prev || {}), firstName, lastName }));
+    return { error };
+  }, []);
+
+  // Same shape onboarding itself writes (see completeOnboarding) — lets
+  // EditSkinProfileScreen let a user revise those same answers later.
+  // These are the real algorithmic inputs (Fitzpatrick estimate, age
+  // group, skin type, medication flag — see engineProfileFor in
+  // sessionMath.js), not mock data, so a save here has a real effect on
+  // the next session's depletion math.
+  const updateProfileFields = useCallback(async (fields) => {
+    const uid = currentUserIdRef.current;
+    if (!uid) return { error: new Error('Not signed in') };
+    const { error } = await SupabaseService.updateUserProfile(uid, {
+      skin_tone: fields.skinTone,
+      age_range: fields.ageRange,
+      skin_type: fields.skinType,
+      burn_rate: fields.burnRate,
+      medications: fields.medications,
+      skin_condition: fields.skinCondition,
+      exact_age: fields.exactAge,
+    });
+    if (!error) setUserProfile((prev) => ({ ...(prev || {}), ...fields }));
+    return { error };
+  }, []);
+
+  // Re-fetches and re-syncs userProfile from Supabase — needed after any
+  // write that goes through a path OTHER than updateProfileName/
+  // updateProfileFields above (which already update local state
+  // optimistically on success). Onboarding is the main case: it writes the
+  // user's answers via SupabaseService.completeOnboarding directly, not
+  // through this context, so without this, userProfile stays whatever it
+  // was before onboarding (null, since the row didn't exist yet) — every
+  // screen reading userProfile.skinTone/ageRange/etc. (e.g.
+  // EditSkinProfileScreen's "highlight what you already picked") would see
+  // nothing until the next full auth event. Call this right after
+  // completeOnboarding succeeds.
+  const refreshUserProfile = useCallback(async () => {
+    const uid = currentUserIdRef.current;
+    if (!uid) return;
+    const { data: userRow } = await SupabaseService.getUserProfile(uid);
+    setUserProfile(mapUserRow(userRow));
+  }, []);
+
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       const authUser = session?.user ?? null;
@@ -78,9 +154,7 @@ export function AuthProvider({ children }) {
           if (fromRow && !cachedOnboarded) {
             AsyncStorage.setItem(ONBOARDED_KEY_PREFIX + authUser.id, '1').catch(() => {});
           }
-          setUserProfile(
-            userRow ? { firstName: userRow.first_name ?? '', lastName: userRow.last_name ?? '' } : null
-          );
+          setUserProfile(mapUserRow(userRow));
           setProfileImageState(userRow?.avatar_url ?? null);
         } catch {
           // Supabase unreachable — fall back to the cached flag instead
@@ -129,6 +203,7 @@ export function AuthProvider({ children }) {
   return (
     <AuthContext.Provider value={{
       user, onboardingComplete, setOnboardingComplete, userProfile, profileImage, setProfileImage,
+      updateProfileName, updateProfileFields, refreshUserProfile,
       passwordRecoveryPending, clearPasswordRecoveryPending: () => setPasswordRecoveryPending(false),
     }}>
       {children}

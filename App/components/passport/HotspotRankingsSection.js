@@ -94,13 +94,13 @@ const st = StyleSheet.create({
     flex: 1,
   },
   headerTitle: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 16,
     color: colors.ink,
     letterSpacing: -0.2,
   },
   headerPreview: {
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 12,
     color: colors.muted,
     marginTop: 1,

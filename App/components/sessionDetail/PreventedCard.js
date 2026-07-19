@@ -50,7 +50,7 @@ const st = StyleSheet.create({
     marginTop: 2,
   },
   simText: {
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 13,
     color: colors.inkMid,
     lineHeight: 19,
@@ -60,7 +60,7 @@ const st = StyleSheet.create({
     marginBottom: 14,
   },
   compareLabel: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 12,
     color: colors.muted,
     letterSpacing: 0.4,
@@ -74,7 +74,7 @@ const st = StyleSheet.create({
     marginBottom: 8,
   },
   barLabel: {
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 13,
     color: colors.inkMid,
     width: 86,
@@ -91,7 +91,7 @@ const st = StyleSheet.create({
     borderRadius: 5,
   },
   barValue: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 13,
     color: colors.ink,
     width: 64,
@@ -104,7 +104,7 @@ const st = StyleSheet.create({
     paddingVertical: 12,
   },
   weeklyText: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 13,
     color: colors.orange,
     lineHeight: 19,

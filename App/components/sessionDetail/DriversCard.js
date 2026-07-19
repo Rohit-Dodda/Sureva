@@ -57,7 +57,7 @@ export default React.memo(function DriversCard({ drivers }) {
 
 const st = StyleSheet.create({
   culprit: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 15,
     color: colors.ink,
     lineHeight: 21,
@@ -74,7 +74,7 @@ const st = StyleSheet.create({
     gap: 10,
   },
   factorLabel: {
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 13,
     color: colors.inkMid,
     width: 110,
@@ -92,7 +92,7 @@ const st = StyleSheet.create({
     backgroundColor: colors.orange,
   },
   factorPct: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 13,
     color: colors.ink,
     width: 38,
@@ -112,13 +112,13 @@ const st = StyleSheet.create({
     marginBottom: 8,
   },
   peakValue: {
-    fontFamily: 'SpaceGrotesk-Bold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 24,
     color: colors.ink,
     letterSpacing: -0.5,
   },
   peakNote: {
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 12,
     color: colors.muted,
     flex: 1,
@@ -132,13 +132,13 @@ const st = StyleSheet.create({
     borderTopColor: colors.surface,
   },
   multSensor: {
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 13,
     color: colors.inkMid,
     flex: 1,
   },
   multValue: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 13,
     color: colors.orangeDark,
   },
@@ -150,14 +150,14 @@ const st = StyleSheet.create({
     marginTop: 2,
   },
   aggressiveText: {
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 13,
     color: colors.inkMid,
     lineHeight: 19,
     flex: 1,
   },
   aggressiveTime: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     color: colors.ink,
   },
 });

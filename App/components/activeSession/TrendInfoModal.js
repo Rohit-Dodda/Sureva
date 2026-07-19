@@ -55,7 +55,7 @@ export default React.memo(function TrendInfoModal({ visible, onClose }) {
         >
           <Text style={st.title}>How to read this</Text>
           <InfoRow icon="trending-down-outline" title="The line is your protection" body="It starts full on the left and falls as your sunscreen wears off. The further it drops, the lower your protection." />
-          <InfoRow icon="radio-outline" title="“Now” is the right edge" body="The glowing dot is this exact moment. The line grows from there — so the whole timeline slowly scrolls left as time passes." />
+          <InfoRow icon="radio-outline" title="“Now” is the right edge" body="The glowing dot is this exact moment. The line grows from there, so the whole timeline slowly scrolls left as time passes." />
           <InfoRow icon="flag-outline" title="Flags are reapplications" body="Each vertical orange line marks a moment you reapplied. They stay pinned to when it happened and drift left as time moves on." />
           <TouchableOpacity style={st.gotIt} onPress={dismiss} activeOpacity={0.85}>
             <Text style={st.gotItText}>Got it</Text>
@@ -90,7 +90,7 @@ const st = StyleSheet.create({
     elevation: 8,
   },
   title: {
-    fontFamily: 'SpaceGrotesk-Bold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 20,
     color: colors.ink,
     letterSpacing: -0.4,
@@ -111,13 +111,13 @@ const st = StyleSheet.create({
   },
   rowBody: { flex: 1 },
   rowTitle: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 14.5,
     color: colors.ink,
     marginBottom: 3,
   },
   rowText: {
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 13,
     color: colors.muted,
     lineHeight: 19,
@@ -131,7 +131,7 @@ const st = StyleSheet.create({
     marginTop: 4,
   },
   gotItText: {
-    fontFamily: 'SpaceGrotesk-Bold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 16,
     color: colors.white,
   },

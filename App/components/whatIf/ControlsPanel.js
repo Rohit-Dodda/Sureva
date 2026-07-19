@@ -98,7 +98,7 @@ const st = StyleSheet.create({
     marginBottom: 10,
   },
   resetLabel: {
-    fontFamily: 'Inter-Medium',
+    fontFamily: 'Outfit-Regular',
     fontSize: 13,
     color: colors.muted,
     textDecorationLine: 'underline',

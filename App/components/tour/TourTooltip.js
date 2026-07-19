@@ -62,12 +62,12 @@ const st = StyleSheet.create({
     zIndex: 1,
   },
   skipText: {
-    fontFamily: 'Inter-Medium',
+    fontFamily: 'Outfit-Regular',
     fontSize: 12.5,
     color: colors.onDarkMuted,
   },
   text: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 15.5,
     lineHeight: 22,
     color: colors.onDark,

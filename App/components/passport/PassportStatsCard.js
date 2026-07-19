@@ -98,13 +98,13 @@ const st = StyleSheet.create({
     alignItems: 'center',
   },
   number: {
-    fontFamily: 'SpaceGrotesk-Bold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 36,
     color: colors.orange,
     letterSpacing: -1,
   },
   label: {
-    fontFamily: 'Inter-Medium',
+    fontFamily: 'Outfit-Regular',
     fontSize: 13,
     color: colors.inkMid,
     marginTop: 2,
@@ -125,7 +125,7 @@ const st = StyleSheet.create({
     borderTopColor: colors.border,
   },
   toggleText: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 13,
     color: colors.orangeDark,
   },

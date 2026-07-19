@@ -90,7 +90,7 @@ export default React.memo(function SkinAgeHero({ skinAge, realAge, lastUpdatedLa
           </MaskedView>
         </View>
       ) : (
-        <Text style={[st.number, { color: isEqual ? colors.white : colors.danger }]}>{skinAge}</Text>
+        <Text style={[st.number, { color: isEqual ? colors.white : colors.orange }]}>{skinAge}</Text>
       )}
 
       <Text style={st.context}>{context}</Text>
@@ -115,7 +115,7 @@ const st = StyleSheet.create({
     backgroundColor: 'transparent',
   },
   kicker: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 11,
     letterSpacing: 2,
     color: colors.onDarkMuted,
@@ -131,7 +131,7 @@ const st = StyleSheet.create({
     height: GLOW_H,
   },
   number: {
-    fontFamily: 'SpaceGrotesk-Bold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 76,
     letterSpacing: -2.5,
     color: colors.ink, // mask uses alpha only; any solid color works
@@ -147,7 +147,7 @@ const st = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.5)',
   },
   context: {
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 14,
     lineHeight: 21,
     color: colors.onDark,
@@ -155,7 +155,7 @@ const st = StyleSheet.create({
     marginTop: 8,
   },
   updated: {
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 11,
     color: colors.onDarkMuted,
     marginTop: 10,

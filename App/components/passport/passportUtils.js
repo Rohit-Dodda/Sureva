@@ -1,5 +1,57 @@
 // Pure helpers for the Passport map. Not a component.
 import colors from '../../constants/colors';
+import { formatDateLabel, formatClock, formatDuration } from '../../services/SessionDetailMapper';
+
+const ACTIVITY_LABELS = { high: 'High', moderate: 'Moderate', sedentary: 'Low' };
+
+// Reshapes a SupabaseService.getSessionPinSummaries() row into the exact
+// shape clusterSessions/passportStats/HotspotRankingsSection expect —
+// matching mockPassportData.js's field names so both sources are
+// interchangeable to every consumer below.
+export function mapPinSummaryToSession(row) {
+  const start = new Date(row.start_time);
+  const end = row.end_time ? new Date(row.end_time) : null;
+  const durationMinutes = row.duration_minutes != null
+    ? Math.round(row.duration_minutes)
+    : (end ? Math.round((end - start) / 60000) : 0);
+  const activityLevel = ACTIVITY_LABELS[row.activity_level] ?? 'Moderate';
+  const waterEventCount = row.water_events ?? 0;
+  const checkIn = Array.isArray(row.post_session_checkins) ? row.post_session_checkins[0] : row.post_session_checkins;
+
+  return {
+    id: row.id,
+    lat: row.latitude,
+    lng: row.longitude,
+    city: row.city,
+    region: row.region,
+    location: row.location_name || [row.city, row.region].filter(Boolean).join(', ') || row.environment || 'Session',
+    environment: row.environment ?? 'Outdoors',
+    date: formatDateLabel(row.start_time),
+    dateISO: start.toISOString().slice(0, 10),
+    startTime: formatClock(row.start_time),
+    endTime: end ? formatClock(row.end_time) : '—',
+    duration: formatDuration(durationMinutes),
+    durationMinutes,
+    score: row.protection_score ?? 0,
+    // Rounded to one decimal — the stored value is a raw float from the
+    // synthetic UV drift math (e.g. 9.000011) until real sensor data lands.
+    peakUV: Math.round((row.peak_uv ?? 0) * 10) / 10,
+    avgDepletionRate: row.average_depletion_rate ?? null,
+    conditions: `${Math.round(row.peak_temperature ?? 0)}° peak · ${activityLevel} activity${waterEventCount ? ` · ${waterEventCount} water event${waterEventCount === 1 ? '' : 's'}` : ''}`,
+    conditionFlags: {
+      highActivity: row.activity_level === 'high',
+      highHumidity: (row.average_humidity ?? 0) > 65,
+      waterEvents: waterEventCount > 0,
+      highUV: (row.peak_uv ?? 0) >= 7,
+    },
+    temperature: row.peak_temperature ?? null,
+    humidity: row.average_humidity ?? null,
+    activityLevel,
+    avgAlertResponseMinutes: row.alert_response_time_avg ?? null,
+    hadProtectionGap: (row.unprotected_minutes ?? 0) > 0,
+    postSession: checkIn ? { skinFeelAfter: checkIn.skin_feel_after, skinFeelBefore: checkIn.skin_feel_before } : undefined,
+  };
+}
 
 const CLUSTER_RADIUS_M = 500;
 const EARTH_RADIUS_M = 6371000;

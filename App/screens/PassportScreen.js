@@ -12,9 +12,12 @@ import { useTabSwipeLock } from '../context/SwipeNavContext';
 import { useHideTabBar } from '../context/TabBarVisibilityContext';
 import { useTourTarget, useAutoStartTour } from '../context/AppTourContext';
 import { MILESTONE_TOURS } from '../constants/tourSteps';
-// MOCK: varied multi-country session locations until real Supabase data
-// is wired. TODO: fetch pin summaries via SupabaseService (coords, score,
-// UV only — never full readings arrays on this screen).
+import { useAuth } from '../context/AuthContext';
+import SupabaseService from '../services/SupabaseService';
+// Fallback only while the real fetch below is in flight (or for a signed-out
+// preview) — once resolved, real session pin summaries (coords, score, UV
+// only, never full readings — see SupabaseService.getSessionPinSummaries)
+// take over, including a genuinely empty array for a brand-new user.
 import mockPassportSessions from '../constants/mockPassportData';
 import {
   clusterSessions,
@@ -25,6 +28,7 @@ import {
   loyaltyLine,
   consistencyExtremes,
   dominantConditionLine,
+  mapPinSummaryToSession,
 } from '../components/passport/passportUtils';
 import PassportMap from '../components/passport/PassportMap';
 import PassportStatsCard from '../components/passport/PassportStatsCard';
@@ -50,6 +54,7 @@ const TOP_INSET = Platform.OS === 'ios' ? 58 : (RNStatusBar.currentHeight ?? 24)
 // Pushed full-screen from the History header's map button; the back
 // button floating over the map slides it back out.
 export default function PassportScreen({ onBack }) {
+  const { user } = useAuth();
   const mapRef = useRef(null);
   const listRef = useRef(null);
   const cardOffsets = useRef({});
@@ -102,7 +107,19 @@ export default function PassportScreen({ onBack }) {
   const [stampingKey, setStampingKey] = useState(null);
   const [showPermissionCard, setShowPermissionCard] = useState(false);
 
-  const sessions = mockPassportSessions;
+  // null = still loading (show mock as a placeholder); a resolved array —
+  // even an empty one — is the real, honest answer and takes over,
+  // including triggering PassportEmptyCard for a genuinely new user.
+  const [realSessions, setRealSessions] = useState(null);
+  useEffect(() => {
+    if (!user?.id) { setRealSessions([]); return; }
+    let cancelled = false;
+    SupabaseService.getSessionPinSummaries(user.id)
+      .then(({ data }) => { if (!cancelled) setRealSessions((data ?? []).map(mapPinSummaryToSession)); })
+      .catch(() => { if (!cancelled) setRealSessions([]); });
+    return () => { cancelled = true; };
+  }, [user]);
+  const sessions = realSessions === null ? mockPassportSessions : realSessions;
 
   // First-ever visit with at least one located session — points out the
   // map before the stats/rankings below it, since that's the whole idea
@@ -373,7 +390,7 @@ const st = StyleSheet.create({
     paddingHorizontal: 14,
   },
   expandBtnText: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 12,
     color: colors.ink,
   },

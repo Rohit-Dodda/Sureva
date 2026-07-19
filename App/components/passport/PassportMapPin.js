@@ -73,7 +73,7 @@ const st = StyleSheet.create({
     elevation: 4,
   },
   labelCity: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 12,
     color: colors.ink,
     maxWidth: 92,
@@ -84,7 +84,7 @@ const st = StyleSheet.create({
     paddingVertical: 2,
   },
   labelUvText: {
-    fontFamily: 'SpaceGrotesk-Bold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 10,
     color: colors.white,
   },

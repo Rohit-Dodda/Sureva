@@ -278,7 +278,7 @@ const st = StyleSheet.create({
   headerTitle: {
     flex: 1,
     textAlign: 'center',
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 17,
     color: colors.ink,
     letterSpacing: -0.2,
@@ -301,24 +301,24 @@ const st = StyleSheet.create({
     paddingVertical: 5,
   },
   headerPillText: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 12,
     color: colors.white,
   },
   headerNumber: {
-    fontFamily: 'SpaceGrotesk-Bold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 28,
     letterSpacing: -0.6,
     textAlign: 'center',
   },
   subHeading: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 12.5,
     color: colors.ink,
     textAlign: 'center',
   },
   completeness: {
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 11,
     color: colors.muted,
     textAlign: 'center',
@@ -330,13 +330,13 @@ const st = StyleSheet.create({
     marginTop: 4,
   },
   sessionsTitle: {
-    fontFamily: 'SpaceGrotesk-Bold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 20,
     color: colors.ink,
     letterSpacing: -0.5,
   },
   sessionsCount: {
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 14,
     color: colors.muted,
   },
@@ -345,7 +345,7 @@ const st = StyleSheet.create({
     paddingVertical: 14,
   },
   showAllText: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 14,
     color: colors.orange,
   },

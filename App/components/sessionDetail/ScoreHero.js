@@ -60,13 +60,13 @@ const st = StyleSheet.create({
     alignItems: 'center',
   },
   score: {
-    fontFamily: 'SpaceGrotesk-Bold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 38,
     letterSpacing: -1.5,
     lineHeight: 42,
   },
   outOf: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 12,
     color: colors.muted,
   },
@@ -74,7 +74,7 @@ const st = StyleSheet.create({
     flex: 1,
   },
   label: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 11,
     color: colors.muted,
     letterSpacing: 1.3,
@@ -82,7 +82,7 @@ const st = StyleSheet.create({
     marginBottom: 6,
   },
   verdict: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 16,
     color: colors.ink,
     lineHeight: 23,

@@ -159,7 +159,7 @@ const st = StyleSheet.create({
     marginBottom: 4,
   },
   toggleLabel: {
-    fontFamily: 'Inter-Medium',
+    fontFamily: 'Outfit-Regular',
     fontSize: 14,
     color: colors.ink,
   },
@@ -194,13 +194,13 @@ const st = StyleSheet.create({
     elevation: 3,
   },
   markerLabel: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 10,
     color: colors.inkMid,
     marginTop: 3,
   },
   hint: {
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 11,
     color: colors.muted,
     marginTop: 2,

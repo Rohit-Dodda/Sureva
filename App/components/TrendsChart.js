@@ -103,13 +103,13 @@ const st = StyleSheet.create({
     paddingVertical: 5,
   },
   bubbleText: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 12,
     color: colors.onDark,
     letterSpacing: 0.2,
   },
   bubbleHint: {
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 12,
     color: colors.muted,
   },
@@ -140,12 +140,12 @@ const st = StyleSheet.create({
     overflow: 'hidden',
   },
   label: {
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 9.5,
     color: colors.muted,
   },
   labelSelected: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     color: colors.ink,
   },
 });

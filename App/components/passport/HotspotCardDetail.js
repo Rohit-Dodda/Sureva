@@ -98,13 +98,13 @@ const st = StyleSheet.create({
     alignItems: 'center',
   },
   chipValue: {
-    fontFamily: 'SpaceGrotesk-Bold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 16,
     color: colors.ink,
     letterSpacing: -0.3,
   },
   chipLabel: {
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 11,
     color: colors.muted,
     marginTop: 1,
@@ -123,7 +123,7 @@ const st = StyleSheet.create({
     backgroundColor: colors.warning,
   },
   consistencyText: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 12,
     color: colors.white,
   },
@@ -135,7 +135,7 @@ const st = StyleSheet.create({
     marginBottom: 12,
   },
   progressLabel: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 12,
     color: colors.ink,
     marginBottom: 6,
@@ -146,7 +146,7 @@ const st = StyleSheet.create({
     justifyContent: 'space-between',
   },
   progressStat: {
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 12,
     color: colors.inkMid,
   },
@@ -156,7 +156,7 @@ const st = StyleSheet.create({
     gap: 2,
   },
   progressDeltaText: {
-    fontFamily: 'SpaceGrotesk-Bold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 13,
   },
   cards: {
@@ -170,7 +170,7 @@ const st = StyleSheet.create({
     borderTopColor: colors.borderLight,
   },
   viewDetailsText: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 14,
     color: colors.orange,
   },

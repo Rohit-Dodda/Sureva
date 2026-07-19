@@ -47,12 +47,12 @@ const st = StyleSheet.create({
     borderRightColor: colors.border,
   },
   val: {
-    fontFamily: 'SpaceGrotesk-Bold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 17,
     letterSpacing: -0.4,
   },
   label: {
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 10,
     color: colors.muted,
     letterSpacing: 0.3,

@@ -61,14 +61,14 @@ const st = StyleSheet.create({
     marginBottom: 10,
   },
   title: {
-    fontFamily: 'SpaceGrotesk-Bold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 18,
     color: colors.ink,
     letterSpacing: -0.4,
     marginBottom: 6,
   },
   body: {
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 13,
     lineHeight: 19,
     color: colors.inkMid,
@@ -84,12 +84,12 @@ const st = StyleSheet.create({
     marginBottom: 12,
   },
   buttonLabel: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 14,
     color: colors.white,
   },
   dismiss: {
-    fontFamily: 'Inter-Medium',
+    fontFamily: 'Outfit-Regular',
     fontSize: 13,
     color: colors.muted,
   },

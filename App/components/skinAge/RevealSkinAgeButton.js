@@ -101,7 +101,7 @@ const st = StyleSheet.create({
     paddingVertical: 20,
   },
   label: {
-    fontFamily: 'SpaceGrotesk-Bold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 19,
     color: colors.orangeDark,
     letterSpacing: -0.4,

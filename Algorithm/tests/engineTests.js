@@ -4,6 +4,7 @@
 
 import {
   calculateUVMultiplier,
+  calculateWBGTApprox,
   calculateHeatHumidityMultiplier,
   calculateActivityMultiplier,
   calculateSkinTypeMultiplier,
@@ -34,7 +35,7 @@ import {
   calculateLifetimeStats,
   calculateInsightsRankings,
 } from '../js/depletionEngine.js';
-import { UV_MULTIPLIERS } from '../constants/algorithmConstants.js';
+import { UV_MULTIPLIERS, HEAT_ACTIVITY_MULTIPLIERS } from '../constants/algorithmConstants.js';
 
 // ─── Tiny test harness ────────────────────────────────────────
 
@@ -120,34 +121,53 @@ function buildTestCases() {
       () => calculateUVMultiplier(Number(uv))
     );
   }
-  add('UV multiplier caps at 2.0 above 11', 13.7, 2.0, () => calculateUVMultiplier(13.7));
+  add('UV multiplier caps at 2.3 above 11', 13.7, 2.3, () => calculateUVMultiplier(13.7));
   add('UV multiplier floors fractional values (7.9 → 1.3)', 7.9, 1.3, () =>
     calculateUVMultiplier(7.9)
   );
 
-  // Heat + humidity.
-  add('HH 1.0 when only temperature met', { t: 38, h: 40 }, 1.0, () =>
-    calculateHeatHumidityMultiplier(38, 40)
-  );
-  add('HH 1.0 when only humidity met', { t: 20, h: 90 }, 1.0, () =>
-    calculateHeatHumidityMultiplier(20, 90)
-  );
-  add('HH 1.15 at exact tier 1 thresholds', { t: 27, h: 60 }, 1.15, () =>
-    calculateHeatHumidityMultiplier(27, 60)
-  );
-  add('HH 1.30 for tier 2 conditions', { t: 33, h: 78 }, 1.3, () =>
-    calculateHeatHumidityMultiplier(33, 78)
-  );
-  add('HH 1.45 for tier 3 conditions', { t: 37, h: 88 }, 1.45, () =>
-    calculateHeatHumidityMultiplier(37, 88)
+  // WBGT approximation (Australian BOM formula).
+  add('WBGT approx matches hand-computed value at 31°C/72%', { t: 31, h: 72 }, 34.19, () =>
+    Math.round(calculateWBGTApprox(31, 72) * 100) / 100
   );
 
-  // Activity.
-  add('Activity sedentary → 1.0', 'sedentary', 1.0, () => calculateActivityMultiplier('sedentary'));
-  add('Activity moderate → 1.15', 'moderate', 1.15, () => calculateActivityMultiplier('moderate'));
-  add('Activity high → 1.35', 'high', 1.35, () => calculateActivityMultiplier('high'));
+  // Heat + humidity — now a single WBGT-derived band, not an AND-gated
+  // temp/humidity tier. Humidity alone (high RH, mild temp) or
+  // temperature alone (high temp, low RH) can each still push WBGT up
+  // since it's a fused index, not a two-threshold gate.
+  add('HH "none" band at mild temp+humidity → 1.0', { t: 25, h: 50 }, 1.0, () =>
+    calculateHeatHumidityMultiplier(25, 50)
+  );
+  add('HH "mild" band → 1.0 (sedentary baseline)', { t: 27, h: 60 }, 1.0, () =>
+    calculateHeatHumidityMultiplier(27, 60)
+  );
+  add('HH "veryHigh" band → 1.25', { t: 30, h: 65 }, 1.25, () =>
+    calculateHeatHumidityMultiplier(30, 65)
+  );
+  add('HH "extreme" band → 1.35', { t: 33, h: 78 }, 1.35, () =>
+    calculateHeatHumidityMultiplier(33, 78)
+  );
+
+  // Activity — now derived from the joint WBGT-band × activity table,
+  // so the same activity level costs more as heat rises.
+  add('Activity sedentary always → 1.0 (no premium over the HH baseline)', null, 1.0, () =>
+    calculateActivityMultiplier(25, 50, 'sedentary')
+  );
+  add('Activity high in "none" heat band → small premium (1.05)', null, 1.05, () =>
+    calculateActivityMultiplier(25, 50, 'high')
+  );
+  add(
+    'Activity high in "extreme" heat band → larger premium than in "none" band',
+    null,
+    true,
+    () => {
+      const mildHeatPremium = calculateActivityMultiplier(25, 50, 'high');
+      const extremeHeatPremium = calculateActivityMultiplier(33, 78, 'high');
+      return extremeHeatPremium > mildHeatPremium;
+    }
+  );
   add('Activity unrecognized → 1.0, no crash', 'flying', 1.0, () =>
-    calculateActivityMultiplier('flying')
+    calculateActivityMultiplier(25, 50, 'flying')
   );
 
   // Skin type + placement.
@@ -155,17 +175,35 @@ function buildTestCases() {
   add('Skin type unrecognized → 1.0', 'scaly', 1.0, () => calculateSkinTypeMultiplier('scaly'));
   add('Placement wrist → 1.15', 'wrist', 1.15, () => calculatePlacementCorrection('wrist'));
 
-  // Combined multiplier.
+  // Combined multiplier. heatHumidityMultiplier × activityMultiplier
+  // must reproduce the true joint HEAT_ACTIVITY_MULTIPLIERS cell
+  // (extreme.moderate here) even though they're reported as two
+  // separate numbers for factor-breakdown attribution.
   add(
-    'Combined multiplier = product of all factors × personal factor',
+    'Combined multiplier = uv × joint heat-activity cell × skinType × personal',
     { uvIndex: 7.2, temperature: 31, humidity: 72, activityLevel: 'moderate' },
-    1.3 * 1.15 * 1.15 * 1.2 * 1.08,
+    1.3 * HEAT_ACTIVITY_MULTIPLIERS.extreme.moderate * 1.2 * 1.08,
     () =>
       calculateCombinedMultiplier(
         { uvIndex: 7.2, temperature: 31, humidity: 72, activityLevel: 'moderate' },
         { ...baseProfile, personalFactor: 1.08 }
       ).combinedMultiplier,
     approxEqual
+  );
+  add(
+    'heatHumidityMultiplier × activityMultiplier reproduces the joint table cell',
+    null,
+    true,
+    () => {
+      const { heatHumidityMultiplier, activityMultiplier } = calculateCombinedMultiplier(
+        { uvIndex: 7.2, temperature: 31, humidity: 72, activityLevel: 'moderate' },
+        baseProfile
+      );
+      return approxEqual(
+        heatHumidityMultiplier * activityMultiplier,
+        HEAT_ACTIVITY_MULTIPLIERS.extreme.moderate
+      );
+    }
   );
 
   // Water classification.
@@ -182,6 +220,18 @@ function buildTestCases() {
   );
   add('Splash @40min rating removes 8%', { protection: 60 }, { newProtection: 52, cutApplied: 8 }, () =>
     applyWaterEventCut(60, 'splash', 40)
+  );
+  add(
+    'Immersion cut scales up with high activity (Bodekaer/Beyer combined effect)',
+    { protection: 70, activity: 'high' },
+    { newProtection: 41.4, cutApplied: 28.6 },
+    () => applyWaterEventCut(70, 'immersion', 80, 'high')
+  );
+  add(
+    'Immersion cut unchanged when activity level is omitted',
+    { protection: 70 },
+    { newProtection: 48, cutApplied: 22 },
+    () => applyWaterEventCut(70, 'immersion', 80)
   );
 
   // Protection update.
@@ -201,6 +251,12 @@ function buildTestCases() {
   );
   add('Threshold fitz 1 / child / meds → 40', null, 40, () =>
     calculateAlertThreshold({ fitzpatrickType: 1, ageGroup: 'child', medicationFlag: true })
+  );
+  add('Threshold fitz 3 / adult / skin condition → 25', null, 25, () =>
+    calculateAlertThreshold({ fitzpatrickType: 3, ageGroup: 'adult', skinConditionFlag: true })
+  );
+  add('Threshold fitz 1 / child / meds + skin condition (stacks additively) → 45', null, 45, () =>
+    calculateAlertThreshold({ fitzpatrickType: 1, ageGroup: 'child', medicationFlag: true, skinConditionFlag: true })
   );
 
   // Alert state machine.

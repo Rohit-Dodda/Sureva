@@ -1,15 +1,21 @@
 import React, { useRef, useEffect, useCallback, useState } from 'react';
 import {
   View, Text, StyleSheet, SafeAreaView, Pressable,
-  Animated, Dimensions, Easing, Alert, Image, PanResponder,
+  Animated, Easing, Alert, Image,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
+import { GestureDetector } from 'react-native-gesture-handler';
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
 import colors from '../constants/colors';
 import ActionSheet from '../components/ActionSheet';
+import ChangeEmailModal from '../components/ChangeEmailModal';
+import EditNameModal from '../components/EditNameModal';
+import ChangePasswordModal from '../components/ChangePasswordModal';
+import ConfirmDialog from '../components/ConfirmDialog';
+import { authenticateWithDevice } from '../utils/deviceAuth';
+import { useSlideOverScreen } from '../hooks/useSlideOverScreen';
 
-const SCREEN_W = Dimensions.get('window').width;
 const EASE_OUT = Easing.bezier(0.23, 1, 0.32, 1);
 
 function usePressScale(toValue = 0.97) {
@@ -63,13 +69,35 @@ async function requestAndPick(type) {
   }
 }
 
-export default function ProfileScreen({ visible, onClose, initials, name, email, profileImage, onProfileImageChange }) {
-  const slideAnim = useRef(new Animated.Value(SCREEN_W)).current;
+export default function ProfileScreen({
+  visible, onClose, initials, name, firstName, lastName, email,
+  profileImage, onProfileImageChange, onSignOut,
+}) {
+  const { screenTranslateX, gesture, handleClose } = useSlideOverScreen({ visible, onClose });
   const fade0  = useRef(new Animated.Value(0)).current;
   const fade1  = useRef(new Animated.Value(0)).current;
   const slide0 = useRef(new Animated.Value(12)).current;
   const slide1 = useRef(new Animated.Value(12)).current;
   const [pickerVisible, setPickerVisible] = useState(false);
+  const [changeEmailVisible, setChangeEmailVisible] = useState(false);
+  const [editNameVisible, setEditNameVisible] = useState(false);
+  const [changePasswordVisible, setChangePasswordVisible] = useState(false);
+  const [confirmSignOutVisible, setConfirmSignOutVisible] = useState(false);
+
+  // Face ID/Touch ID/passcode gate before the password form ever
+  // appears — password changes are sensitive enough to warrant the
+  // same device-auth step Delete Account uses.
+  const openChangePassword = useCallback(async () => {
+    const authenticated = await authenticateWithDevice('Confirm it’s you before changing your password');
+    if (authenticated) setChangePasswordVisible(true);
+  }, []);
+
+  const openSignOutConfirm = useCallback(() => setConfirmSignOutVisible(true), []);
+  const cancelSignOut = useCallback(() => setConfirmSignOutVisible(false), []);
+  const confirmSignOut = useCallback(() => {
+    setConfirmSignOutVisible(false);
+    onSignOut?.();
+  }, [onSignOut]);
 
   useEffect(() => {
     if (!visible) {
@@ -77,12 +105,6 @@ export default function ProfileScreen({ visible, onClose, initials, name, email,
       [slide0, slide1].forEach(a => a.setValue(12));
       return;
     }
-    Animated.timing(slideAnim, {
-      toValue: 0,
-      duration: 320,
-      easing: EASE_OUT,
-      useNativeDriver: true,
-    }).start();
     [fade0, fade1].forEach((anim, i) => {
       Animated.timing(anim, {
         toValue: 1, duration: 300, delay: 80 + i * 60, easing: EASE_OUT, useNativeDriver: true,
@@ -94,60 +116,6 @@ export default function ProfileScreen({ visible, onClose, initials, name, email,
       }).start();
     });
   }, [visible]);
-
-  const handleClose = useCallback(() => {
-    Animated.timing(slideAnim, {
-      toValue: SCREEN_W,
-      duration: 260,
-      easing: EASE_OUT,
-      useNativeDriver: true,
-    }).start(() => onClose());
-  }, [onClose, slideAnim]);
-
-  const dragX = useRef(new Animated.Value(0)).current;
-
-  const panResponder = useRef(
-    PanResponder.create({
-      // Capture phase — steals the gesture from child Pressables once
-      // horizontal movement is clearly intentional.
-      onMoveShouldSetPanResponder: (_, { dx, dy }) =>
-        dx > 8 && Math.abs(dx) > Math.abs(dy),
-      onMoveShouldSetPanResponderCapture: (_, { dx, dy }) =>
-        dx > 8 && Math.abs(dx) > Math.abs(dy),
-      onPanResponderMove: (_, { dx }) => {
-        dragX.setValue(Math.max(0, dx));
-      },
-      onPanResponderRelease: (_, { dx, vx }) => {
-        if (dx > SCREEN_W * 0.35 || vx > 0.5) {
-          Animated.timing(dragX, {
-            toValue: SCREEN_W,
-            duration: 240,
-            easing: EASE_OUT,
-            useNativeDriver: true,
-          }).start(() => {
-            // Keep screen off-screen by moving slideAnim, then reset dragX.
-            slideAnim.setValue(SCREEN_W);
-            dragX.setValue(0);
-            onClose();
-          });
-        } else {
-          Animated.spring(dragX, {
-            toValue: 0,
-            tension: 140,
-            friction: 10,
-            useNativeDriver: true,
-          }).start();
-        }
-      },
-      onPanResponderTerminate: () => {
-        Animated.spring(dragX, {
-          toValue: 0, tension: 140, friction: 10, useNativeDriver: true,
-        }).start();
-      },
-    })
-  ).current;
-
-  const screenTranslateX = Animated.add(slideAnim, dragX);
 
   const handlePickPhoto = useCallback(() => setPickerVisible(true), []);
 
@@ -189,8 +157,11 @@ export default function ProfileScreen({ visible, onClose, initials, name, email,
 
   const { scale: camScale, onPressIn: camPressIn, onPressOut: camPressOut } = usePressScale(0.88);
 
+  if (!visible) return null;
+
   return (
-    <Animated.View style={[st.root, { transform: [{ translateX: screenTranslateX }] }]} {...panResponder.panHandlers}>
+    <GestureDetector gesture={gesture}>
+    <Animated.View style={[st.root, { transform: [{ translateX: screenTranslateX }] }]}>
       <SafeAreaView style={st.safe}>
         <StatusBar style="dark" />
 
@@ -238,14 +209,27 @@ export default function ProfileScreen({ visible, onClose, initials, name, email,
         <Animated.View style={[st.section, { opacity: fade1, transform: [{ translateY: slide1 }] }]}>
           <View style={st.card}>
             <ProfileRow
-              label="Edit Name"
-              sublabel="Coming soon"
-              onPress={() => {}}
+              label="Change Email"
+              sublabel={email}
+              onPress={() => setChangeEmailVisible(true)}
             />
             <ProfileRow
-              label="Notification Preferences"
+              label="Edit Name"
+              onPress={() => setEditNameVisible(true)}
+            />
+            <ProfileRow
+              label="Change Password"
               isLast
-              onPress={() => {}}
+              onPress={openChangePassword}
+            />
+          </View>
+
+          <View style={[st.card, st.signOutCard]}>
+            <ProfileRow
+              label="Sign Out"
+              destructive
+              isLast
+              onPress={openSignOutConfirm}
             />
           </View>
         </Animated.View>
@@ -255,6 +239,35 @@ export default function ProfileScreen({ visible, onClose, initials, name, email,
         visible={pickerVisible}
         options={photoSheetOptions}
         onClose={() => setPickerVisible(false)}
+      />
+
+      <ChangeEmailModal
+        visible={changeEmailVisible}
+        currentEmail={email}
+        onClose={() => setChangeEmailVisible(false)}
+      />
+
+      <EditNameModal
+        visible={editNameVisible}
+        currentFirstName={firstName}
+        currentLastName={lastName}
+        onClose={() => setEditNameVisible(false)}
+      />
+
+      <ChangePasswordModal
+        visible={changePasswordVisible}
+        onClose={() => setChangePasswordVisible(false)}
+      />
+
+      <ConfirmDialog
+        visible={confirmSignOutVisible}
+        title="Sign out of Sureva?"
+        message="Your session history and skin profile stay safely synced to your account."
+        confirmLabel="Sign Out"
+        cancelLabel="Cancel"
+        danger
+        onConfirm={confirmSignOut}
+        onCancel={cancelSignOut}
       />
 
       {/* Full-size image viewer */}
@@ -273,6 +286,7 @@ export default function ProfileScreen({ visible, onClose, initials, name, email,
         </Pressable>
       )}
     </Animated.View>
+    </GestureDetector>
   );
 }
 
@@ -306,13 +320,13 @@ const st = StyleSheet.create({
     justifyContent: 'center',
   },
   backArrow: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 18,
     color: colors.ink,
     lineHeight: 22,
   },
   headerTitle: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 22,
     color: colors.ink,
     letterSpacing: -0.4,
@@ -341,7 +355,7 @@ const st = StyleSheet.create({
     borderRadius: 48,
   },
   avatarInitials: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 32,
     color: colors.white,
     letterSpacing: 0.5,
@@ -367,14 +381,14 @@ const st = StyleSheet.create({
     elevation: 2,
   },
   avatarName: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 20,
     color: colors.ink,
     letterSpacing: -0.4,
     marginBottom: 4,
   },
   avatarEmail: {
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 14,
     color: colors.muted,
   },
@@ -398,6 +412,9 @@ const st = StyleSheet.create({
     shadowRadius: 10,
     elevation: 1,
   },
+  signOutCard: {
+    marginTop: 12,
+  },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -414,12 +431,12 @@ const st = StyleSheet.create({
     gap: 2,
   },
   rowLabel: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 15,
     color: colors.ink,
   },
   rowSublabel: {
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 12,
     color: colors.muted,
   },
@@ -451,7 +468,7 @@ const st = StyleSheet.create({
     justifyContent: 'center',
   },
   viewerInitials: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 88,
     color: colors.white,
     letterSpacing: 1,

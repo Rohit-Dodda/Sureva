@@ -69,7 +69,7 @@ export default React.memo(function WhatIfActions({ session, overrides, actuals, 
     } catch {
       // Image capture unavailable — fall back to sharing the text insight.
       try {
-        await Share.share({ message: `${headline} — Sureva` });
+        await Share.share({ message: `${headline} (Sureva)` });
       } catch {
         // User dismissed the sheet; nothing to do.
       }
@@ -79,7 +79,7 @@ export default React.memo(function WhatIfActions({ session, overrides, actuals, 
   const saveLabel =
     saveState === 'saving' ? 'Saving…'
     : saveState === 'saved' ? 'Scenario saved'
-    : saveState === 'error' ? 'Couldn’t save — tap to retry'
+    : saveState === 'error' ? 'Couldn’t save, tap to retry'
     : 'Save this scenario';
 
   return (
@@ -115,7 +115,7 @@ const st = StyleSheet.create({
     marginBottom: 10,
   },
   saveLabel: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 15,
     color: colors.ink,
   },
@@ -126,7 +126,7 @@ const st = StyleSheet.create({
     alignItems: 'center',
   },
   shareLabel: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 15,
     color: colors.white,
   },

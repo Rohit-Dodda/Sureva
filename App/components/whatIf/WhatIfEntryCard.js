@@ -28,14 +28,14 @@ const st = StyleSheet.create({
     marginBottom: 14,
   },
   headline: {
-    fontFamily: 'SpaceGrotesk-Bold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 24,
     color: colors.orange,
     letterSpacing: -0.6,
     marginBottom: 6,
   },
   description: {
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 13,
     lineHeight: 19,
     color: colors.onDarkMuted,
@@ -48,7 +48,7 @@ const st = StyleSheet.create({
     alignItems: 'center',
   },
   buttonLabel: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 15,
     color: colors.white,
   },

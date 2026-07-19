@@ -24,7 +24,7 @@ const st = StyleSheet.create({
     marginBottom: 14,
   },
   sectionTitle: {
-    fontFamily: 'SpaceGrotesk-Bold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 19,
     color: colors.ink,
     letterSpacing: -0.5,
@@ -47,14 +47,14 @@ const st = StyleSheet.create({
     elevation: 2,
   },
   cardTitle: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 15,
     color: colors.ink,
     letterSpacing: -0.2,
     marginBottom: 4,
   },
   cardBody: {
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 13,
     lineHeight: 19,
     color: colors.inkMid,

@@ -37,7 +37,13 @@ export default React.memo(function SessionSparkline({ curve, reapplyEvents, elap
   const toggleExpanded = useCallback(() => {
     LayoutAnimation.configureNext(LayoutAnimation.create(280, LayoutAnimation.Types.easeInEaseOut, LayoutAnimation.Properties.scaleXY));
     setExpanded((prev) => {
-      Animated.spring(chevron, { toValue: prev ? 0 : 1, tension: 140, friction: 11, useNativeDriver: true }).start();
+      // useNativeDriver: false — a native-driven transform animating on the
+      // same view LayoutAnimation is mid-transition on crashes Fabric's
+      // LayoutAnimationKeyFrameManager (Transform::Interpolate aborts on a
+      // transform-array length mismatch between the native-mutated "before"
+      // and "after" shadow views). JS-driven keeps it on the normal props
+      // commit path LayoutAnimation actually expects.
+      Animated.spring(chevron, { toValue: prev ? 0 : 1, tension: 140, friction: 11, useNativeDriver: false }).start();
       return !prev;
     });
   }, [chevron]);
@@ -222,12 +228,12 @@ const st = StyleSheet.create({
     backgroundColor: colors.orange,
   },
   legend: {
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 11,
     color: colors.muted,
   },
   nowLabel: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     color: colors.ink,
   },
   divider: {
@@ -243,7 +249,7 @@ const st = StyleSheet.create({
   },
   toggleLabel: {
     flex: 1,
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 13.5,
     color: colors.orangeDark,
   },
@@ -251,7 +257,7 @@ const st = StyleSheet.create({
     marginTop: 2,
   },
   breakdownHint: {
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 11.5,
     color: colors.muted,
     lineHeight: 16,

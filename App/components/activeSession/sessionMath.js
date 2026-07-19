@@ -1,52 +1,182 @@
 import colors from '../../constants/colors';
 import mockData from '../../constants/mockData';
+import {
+  calculateCombinedMultiplier,
+  updateProtectionState,
+} from '../../../Algorithm/js/depletionEngine.js';
+import { INTERVAL_MS, MED_CALCULATION, PERSONAL_FACTOR } from '../../../Algorithm/constants/algorithmConstants.js';
+import { mockUserProfile as engineMockProfile } from '../../../Algorithm/mock/mockData.js';
 
 // ─── Depletion model ──────────────────────────────────────────
-// Kept identical to the original ActiveSessionScreen logic so outputs
-// don't drift. When real BLE/firmware lands this is the single seam to swap.
-const UV_BASELINE = 7;
+// This used to be a separate, hand-rolled formula that duplicated (and
+// drifted from) the real engine — it used a single static UV snapshot
+// even while the condition tiles visibly drifted, and its "dose"
+// gauge conflated raw UV Index with SED (missing the real ~0.9
+// SED-per-UVI-hour conversion the rest of the app uses). Per
+// CLAUDE.md, the JS depletion engine is the one source of truth, so
+// everything below now calls straight into
+// Algorithm/js/depletionEngine.js instead of re-deriving its own math.
+const INTERVAL_SECONDS = INTERVAL_MS / 1000;
 
-export function totalProtectionMinutes({ waterResistance, spf }) {
-  const uvIndex = mockData.conditions.uvIndex;
-  const spfBonus = spf >= 50 ? 1.15 : 1.0;
-  return waterResistance * (UV_BASELINE / uvIndex) * spfBonus;
+// Onboarding's burn-rate question is the closer analog to the real
+// clinical Fitzpatrick test (self-reported burn/tan history) than skin
+// tone alone, but skin tone (already collected on a 1–6 scale matching
+// Fitzpatrick's own six types) is a useful second signal. Per CLAUDE.md
+// ("when in doubt, be conservative — deplete faster"), taking the lower
+// (more sun-sensitive) of the two readings rather than averaging them
+// means a mismatch between self-reported burn speed and tone never
+// under-protects someone.
+const BURN_RATE_TO_FITZPATRICK = {
+  very_fast: 1,
+  fast: 2,
+  moderate: 3,
+  rarely: 5,
+};
+
+function estimateFitzpatrickType({ skinTone, burnRate }) {
+  const fromTone = skinTone ?? engineMockProfile.fitzpatrickType;
+  const fromBurn = BURN_RATE_TO_FITZPATRICK[burnRate] ?? engineMockProfile.fitzpatrickType;
+  return Math.min(fromTone, fromBurn);
 }
 
-// Protection % at a given number of seconds since the last reapply.
-export function protectionAt(secsSinceReapply, sessionParams) {
-  const totalMins = totalProtectionMinutes(sessionParams);
-  const elapsedMins = secsSinceReapply / 60;
-  const pct = Math.max(0, 100 - (elapsedMins / totalMins) * 100);
-  const minsRemaining = Math.max(0, Math.round(totalMins - elapsedMins));
-  return { protectionPct: pct, minsRemaining };
+function ageRangeToGroup(ageRange) {
+  if (ageRange === 0) return 'child';   // Under 12
+  if (ageRange === 3) return 'elderly'; // 65+
+  return 'adult';                       // 12–50, 51–64
 }
 
-// Builds the live depletion curve across the whole session, accounting for
-// every reapply event (each resets protection to 100%). Derived purely from
-// elapsed + reapplyEvents, so it's safe to compute on render.
-export function buildCurve(elapsed, reapplyEvents, sessionParams, samples = 40) {
-  const events = [0, ...reapplyEvents];
-  const points = [];
+// Builds the engine's profile input for a session. `userProfile` is the
+// signed-in user's real, saved onboarding answers (see AuthContext /
+// EditSkinProfileScreen) — when present, it replaces the mock profile's
+// Fitzpatrick/age/skin-type/medication fields with real ones, so editing
+// those answers genuinely changes depletion math the next session, not
+// just what's displayed. devicePlacement isn't collected from onboarding,
+// so it still falls back to the mock profile until there's a real device
+// to calibrate it from. personalFactor comes from the user's real,
+// persisted value (see updatePersonalFactor in depletionEngine.js) when
+// one exists, defaulting to the neutral PERSONAL_FACTOR.initial —
+// deliberately NOT the mock profile's 1.08, which would silently bias
+// every real user's depletion rate by a fixed, arbitrary demo value.
+export function engineProfileFor(sessionParams, userProfile) {
+  const real = userProfile && userProfile.skinTone != null ? {
+    fitzpatrickType: estimateFitzpatrickType(userProfile),
+    ageGroup: ageRangeToGroup(userProfile.ageRange),
+    skinType: userProfile.skinType ?? engineMockProfile.skinType,
+    medicationFlag: !!userProfile.medications,
+    skinConditionFlag: !!userProfile.skinCondition,
+  } : null;
+  return {
+    ...engineMockProfile,
+    ...real,
+    personalFactor: userProfile?.personalFactor ?? PERSONAL_FACTOR.initial,
+    spf: sessionParams.spf,
+    waterResistanceRating: sessionParams.waterResistance,
+  };
+}
+
+export function toEngineActivityLevel(level) {
+  if (level === 'High') return 'high';
+  if (level === 'Moderate') return 'moderate';
+  return 'sedentary';
+}
+
+// Replays the real engine's per-interval math over the whole session,
+// tick by tick, feeding it the same drifting live conditions the
+// screen already displays — so the protection curve is the same
+// physics runSessionInterval() uses, not a separately tuned formula.
+// A reapply event resets protection to 100% exactly like
+// confirmReapplication() does.
+function buildProtectionSeries(elapsedSecs, reapplyEvents, sessionParams, userProfile) {
+  const profile = engineProfileFor(sessionParams, userProfile);
+  const totalTicks = Math.max(0, Math.floor(elapsedSecs / INTERVAL_SECONDS));
+  const series = [{ t: 0, pct: 100 }];
+  let protection = 100;
+  let depletionRatePerInterval = 0;
+  let tSec = 0;
+  for (let i = 1; i <= totalTicks; i++) {
+    tSec = i * INTERVAL_SECONDS;
+    const justReapplied = reapplyEvents.some((r) => r > tSec - INTERVAL_SECONDS && r <= tSec);
+    if (justReapplied) protection = 100;
+
+    const live = liveConditionsAt(mockData.conditions, tSec);
+    const snapshot = {
+      uvIndex: live.uvIndex,
+      temperature: live.temperature,
+      humidity: live.humidity,
+      activityLevel: toEngineActivityLevel(live.activity),
+    };
+    ({ depletionRatePerInterval } = calculateCombinedMultiplier(snapshot, profile));
+    protection = updateProtectionState(protection, depletionRatePerInterval);
+    series.push({ t: tSec, pct: protection });
+  }
+  if (tSec < elapsedSecs) series.push({ t: elapsedSecs, pct: protection });
+  return { series, protectionPct: protection, depletionRatePerInterval };
+}
+
+// Protection % right now, plus an estimate of minutes remaining
+// projected forward at the CURRENT instantaneous depletion rate (live
+// UV/heat/activity), not a fixed reference-condition formula.
+export function protectionAt(elapsedSecs, reapplyEvents, sessionParams, userProfile) {
+  const { protectionPct, depletionRatePerInterval } = buildProtectionSeries(
+    elapsedSecs,
+    reapplyEvents,
+    sessionParams,
+    userProfile
+  );
+  const minsRemaining = depletionRatePerInterval > 0
+    ? Math.max(0, Math.round((protectionPct / depletionRatePerInterval) * (INTERVAL_SECONDS / 60)))
+    : 0;
+  return { protectionPct, minsRemaining };
+}
+
+// Builds the live depletion curve across the whole session, downsampled
+// for the chart. Derived purely from elapsed + reapplyEvents + the
+// deterministic live-conditions generator, so it's safe to compute on render.
+export function buildCurve(elapsed, reapplyEvents, sessionParams, samples = 40, userProfile) {
+  const { series } = buildProtectionSeries(elapsed, reapplyEvents, sessionParams, userProfile);
+  if (series.length <= samples + 1) return series;
   const step = elapsed <= 0 ? 1 : elapsed / samples;
+  const points = [];
+  let point = series[0];
+  let cursor = 0;
   for (let i = 0; i <= samples; i++) {
     const t = Math.min(elapsed, Math.round(i * step));
-    let basis = 0;
-    for (let e = 0; e < events.length; e++) {
-      if (events[e] <= t) basis = events[e];
-    }
-    const { protectionPct } = protectionAt(t - basis, sessionParams);
-    points.push({ t, pct: protectionPct });
+    while (cursor < series.length && series[cursor].t <= t) point = series[cursor++];
+    points.push({ t, pct: point.pct });
   }
   return points;
 }
 
-// Accumulated UV "dose" this session as a 0–1 fraction of a standard
-// erythemal day. Climbs with time and UV index; resets are not applied
-// (dose is cumulative exposure regardless of sunscreen).
-export function uvDoseFraction(elapsedSecs) {
-  const uvIndex = mockData.conditions.uvIndex;
-  const sed = (uvIndex * (elapsedSecs / 3600)) / 6; // ~6 SED ≈ a full burn budget
-  return Math.max(0, Math.min(1, sed));
+// Accumulated UV dose this session as a 0–1 fraction of THIS profile's
+// actual MED (Minimal Erythemal Dose) — the same SED/MED math the
+// depletion engine uses everywhere else (MED_CALCULATION: UV Index →
+// irradiance → joules → SED), compared against the Fitzpatrick-specific
+// MED threshold rather than one flat number for every skin type.
+// Climbs with time and UV index; resets are not applied (dose is
+// cumulative exposure regardless of sunscreen).
+export function uvDoseFraction(elapsedSecs, userProfile) {
+  const totalTicks = Math.max(0, Math.floor(elapsedSecs / INTERVAL_SECONDS));
+  let joules = 0;
+  let tSec = 0;
+  for (let i = 1; i <= totalTicks; i++) {
+    tSec = i * INTERVAL_SECONDS;
+    const live = liveConditionsAt(mockData.conditions, tSec);
+    joules += (live.uvIndex / MED_CALCULATION.uvIndexIrradianceDivisor) * INTERVAL_SECONDS;
+  }
+  if (tSec < elapsedSecs) {
+    const live = liveConditionsAt(mockData.conditions, elapsedSecs);
+    joules += (live.uvIndex / MED_CALCULATION.uvIndexIrradianceDivisor) * (elapsedSecs - tSec);
+  }
+
+  const sed = joules / MED_CALCULATION.sedJoulesPerM2;
+  const fitzpatrickType = userProfile && userProfile.skinTone != null
+    ? estimateFitzpatrickType(userProfile)
+    : engineMockProfile.fitzpatrickType;
+  const medJoules =
+    MED_CALCULATION.medJoulesPerM2ByFitzpatrick[fitzpatrickType] ??
+    MED_CALCULATION.medJoulesPerM2ByFitzpatrick[3];
+  const medSed = medJoules / MED_CALCULATION.sedJoulesPerM2;
+  return Math.max(0, Math.min(1, sed / medSed));
 }
 
 // ─── Status mapping ───────────────────────────────────────────
@@ -146,7 +276,7 @@ export function keyDriver(uvIndex, environment) {
   if (environment === 'Snow / Mountains') return 'Snow reflection is amplifying your UV exposure';
   if (uvIndex >= 8) return 'High UV is your main depletion factor right now';
   if (uvIndex >= 5) return 'Moderate UV is the primary driver of depletion';
-  return 'Low UV — your protection is holding well';
+  return 'Low UV, your protection is holding well';
 }
 
 export function formatElapsed(seconds) {

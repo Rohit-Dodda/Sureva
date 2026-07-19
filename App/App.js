@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, StyleSheet } from 'react-native';
+import { View, StyleSheet, Linking } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useFonts } from 'expo-font';
 import {
   SpaceGrotesk_500Medium,
@@ -13,6 +14,10 @@ import {
 } from '@expo-google-fonts/inter';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import SupabaseService from './services/SupabaseService';
+import {
+  configureNotificationHandler, addReapplyNotificationResponseListener,
+  openActiveSessionFromNotification, cancelAllReapplyNotifications,
+} from './services/NotificationService';
 import SplashIntroScreen from './screens/SplashIntroScreen';
 import AuthScreen from './screens/AuthScreen';
 import CheckEmailScreen from './screens/CheckEmailScreen';
@@ -74,7 +79,7 @@ function MainAppContent({ onSignOut }) {
         ),
       },
       { key: 'forecast', render: () => <ForecastScreen /> },
-      { key: 'history', render: () => <HistoryScreen isActiveTab={activeTab === 'history'} /> },
+      { key: 'history', render: () => <HistoryScreen isActiveTab={activeTab === 'history'} onNavigateTab={handleTabPress} /> },
       { key: 'insights', render: () => <InsightsScreen isActiveTab={activeTab === 'insights'} /> },
     ],
     [onSignOut, handleTabPress, activeTab]
@@ -115,8 +120,20 @@ const appSt = StyleSheet.create({
   root: { flex: 1 },
 });
 
+// DEBUG: forces every signed-in user straight to the onboarding flow,
+// bypassing bluetoothPairing/deviceOnboarding/onboardingComplete entirely —
+// for repeatedly testing onboarding screens without needing to delete the
+// account each time. Set back to false when told to "unfix" it.
+const FORCE_ONBOARDING_SCREEN_FOR_TESTING = false;
+
+// DEBUG: forces every signed-in user straight to the device onboarding
+// screen, bypassing bluetoothPairing/onboardingComplete entirely — for
+// testing it without needing to walk through the whole flow each time. Set
+// back to false when told to "unfix" it.
+const FORCE_DEVICE_ONBOARDING_SCREEN_FOR_TESTING = false;
+
 function AppNavigator() {
-  const { user, onboardingComplete, setOnboardingComplete, passwordRecoveryPending } = useAuth();
+  const { user, onboardingComplete, setOnboardingComplete, refreshUserProfile, passwordRecoveryPending } = useAuth();
 
   const [screen, setScreen] = useState('signup');
   const [splashDone, setSplashDone] = useState(false);
@@ -147,6 +164,34 @@ function AppNavigator() {
 
   // ── Signed in ─────────────────────────────────────────────────
   if (user !== null) {
+    if (FORCE_ONBOARDING_SCREEN_FOR_TESTING) {
+      return (
+        <OnboardingScreen
+          onBack={() => setScreen('getStarted')}
+          onContinue={async (answers) => {
+            try {
+              const { error } = await SupabaseService.completeOnboarding(user, answers);
+              if (error) throw error;
+              setOnboardingComplete(true);
+              // completeOnboarding writes real answers straight to Supabase,
+              // bypassing AuthContext's own optimistic-update paths — without
+              // this, userProfile stays stale (null) and every screen reading
+              // it (e.g. EditSkinProfileScreen's highlighted selections)
+              // shows nothing until the next full auth event.
+              await refreshUserProfile();
+            } catch {
+              setOnboardingComplete(true);
+            }
+            setScreen('bluetoothPairing');
+          }}
+        />
+      );
+    }
+
+    if (FORCE_DEVICE_ONBOARDING_SCREEN_FOR_TESTING) {
+      return <DeviceOnboardingScreen onComplete={() => setScreen('home')} />;
+    }
+
     if (screen === 'bluetoothPairing') {
       return <BluetoothPairingScreen onComplete={() => setScreen('deviceOnboarding')} />;
     }
@@ -170,6 +215,12 @@ function AppNavigator() {
               const { error } = await SupabaseService.completeOnboarding(user, answers);
               if (error) throw error;
               setOnboardingComplete(true);
+              // completeOnboarding writes real answers straight to Supabase,
+              // bypassing AuthContext's own optimistic-update paths — without
+              // this, userProfile stays stale (null) and every screen reading
+              // it (e.g. EditSkinProfileScreen's highlighted selections)
+              // shows nothing until the next full auth event.
+              await refreshUserProfile();
             } catch {
               setOnboardingComplete(true);
             }
@@ -242,13 +293,55 @@ export default function App() {
     'Inter-Regular': Inter_400Regular,
     'Inter-Medium': Inter_500Medium,
     'Inter-SemiBold': Inter_600SemiBold,
+    'Switzer-Regular': require('./assets/fonts/Switzer/Switzer-Regular.otf'),
+    'Switzer-Medium': require('./assets/fonts/Switzer/Switzer-Medium.otf'),
+    'Switzer-Semibold': require('./assets/fonts/Switzer/Switzer-Semibold.otf'),
+    'Switzer-Bold': require('./assets/fonts/Switzer/Switzer-Bold.otf'),
+    // SF Pro Display only ships Regular/Bold/Black here — no true Medium, so
+    // Medium reuses the Regular file rather than jumping straight to Bold.
+    // Semibold maps to Bold (not Black) per earlier feedback: bold-weight
+    // text looked too heavy, semibold was the approved ceiling.
+    'SFProDisplay-Regular': require('./assets/fonts/SF-Pro-Display-Regular.otf'),
+    'SFProDisplay-Medium': require('./assets/fonts/SF-Pro-Display-Regular.otf'),
+    'SFProDisplay-Semibold': require('./assets/fonts/SF-Pro-Display-Bold.otf'),
+    'SFProDisplay-Bold': require('./assets/fonts/SF-Pro-Display-Black.otf'),
+    // Only the Regular weight is used app-wide — no heavier Outfit weight
+    // is loaded on purpose, per explicit "max is Regular" instruction.
+    'Outfit-Regular': require('./assets/fonts/Outfit/Outfit-Regular.otf'),
   });
+
+  useEffect(() => {
+    configureNotificationHandler();
+    // No session survives an app restart, so anything still scheduled at
+    // this point is orphaned from a previous run that never cleanly ended.
+    cancelAllReapplyNotifications();
+    const sub = addReapplyNotificationResponseListener(() => {
+      openActiveSessionFromNotification();
+    });
+    return () => sub.remove();
+  }, []);
+
+  // Tapping the Live Activity / Dynamic Island (see LiveActivityService.js's
+  // `deepLinkUrl: 'session'`) opens the app via this URL rather than acting
+  // on the session directly — expo-live-activity has no App Intents support,
+  // so a Live Activity tap can only ever open the app, never silently
+  // perform an action in the background.
+  useEffect(() => {
+    const handleUrl = ({ url }) => {
+      if (url?.includes('session')) openActiveSessionFromNotification();
+    };
+    Linking.getInitialURL().then((url) => { if (url) handleUrl({ url }); });
+    const sub = Linking.addEventListener('url', handleUrl);
+    return () => sub.remove();
+  }, []);
 
   if (!fontsLoaded) return null;
 
   return (
-    <AuthProvider>
-      <AppNavigator />
-    </AuthProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <AuthProvider>
+        <AppNavigator />
+      </AuthProvider>
+    </GestureHandlerRootView>
   );
 }

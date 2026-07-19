@@ -263,7 +263,7 @@ const styles = StyleSheet.create({
   },
 
   heading: {
-    fontFamily: 'SpaceGrotesk-Bold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 34,
     color: colors.ink,
     letterSpacing: -1,
@@ -271,7 +271,7 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
   },
   subheading: {
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 15,
     color: colors.muted,
     marginBottom: 36,
@@ -296,7 +296,7 @@ const styles = StyleSheet.create({
     resizeMode: 'contain',
   },
   googleText: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 15,
     color: colors.ink,
     letterSpacing: 0.1,
@@ -313,7 +313,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.border,
   },
   dividerLabel: {
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     marginHorizontal: 14,
     fontSize: 13,
     color: colors.muted,
@@ -321,7 +321,7 @@ const styles = StyleSheet.create({
   },
 
   fieldLabel: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 13,
     color: colors.ink,
     marginBottom: 6,
@@ -333,7 +333,7 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderRadius: 12,
     paddingHorizontal: 14,
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 15,
     color: colors.ink,
   },
@@ -341,7 +341,7 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   errorText: {
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 12,
     color: colors.danger,
     marginTop: 5,
@@ -357,7 +357,7 @@ const styles = StyleSheet.create({
   },
   passwordInput: {
     flex: 1,
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 15,
     color: colors.ink,
     height: '100%',
@@ -392,12 +392,12 @@ const styles = StyleSheet.create({
     borderColor: colors.orange,
   },
   rememberText: {
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 14,
     color: colors.ink,
   },
   forgotText: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 14,
     color: colors.orange,
   },
@@ -421,7 +421,7 @@ const styles = StyleSheet.create({
     elevation: 0,
   },
   ctaText: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 17,
     color: colors.white,
     letterSpacing: 0.2,
@@ -433,12 +433,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   signupText: {
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 14,
     color: colors.muted,
   },
   signupLink: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 14,
     color: colors.orange,
   },

@@ -52,7 +52,7 @@ const st = StyleSheet.create({
     gap: 6,
   },
   uv: {
-    fontFamily: 'SpaceGrotesk-Bold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 13,
     letterSpacing: -0.3,
   },
@@ -69,22 +69,22 @@ const st = StyleSheet.create({
     width: 13,
   },
   day: {
-    fontFamily: 'Inter-Medium',
+    fontFamily: 'Outfit-Regular',
     fontSize: 11,
     color: colors.muted,
     marginTop: 2,
   },
   dayToday: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     color: colors.ink,
   },
   date: {
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 10,
     color: colors.muted,
   },
   dateToday: {
     color: colors.orange,
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
   },
 });

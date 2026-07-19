@@ -53,14 +53,14 @@ const st = StyleSheet.create({
     padding: 24,
   },
   kicker: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 12,
     letterSpacing: 2,
     color: colors.orange,
     marginBottom: 8,
   },
   headline: {
-    fontFamily: 'SpaceGrotesk-Bold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 19,
     lineHeight: 25,
     color: colors.onDark,
@@ -81,7 +81,7 @@ const st = StyleSheet.create({
     marginRight: 5,
   },
   legendLabel: {
-    fontFamily: 'Inter-Medium',
+    fontFamily: 'Outfit-Regular',
     fontSize: 11,
     color: colors.onDarkMuted,
   },
@@ -89,7 +89,7 @@ const st = StyleSheet.create({
     flex: 1,
   },
   wordmark: {
-    fontFamily: 'SpaceGrotesk-Bold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 15,
     color: colors.orange,
     letterSpacing: -0.3,

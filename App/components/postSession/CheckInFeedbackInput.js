@@ -42,7 +42,7 @@ const st = StyleSheet.create({
     paddingBottom: 26,
   },
   field: {
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 14,
     lineHeight: 20,
     color: colors.ink,
@@ -52,7 +52,7 @@ const st = StyleSheet.create({
     position: 'absolute',
     right: 12,
     bottom: 8,
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 11,
     color: colors.muted,
   },

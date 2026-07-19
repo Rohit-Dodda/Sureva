@@ -77,7 +77,7 @@ const st = StyleSheet.create({
     elevation: 2,
   },
   title: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 15,
     color: colors.ink,
     letterSpacing: -0.2,
@@ -108,7 +108,7 @@ const st = StyleSheet.create({
     borderRadius: 4,
   },
   chipLabel: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 13,
     color: colors.ink,
   },
@@ -129,24 +129,24 @@ const st = StyleSheet.create({
     marginBottom: 4,
   },
   detailStat: {
-    fontFamily: 'Inter-Medium',
+    fontFamily: 'Outfit-Regular',
     fontSize: 12,
     color: colors.inkMid,
   },
   detailDot: {
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 12,
     color: colors.muted,
     marginHorizontal: 6,
   },
   verdict: {
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 13,
     lineHeight: 18,
     color: colors.ink,
   },
   sparseNote: {
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 12,
     color: colors.muted,
     marginTop: 10,

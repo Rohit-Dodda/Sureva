@@ -158,26 +158,26 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   heading: {
-    fontFamily: 'SpaceGrotesk-Bold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 28,
     color: colors.ink,
     letterSpacing: -1,
     marginBottom: 14,
   },
   subheading: {
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 15,
     lineHeight: 22,
     color: colors.muted,
     marginBottom: 28,
   },
   emailText: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     color: colors.ink,
   },
 
   fieldLabel: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 13,
     color: colors.ink,
     marginBottom: 6,
@@ -190,7 +190,7 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     borderRadius: 12,
     paddingHorizontal: 14,
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 15,
     color: colors.ink,
   },
@@ -198,7 +198,7 @@ const styles = StyleSheet.create({
     borderColor: colors.danger,
   },
   errorText: {
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 12,
     color: colors.danger,
     marginTop: 5,
@@ -223,7 +223,7 @@ const styles = StyleSheet.create({
     elevation: 0,
   },
   ctaText: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 17,
     color: colors.white,
     letterSpacing: 0.2,

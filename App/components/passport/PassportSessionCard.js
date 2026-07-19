@@ -49,7 +49,7 @@ const st = StyleSheet.create({
     borderLeftColor: colors.orange,
   },
   bestLabel: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 9,
     letterSpacing: 1,
     color: colors.orangeDark,
@@ -62,13 +62,13 @@ const st = StyleSheet.create({
     marginBottom: 4,
   },
   date: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 14,
     color: colors.ink,
     letterSpacing: -0.2,
   },
   score: {
-    fontFamily: 'SpaceGrotesk-Bold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 18,
     letterSpacing: -0.4,
   },
@@ -78,7 +78,7 @@ const st = StyleSheet.create({
     marginBottom: 6,
   },
   meta: {
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 12,
     color: colors.inkMid,
   },
@@ -90,7 +90,7 @@ const st = StyleSheet.create({
     marginHorizontal: 6,
   },
   conditions: {
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 11,
     color: colors.muted,
   },

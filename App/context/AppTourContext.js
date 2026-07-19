@@ -63,6 +63,8 @@ export function AppTourProvider({ children, onNavigateTab }) {
     setStepIndex(0);
   }, []);
 
+
+
   // Only one tour runs at a time — first one to ask, wins. Returns
   // whether it actually started, so a caller that got blocked (e.g. a
   // milestone tour asking while the welcome tour is still up) knows to

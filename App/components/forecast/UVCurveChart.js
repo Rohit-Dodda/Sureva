@@ -24,6 +24,7 @@ export default React.memo(function UVCurveChart({
   peakStartIndex,
   peakEndIndex,
   nowIndex,
+  nowUV,
   width,
   height,
 }) {
@@ -59,11 +60,18 @@ export default React.memo(function UVCurveChart({
       peakX: startX,
       peakW: endX - startX,
       now: nowIndex != null
-        ? { x: xAt(nowIndex), y: yAt(hourly[nowIndex].uv), uv: hourly[nowIndex].uv }
+        // The one live point on the chart: use the fresh nowcast (nowUV) for
+        // both the dot's height and its label so it matches the headline stat,
+        // falling back to the (possibly stale) hourly forecast value only if
+        // no live reading was available.
+        ? (() => {
+            const liveUV = nowUV != null ? nowUV : hourly[nowIndex].uv;
+            return { x: xAt(nowIndex), y: yAt(liveUV), uv: liveUV };
+          })()
         : null,
       peak: { x: xAt(peakIdx), y: yAt(maxUV), uv: maxUV },
     };
-  }, [hourly, peakStartIndex, peakEndIndex, nowIndex, plotW, plotH]);
+  }, [hourly, peakStartIndex, peakEndIndex, nowIndex, nowUV, plotW, plotH]);
 
   const tickEvery = 2;
 
@@ -160,7 +168,7 @@ const st = StyleSheet.create({
     right: 0,
     width: 14,
     textAlign: 'right',
-    fontFamily: 'SpaceGrotesk-Medium',
+    fontFamily: 'Outfit-Regular',
     fontSize: 9.5,
     color: colors.muted,
   },
@@ -168,7 +176,7 @@ const st = StyleSheet.create({
     position: 'absolute',
     width: 28,
     textAlign: 'center',
-    fontFamily: 'SpaceGrotesk-Bold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 13,
     letterSpacing: -0.3,
   },
@@ -176,7 +184,7 @@ const st = StyleSheet.create({
     position: 'absolute',
     width: 36,
     textAlign: 'center',
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 10,
     color: colors.orangeDark,
   },
@@ -188,7 +196,7 @@ const st = StyleSheet.create({
     position: 'absolute',
     width: 24,
     textAlign: 'center',
-    fontFamily: 'SpaceGrotesk-Medium',
+    fontFamily: 'Outfit-Regular',
     fontSize: 9.5,
     color: colors.muted,
   },

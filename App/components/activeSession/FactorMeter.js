@@ -58,12 +58,12 @@ const st = StyleSheet.create({
   },
   label: {
     flex: 1,
-    fontFamily: 'Inter-Medium',
+    fontFamily: 'Outfit-Regular',
     fontSize: 12.5,
     color: colors.ink,
   },
   value: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 12.5,
     fontVariant: ['tabular-nums'],
   },

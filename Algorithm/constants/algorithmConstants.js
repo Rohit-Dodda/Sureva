@@ -8,7 +8,17 @@ export const INTERVAL_MS = 30000; // 30-second tick
 
 // ─── UV multiplier table ──────────────────────────────────────
 // Keyed by integer UV index. UV 5–6 is the 1.0x baseline since
-// standard SPF testing approximates those conditions.
+// standard SPF testing approximates those conditions. The top of the
+// table steepens (9→10→11 grows faster than 6→7→8) rather than
+// continuing a flat climb: Trullàs et al. 2020 (Photodermatology,
+// Photoimmunology & Photomedicine) found some sunscreen formulations
+// suffer disproportionate SPF loss at high irradiance ("reciprocity
+// failure" — SPF is not always dose-invariant), and reciprocity is
+// separately shown to break down at high photon flux for higher-SPF
+// filters (Ruvolo et al., J. Phys. Chem. Lett. 2020). Per CLAUDE.md,
+// when the literature doesn't pin an exact curve, be conservative —
+// deplete faster, not slower — so the extreme end assumes some of
+// that reciprocity-failure risk rather than assuming it never happens.
 // Readings above 11 use UV_MULTIPLIER_CAP.
 export const UV_MULTIPLIERS = {
   0: 0.5,
@@ -21,33 +31,88 @@ export const UV_MULTIPLIERS = {
   7: 1.3,
   8: 1.3,
   9: 1.6,
-  10: 1.6,
-  11: 2.0,
+  10: 1.8,
+  11: 2.3,
 };
-export const UV_MULTIPLIER_CAP = 2.0;
+export const UV_MULTIPLIER_CAP = 2.3;
 
-// ─── Heat + humidity combined multiplier ──────────────────────
-// A tier activates only when BOTH temperature AND humidity meet
-// its thresholds simultaneously — never on either alone.
-// Always apply the highest matching tier; 1.0x when none match.
-export const HEAT_HUMIDITY_TIERS = [
-  { minTempC: 36, minHumidityPct: 85, multiplier: 1.45 },
-  { minTempC: 32, minHumidityPct: 75, multiplier: 1.3 },
-  { minTempC: 27, minHumidityPct: 60, multiplier: 1.15 },
+// ─── Combined heat-stress + activity multiplier ───────────────
+// Heat, humidity, and activity all feed the SAME underlying
+// mechanism — sweat-driven sunscreen wash-off — so they don't act as
+// independent multipliers. Two things changed here from the old
+// design (which multiplied a temp+humidity AND-gate tier by a flat
+// activity multiplier, as if a person's exertion couldn't change how
+// much heat+humidity actually cost them):
+//
+// 1. Temperature and humidity are fused into one heat-stress index
+//    (WBGT — Wet Bulb Globe Temperature, the real standard used by
+//    ACSM/NIOSH/ACGIH/military heat-safety guidance) via
+//    calculateWBGTApprox(), instead of an AND-gated tier table.
+// 2. WBGT and activity are combined through a joint (2D) lookup, not
+//    a product of two independent scalars — modeled on real combined
+//    heat-category × work-intensity tables (US Army TB MED 507;
+//    NIOSH's metabolic-rate-adjusted REL/RAL curves; ACGIH TLV for
+//    heat stress), all of which show the "cost" of raising activity
+//    intensity growing disproportionately larger as heat rises, not
+//    a flat percentage add. That disproportionate growth is also
+//    directly supported by exercise-physiology sweat-rate modeling:
+//    Gonzalez et al. 2012 (J Appl Physiol 112(8):1300-1310) models
+//    sweat rate from an activity/metabolic term and a temperature +
+//    humidity "evaporative capacity" term that combine non-linearly
+//    (not multiplicatively), and a 2024 review of sweat-rate models
+//    (PMC12416190) found existing models systematically
+//    under-predict specifically at high metabolic rate — i.e., real
+//    sweat/heat-strain rises faster than independent factors would
+//    predict exactly in the high-heat + high-activity corner.
+export const WBGT_APPROX = {
+  // Australian Bureau of Meteorology's approximate WBGT formula, used
+  // when no black-globe/solar-radiation sensor is available (Sureva's
+  // wearable measures air temperature + humidity, not globe temp):
+  // WBGT ≈ tempCoefficient·Ta + vaporPressureCoefficient·e + constant
+  // This substitutes for the full outdoor WBGT (ISO 7243 / CIE:
+  // 0.7·Tnwb + 0.2·Tg + 0.1·Td), fusing temperature and a
+  // humidity-derived vapor pressure into one value.
+  tempCoefficient: 0.567,
+  vaporPressureCoefficient: 0.393,
+  constant: 3.94,
+  // Vapor pressure e (hPa) from relative humidity via the
+  // Magnus/Tetens approximation: e = (RH/100) · base · exp((expCoefficient·Ta) / (expOffset + Ta))
+  vaporPressureBase: 6.105,
+  vaporPressureExpCoefficient: 17.27,
+  vaporPressureExpOffset: 237.7,
+};
+
+// WBGT bands, checked highest-first — thresholds mirror the 5 WBGT
+// heat categories in TB MED 507 (US Army heat-stress work/rest
+// tables), converted from °F to °C.
+export const HEAT_BANDS = [
+  { key: 'extreme', minWbgtC: 32.2 },
+  { key: 'veryHigh', minWbgtC: 31.1 },
+  { key: 'high', minWbgtC: 29.5 },
+  { key: 'elevated', minWbgtC: 27.8 },
+  { key: 'mild', minWbgtC: 25.6 },
+  { key: 'none', minWbgtC: -Infinity },
 ];
-export const HEAT_HUMIDITY_DEFAULT = 1.0;
 
-// ─── Activity multiplier ──────────────────────────────────────
-// Covers dry sweat and friction only — water contact is handled
-// separately by hard cuts.
-export const ACTIVITY_MULTIPLIERS = {
-  sedentary: 1.0,
-  moderate: 1.15,
-  high: 1.35,
+// Joint WBGT-band × activity-level multiplier. Read across a row: the
+// step from sedentary → high grows much larger in the hotter bands
+// (none: +0.05, extreme: +1.00) — that widening gap is the actual
+// interaction effect, not something a product of independent factors
+// could reproduce.
+export const HEAT_ACTIVITY_MULTIPLIERS = {
+  none: { sedentary: 1.0, moderate: 1.0, high: 1.05 },
+  mild: { sedentary: 1.0, moderate: 1.08, high: 1.2 },
+  elevated: { sedentary: 1.05, moderate: 1.2, high: 1.4 },
+  high: { sedentary: 1.15, moderate: 1.35, high: 1.65 },
+  veryHigh: { sedentary: 1.25, moderate: 1.55, high: 2.0 },
+  extreme: { sedentary: 1.35, moderate: 1.75, high: 2.35 },
 };
 
 // ─── Skin type sebum multiplier ───────────────────────────────
 // Constant for the whole session; never changes from sensor data.
+// This tracks oil production (a fixed personal trait), a distinct
+// mechanism from the heat/humidity/activity sweat interaction above —
+// not addressed by this round of combined-factor research.
 export const SKIN_TYPE_MULTIPLIERS = {
   dry: 1.0,
   normal: 1.05,
@@ -76,6 +141,15 @@ export const AGE_THRESHOLD_ADJUSTMENTS = {
 // Added to the alert threshold when the medication flag is active.
 export const MEDICATION_THRESHOLD_ADJUSTMENT = 5;
 
+// Added to the alert threshold when the skin condition flag is active —
+// same magnitude and mechanism as the medication adjustment above (fires
+// the alert earlier), matching what onboarding's own copy already tells
+// the user this flag does (CONDITIONS_INFO.skinCondition in
+// onboardingOptions.js: "we recommend more protective reapplication
+// intervals"). Stacks additively with the medication adjustment if both
+// flags are set — a modest, conservative combination, not a multiplier.
+export const SKIN_CONDITION_THRESHOLD_ADJUSTMENT = 5;
+
 // ─── Device placement correction ──────────────────────────────
 // Adjusts the UV input before it enters the multiplier calculation.
 // Wrist consistently underreads actual body UV exposure.
@@ -103,6 +177,25 @@ export const WATER_EVENT_DURATIONS = {
   ignoreUnderSeconds: 5,
   splashMaxSeconds: 30,
   briefImmersionMinSeconds: 10,
+};
+
+// Scales a water event's hard cut by how active the user was during
+// it. FDA/ISO/TGA water-resistance testing is all done at one
+// undefined "moderate activity in water" intensity, so the base cuts
+// above already assume some exertion — but two paired studies
+// (Bodekær et al. 2008 and Beyer et al. 2010, both Photodermatology,
+// Photoimmunology & Photomedicine, same research group/methodology)
+// found SPF fell ~25% over 8h with no activity or bathing, vs ~55-58%
+// with activity + bathing combined — roughly double. No published
+// study isolates swim/exertion intensity specifically while already
+// in water (a confirmed literature gap), so this scalar is a
+// conservative, directionally-supported approximation of that ~2x
+// combined effect, not a precisely fitted curve. Applying no scalar
+// (activity level unknown) leaves the base cut unchanged.
+export const WATER_EVENT_ACTIVITY_SCALARS = {
+  sedentary: 1.0,
+  moderate: 1.15,
+  high: 1.3,
 };
 
 // ─── Personal factor ──────────────────────────────────────────

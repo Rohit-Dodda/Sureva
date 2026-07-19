@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import {
-  View, Text, StyleSheet,
+  View, Text, StyleSheet, AppState,
   SafeAreaView, Pressable, Animated, Dimensions, Easing, Image, PanResponder,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
@@ -10,6 +10,14 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import colors from '../constants/colors';
 import mockData from '../constants/mockData';
 import { useAuth } from '../context/AuthContext';
+import SupabaseService from '../services/SupabaseService';
+import { onSessionSaved } from '../services/SessionEventsService';
+import {
+  buildSessionHero, buildSessionDetail, formatDuration, estimateSedFromHero,
+} from '../services/SessionDetailMapper';
+import { calculatePersonalComparison } from '../../Algorithm/js/depletionEngine.js';
+import { engineProfileFor } from '../components/activeSession/sessionMath';
+import { getForecast } from '../services/WeatherService';
 import SessionSetupSheet from '../components/SessionSetupSheet';
 import SlideInView, { IOS_EASE_OUT } from '../components/SlideInView';
 import CountUpText from '../components/CountUpText';
@@ -23,6 +31,7 @@ import SettingsScreen from './SettingsScreen';
 import SessionDetailScreen from './SessionDetailScreen';
 import SessionSyncScreen from './SessionSyncScreen';
 import CheckInSheet from '../components/postSession/CheckInSheet';
+import { setActiveSessionOpener } from '../services/NotificationService';
 import TrendsScreen from './TrendsScreen';
 import { useScrollToTop } from '../context/ScrollToTopContext';
 import { useHideTabBar } from '../context/TabBarVisibilityContext';
@@ -32,6 +41,7 @@ import { useTourTarget, useAutoStartTour, useAppTour, tourDoneKey } from '../con
 import { WELCOME_TOUR_ID, WELCOME_TOUR_STEPS } from '../constants/tourSteps';
 
 const SCREEN_W = Dimensions.get('window').width;
+const SCREEN_H = Dimensions.get('window').height;
 // Active-session overlay slides over a stationary home, exactly like the
 // SessionDetailScreen → list transition. Same spring/easing so it feels identical.
 const SESSION_SWIPE_THRESHOLD = 80;
@@ -49,6 +59,155 @@ function getGreeting(firstName) {
 function getInitials(firstName, lastName) {
   return `${firstName[0]}${lastName[0]}`.toUpperCase();
 }
+
+// Same-calendar-day check by local fields — never via toISOString(), which
+// shifts a near-midnight session across the UTC boundary into the wrong day.
+// Mirrors WeatherService's isSameLocalDay; this codebase already hit that bug.
+function isSameLocalDay(a, b) {
+  return a.getFullYear() === b.getFullYear()
+    && a.getMonth() === b.getMonth()
+    && a.getDate() === b.getDate();
+}
+
+// '1h 15min' / '45min' — matches the mock protectionPattern.firstAlertTime shape.
+function formatHrMin(mins) {
+  const h = Math.floor(mins / 60);
+  const m = Math.round(mins % 60);
+  return h > 0 ? `${h}h ${m}min` : `${m}min`;
+}
+
+// ── Real card derivations (from completed Supabase session rows) ──────
+// Each takes the hero-level rows getSessions returns and produces the exact
+// shape its mock counterpart in constants/mockData.js has, so swapping is a
+// prop source change only. Conservative throughout: missing data reads as
+// zero/less exposure surfaced, never inflated.
+
+// Today's Protection card — sessions whose start falls on the local calendar
+// day. Protected time is duration minus unprotected (floored at 0 so a bad
+// row can't produce negative protected time).
+function computeTodayStats(rows) {
+  const now = new Date();
+  const today = rows.filter((r) => r.start_time && isSameLocalDay(new Date(r.start_time), now));
+  let protectedMin = 0;
+  let unprotectedMin = 0;
+  let reapplications = 0;
+  for (const r of today) {
+    const duration = r.duration_minutes ?? 0;
+    const unprot = r.unprotected_minutes ?? 0;
+    unprotectedMin += unprot;
+    protectedMin += Math.max(0, duration - unprot);
+    reapplications += r.reapplication_count ?? 0;
+  }
+  return {
+    protectedTime: formatDuration(protectedMin),
+    unprotectedTime: formatDuration(unprotectedMin),
+    reapplications,
+    sessionsToday: today.length,
+  };
+}
+
+// This Week card — Monday-start week, one summed SED dose per day. todayIndex
+// is today's 0–6 slot (Mon=0). complianceRate backs the card's "Protected
+// outdoor time" bar, so it's protected÷total tracked minutes this week.
+function computeWeeklySnapshot(rows) {
+  const now = new Date();
+  const todayIndex = (now.getDay() + 6) % 7; // getDay(): Sun=0 → Mon=0..Sun=6
+  const weekStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  weekStart.setDate(weekStart.getDate() - todayIndex); // local Monday 00:00
+
+  const labels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  const doses = [0, 0, 0, 0, 0, 0, 0];
+  let protectedMin = 0;
+  let totalMin = 0;
+  for (const r of rows) {
+    if (!r.start_time) continue;
+    const start = new Date(r.start_time);
+    const startMid = new Date(start.getFullYear(), start.getMonth(), start.getDate());
+    const dayDiff = Math.round((startMid - weekStart) / 86400000);
+    if (dayDiff < 0 || dayDiff > 6) continue;
+    doses[dayDiff] += estimateSedFromHero(r);
+    const duration = r.duration_minutes ?? 0;
+    totalMin += duration;
+    protectedMin += Math.max(0, duration - (r.unprotected_minutes ?? 0));
+  }
+  return {
+    todayIndex,
+    complianceRate: totalMin > 0 ? Math.round((protectedMin / totalMin) * 100) : 0,
+    days: labels.map((label, i) => ({ label, uvDose: Math.round(doses[i] * 100) / 100 })),
+  };
+}
+
+// Your Protection Pattern card — totalSessions is the real all-time completed
+// count that drives the 10-session unlock gate. The other three fields only
+// render once unlocked; they're still computed honestly here.
+function computeProtectionPattern(rows) {
+  // Average reapply window: each session's duration split evenly across its
+  // (reapplications + 1) protected stretches. A no-reapply session counts its
+  // whole duration as one window.
+  const durationed = rows.filter((r) => (r.duration_minutes ?? 0) > 0);
+  const intervals = durationed.map((r) => r.duration_minutes / ((r.reapplication_count ?? 0) + 1));
+  const avgInterval = intervals.length
+    ? Math.round(intervals.reduce((a, b) => a + b, 0) / intervals.length)
+    : 0;
+
+  // Depletion vs the user's own historical baseline — the same comparison
+  // SessionDetailMapper.buildPattern makes (most-recent session against the
+  // rest). Only the "faster" direction is surfaced as +%; slower shows 0
+  // rather than a negative value the card's "+{n}%" label can't represent.
+  const [mostRecent, ...historical] = rows;
+  const comparison = calculatePersonalComparison(
+    { averageDepletionRate: mostRecent?.average_depletion_rate },
+    historical.map((r) => ({ averageDepletionRate: r.average_depletion_rate }))
+  );
+  const depletionFasterPct = comparison && comparison.direction === 'faster'
+    ? Math.round(comparison.percentageDifference)
+    : 0;
+
+  // The only stored alert-latency column is the average response time to
+  // alerts (minutes), averaged across sessions that fired at least one.
+  const responded = rows.filter((r) => r.alert_response_time_avg != null);
+  const avgAlertMin = responded.length
+    ? responded.reduce((a, r) => a + r.alert_response_time_avg, 0) / responded.length
+    : 0;
+
+  return {
+    totalSessions: rows.length,
+    reapplyInterval: `${avgInterval} minutes`,
+    depletionFasterPct,
+    firstAlertTime: formatHrMin(avgAlertMin),
+  };
+}
+
+// Today's UV dose as a % of the day's safe limit (one MED = 100%). Reuses
+// buildSessionHero's per-session medDose percent — no new dose formula is
+// invented here — summed over today's sessions and capped at 100 (a full
+// day past the burn threshold still reads as 100%, never more). Same
+// local-calendar-day filter computeTodayStats uses, so the two agree on
+// which sessions count as "today".
+function computeTodayDosePercent(rows, fitzpatrickType) {
+  const now = new Date();
+  const today = rows.filter((r) => r.start_time && isSameLocalDay(new Date(r.start_time), now));
+  const sum = today.reduce((acc, r) => acc + buildSessionHero(r, fitzpatrickType).uvDosePercent, 0);
+  return Math.min(100, Math.round(sum));
+}
+
+// Honest zero-state shapes for a signed-in user with no sessions yet — the
+// exact prop shapes the cards expect, but with empty/zero values instead of
+// fabricated demo mock content. (computeWeeklySnapshot's zero shape is
+// date-dependent, so it's built per-render, not here.)
+const EMPTY_TODAY_STATS = {
+  protectedTime: '—',
+  unprotectedTime: '—',
+  reapplications: 0,
+  sessionsToday: 0,
+};
+const EMPTY_PROTECTION_PATTERN = {
+  totalSessions: 0,
+  reapplyInterval: '0 minutes',
+  depletionFasterPct: 0,
+  firstAlertTime: '0min',
+};
+const EMPTY_WEEKLY_DOSE = { meds: 0, limit: 3, line: '' };
 
 // ─── ProfileAvatar ────────────────────────────────────────────
 const ProfileAvatar = React.memo(function ProfileAvatar({ initials, profileImage, onPress }) {
@@ -135,7 +294,11 @@ const StartSessionPill = React.memo(function StartSessionPill({ onPress, session
 });
 
 // ─── Today's Protection card ──────────────────────────────────
-const ProtectionStatsCard = React.memo(function ProtectionStatsCard({ stats, conditions, dosePercent }) {
+const ProtectionStatsCard = React.memo(function ProtectionStatsCard({ stats, conditions, dosePercent, empty, loading }) {
+  // Live weather (conditions) is real regardless of session history, so the
+  // chips always render. Only the session-derived tiles + UV dose collapse
+  // to an honest empty/zero state when there are no sessions today.
+  const hasData = !empty && !loading;
   const tiles = [
     { label: 'Unprotected',    value: stats.unprotectedTime        },
     { label: 'Reapplications', value: String(stats.reapplications) },
@@ -168,38 +331,92 @@ const ProtectionStatsCard = React.memo(function ProtectionStatsCard({ stats, con
           </View>
           <View style={exSt.kvRow}>
             <Text style={exSt.kvLabel}>Today's UV dose</Text>
-            <Text style={[exSt.kvValue, { color: doseColor }]}>{dosePercent}% of safe limit</Text>
+            {hasData ? (
+              <Text style={[exSt.kvValue, { color: doseColor }]}>{dosePercent}% of safe limit</Text>
+            ) : (
+              <Text style={exSt.kvValue}>{loading ? '—' : 'No exposure yet'}</Text>
+            )}
           </View>
           <View style={exSt.track}>
-            <View style={[exSt.fill, { width: `${dosePercent}%`, backgroundColor: doseColor }]} />
+            <View style={[exSt.fill, { width: `${hasData ? dosePercent : 0}%`, backgroundColor: doseColor }]} />
           </View>
         </View>
       }
     >
-      <View style={psSt.grid}>
-        {/* Hero tile — protected time */}
-        <LinearGradient
-          colors={[colors.gradOrangeStart, colors.gradOrangeEnd]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={psSt.heroTile}
-        >
-          <Text style={psSt.heroVal}>{stats.protectedTime}</Text>
-          <Text style={psSt.heroLabel}>Protected</Text>
-        </LinearGradient>
-        {tiles.map((tile) => (
-          <View key={tile.label} style={psSt.tile}>
-            <Text style={psSt.tileVal}>{tile.value}</Text>
-            <Text style={psSt.tileLabel}>{tile.label}</Text>
+      {hasData ? (
+        <View style={psSt.grid}>
+          {/* Hero tile — protected time */}
+          <LinearGradient
+            colors={[colors.gradOrangeStart, colors.gradOrangeEnd]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={psSt.heroTile}
+          >
+            <Text style={psSt.heroVal}>{stats.protectedTime}</Text>
+            <Text style={psSt.heroLabel}>Protected</Text>
+          </LinearGradient>
+          {tiles.map((tile) => (
+            <View key={tile.label} style={psSt.tile}>
+              <Text style={psSt.tileVal}>{tile.value}</Text>
+              <Text style={psSt.tileLabel}>{tile.label}</Text>
+            </View>
+          ))}
+        </View>
+      ) : (
+        <View style={psSt.emptyWrap}>
+          <View style={psSt.emptyIconWrap}>
+            <Ionicons name="sunny" size={24} color={colors.orange} />
           </View>
-        ))}
-      </View>
+          <Text style={psSt.emptyTitle}>
+            {loading ? 'Checking today’s protection…' : 'No sessions today'}
+          </Text>
+          {!loading && (
+            <Text style={psSt.emptyMsg}>
+              Start a session and we'll track your protection here as the day goes.
+            </Text>
+          )}
+        </View>
+      )}
     </ExpandableCard>
   );
 });
 
 // ─── Last Session card ────────────────────────────────────────
-const LastSessionCard = React.memo(function LastSessionCard({ session, detail, onOpenDetail }) {
+const LastSessionCard = React.memo(function LastSessionCard({ session, detail, onOpenDetail, loading }) {
+  // No real session yet (or still loading) — render an honest empty card
+  // instead of fabricated session numbers. No "View Full Report" link since
+  // there's nothing to open.
+  if (!session || !detail) {
+    return (
+      <ExpandableCard
+        glass
+        icon="time"
+        title="Last Session"
+        expandedContent={
+          <Text style={exSt.note}>
+            {loading
+              ? 'Loading your most recent session…'
+              : 'Once you finish a session, its full summary — duration, score, alerts and UV dose — will appear here.'}
+          </Text>
+        }
+      >
+        <View style={lsSt.emptyWrap}>
+          <View style={lsSt.emptyIconWrap}>
+            <Ionicons name="hourglass-outline" size={24} color={colors.orange} />
+          </View>
+          <Text style={lsSt.emptyTitle}>
+            {loading ? 'Checking your sessions…' : 'No sessions yet'}
+          </Text>
+          {!loading && (
+            <Text style={lsSt.emptyMsg}>
+              Your most recent session will show up here once you finish one.
+            </Text>
+          )}
+        </View>
+      </ExpandableCard>
+    );
+  }
+
   const confirmed = detail.alerts.log.filter((a) => a.confirmed).length;
 
   return (
@@ -287,7 +504,7 @@ const WeekBar = React.memo(function WeekBar({ height, isToday, isPast, delay }) 
   );
 });
 
-const WeeklySnapshotCard = React.memo(function WeeklySnapshotCard({ snapshot, weeklyDose, onSeeAll }) {
+const WeeklySnapshotCard = React.memo(function WeeklySnapshotCard({ snapshot, weeklyDose, onSeeAll, loading }) {
   const { days, todayIndex, complianceRate } = snapshot;
   const BAR_MAX_H = 56;
   const pastAndToday = days.filter((_, i) => i <= todayIndex);
@@ -299,6 +516,10 @@ const WeeklySnapshotCard = React.memo(function WeeklySnapshotCard({ snapshot, we
   const budgetColor =
     budgetPct < 50 ? colors.protected :
     budgetPct < 80 ? colors.warning : colors.danger;
+  // Nothing tracked this week yet — the empty week still renders its flat
+  // bar chart, but the footer becomes an honest prompt instead of a "0%
+  // protected" bar, and the expanded budget line stays quiet.
+  const isEmpty = !loading && activeDays === 0;
 
   return (
     <ExpandableCard
@@ -320,12 +541,12 @@ const WeeklySnapshotCard = React.memo(function WeeklySnapshotCard({ snapshot, we
           </View>
           <View style={exSt.kvRow}>
             <Text style={exSt.kvLabel}>Weekly UV budget</Text>
-            <Text style={[exSt.kvValue, { color: budgetColor }]}>
-              {weeklyDose.meds} of {weeklyDose.limit} MEDs
+            <Text style={[exSt.kvValue, isEmpty ? null : { color: budgetColor }]}>
+              {isEmpty ? 'Nothing tracked yet' : `${weeklyDose.meds} of ${weeklyDose.limit} MEDs`}
             </Text>
           </View>
           <View style={exSt.track}>
-            <View style={[exSt.fill, { width: `${budgetPct}%`, backgroundColor: budgetColor }]} />
+            <View style={[exSt.fill, { width: `${isEmpty ? 0 : budgetPct}%`, backgroundColor: budgetColor }]} />
           </View>
         </View>
       }
@@ -347,7 +568,7 @@ const WeeklySnapshotCard = React.memo(function WeeklySnapshotCard({ snapshot, we
               <View style={[wkSt.barWrap, { height: BAR_MAX_H }]}>
                 <WeekBar height={barH} isToday={isToday} isPast={isPast} delay={i * 50} />
               </View>
-              <Text style={[wkSt.dayLabel, { color: labelColor, fontFamily: isToday ? 'SpaceGrotesk-SemiBold' : 'Inter-Regular' }]}>
+              <Text style={[wkSt.dayLabel, { color: labelColor, fontFamily: 'Outfit-Regular' }]}>
                 {day.label}
               </Text>
             </View>
@@ -375,7 +596,7 @@ const WeeklySnapshotCard = React.memo(function WeeklySnapshotCard({ snapshot, we
 // ─── Expanded-section styles (shared by all expandable cards) ──
 const exSt = StyleSheet.create({
   sectionLabel: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 11,
     color: colors.muted,
     letterSpacing: 1.1,
@@ -398,7 +619,7 @@ const exSt = StyleSheet.create({
     paddingVertical: 7,
   },
   chipText: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 12,
     color: colors.inkMid,
   },
@@ -409,12 +630,12 @@ const exSt = StyleSheet.create({
     paddingVertical: 7,
   },
   kvLabel: {
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 13,
     color: colors.muted,
   },
   kvValue: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 13,
     color: colors.ink,
   },
@@ -430,14 +651,14 @@ const exSt = StyleSheet.create({
     borderRadius: 4,
   },
   verdict: {
-    fontFamily: 'Inter-Medium',
+    fontFamily: 'Outfit-Regular',
     fontSize: 13.5,
     color: colors.inkMid,
     lineHeight: 20,
     marginBottom: 8,
   },
   note: {
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 13,
     color: colors.muted,
     lineHeight: 19,
@@ -461,14 +682,14 @@ const ppSt = StyleSheet.create({
     marginBottom: 16,
   },
   lockedTitle: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 15,
     color: colors.ink,
     textAlign: 'center',
     marginBottom: 8,
   },
   lockedSub: {
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 13,
     color: colors.muted,
     textAlign: 'center',
@@ -494,7 +715,7 @@ const ppSt = StyleSheet.create({
     overflow: 'hidden',
   },
   progressLabel: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 12,
     color: colors.muted,
     letterSpacing: 0.4,
@@ -515,14 +736,14 @@ const ppSt = StyleSheet.create({
     alignItems: 'center',
   },
   heroVal: {
-    fontFamily: 'SpaceGrotesk-Bold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 22,
     color: colors.white,
     letterSpacing: -0.5,
     textAlign: 'center',
   },
   heroLabel: {
-    fontFamily: 'Inter-Medium',
+    fontFamily: 'Outfit-Regular',
     fontSize: 12,
     color: colors.onDarkMuted,
     marginTop: 4,
@@ -541,14 +762,14 @@ const ppSt = StyleSheet.create({
     alignItems: 'center',
   },
   miniVal: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 16,
     color: colors.ink,
     letterSpacing: -0.3,
     textAlign: 'center',
   },
   miniLabel: {
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 11,
     color: colors.muted,
     marginTop: 2,
@@ -574,12 +795,12 @@ const ppSt = StyleSheet.create({
     flex: 1,
   },
   riskLabel: {
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 11,
     color: colors.muted,
   },
   riskValue: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 14,
     color: colors.ink,
     marginTop: 1,
@@ -613,13 +834,13 @@ const ppSt = StyleSheet.create({
     borderRadius: 8,
   },
   compareScore: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 14,
     color: colors.ink,
     textAlign: 'center',
   },
   compareLabel: {
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 12,
     color: colors.muted,
     marginTop: 1,
@@ -813,22 +1034,115 @@ const DeviceCard = React.memo(function DeviceCard({ device, onDragStart, onDragE
 // ─── Main screen ──────────────────────────────────────────────
 export default function HomeScreen({ onSignOut, onNavigateTab, isActiveTab }) {
   const { user, userProfile, profileImage } = useAuth();
-  const { conditions, lastSession, device, todayStats, weeklySnapshot, protectionPattern } = mockData;
+  // device stays mock — there's no BLE hardware yet, so no real source for it.
+  // conditions (live UV/temp/humidity) now come from the same WeatherService
+  // the Forecast tab uses, so the two screens can't show different "right now"
+  // numbers; todayStats/weeklySnapshot/protectionPattern below are real,
+  // computed from persisted sessions.
+  const { device } = mockData;
   // Last session card runs on the full session record so it can deep-link
-  // into the same detail view History uses
-  const lastFull   = mockData.sessions[0];
-  const lastDetail = mockData.sessionDetails[lastFull.id];
+  // into the same detail view History uses. All the real card data (last
+  // session + the three stat cards) comes from one getSessions fetch — null
+  // state = still loading (mock shows as placeholder), resolved = real.
+  const [realLastSession, setRealLastSession] = useState(null);
+  const [realLastDetail, setRealLastDetail] = useState(null);
+  const [realTodayStats, setRealTodayStats] = useState(null);
+  const [realWeeklySnapshot, setRealWeeklySnapshot] = useState(null);
+  const [realProtectionPattern, setRealProtectionPattern] = useState(null);
+  const [realTodayDosePercent, setRealTodayDosePercent] = useState(null);
+  const loadHomeData = useCallback(async () => {
+    if (!user?.id) return;
+    try {
+      const { data: rows, error } = await SupabaseService.getSessions(user.id);
+      if (error || !rows) return; // fetch failed → keep whatever's already loaded
+      const profile = engineProfileFor({}, userProfile);
+      // Always computed, even for rows = [] (every helper is safe on an
+      // empty array — see their own comments) — a signed-in user always
+      // sees real (possibly zero) data, never fabricated mock content. Only
+      // the "most recent session" fetch below stays conditional, since
+      // there's genuinely nothing to fetch when there are no sessions;
+      // realLastSession/realLastDetail staying null is exactly the signal
+      // LastSessionCard already checks for its own empty state.
+      setRealTodayStats(computeTodayStats(rows));
+      setRealWeeklySnapshot(computeWeeklySnapshot(rows));
+      setRealProtectionPattern(computeProtectionPattern(rows));
+      setRealTodayDosePercent(computeTodayDosePercent(rows, profile.fitzpatrickType));
+      if (rows.length) {
+        const mostRecent = rows[0];
+        setRealLastSession(buildSessionHero(mostRecent, profile.fitzpatrickType));
+        const { data: fullRow } = await SupabaseService.getSessionById(mostRecent.id);
+        if (fullRow) setRealLastDetail(buildSessionDetail(fullRow, profile, rows.slice(1)));
+      }
+    } catch {
+      // Leave whatever's already loaded in place.
+    }
+  }, [user, userProfile]);
+  useEffect(() => { loadHomeData(); }, [loadHomeData]);
+  // The syncing-screen-triggered loadHomeData() call below can fire before
+  // the session's actual Supabase writes land (that screen's animation runs
+  // on a fixed timer, not tied to the network calls) — this is the
+  // guaranteed-correct refresh, timed to when the save actually finishes.
+  useEffect(() => onSessionSaved(loadHomeData), [loadHomeData]);
+
+  // Live "Conditions right now" chips — the exact same WeatherService.getForecast
+  // call the Forecast tab makes, so the UV/temp/humidity shown here can't drift
+  // from what that screen shows. null = still loading (or location denied / fetch
+  // failed), in which case the mock conditions stand in so the chips never blank
+  // out or crash. Fetched once on mount, mirroring ForecastScreen (which also
+  // fetches only on mount and keeps no refresh-on-return trigger of its own).
+  const [realConditions, setRealConditions] = useState(null);
+  const loadConditions = useCallback(async () => {
+    try {
+      const profile = engineProfileFor({}, userProfile);
+      const result = await getForecast(profile.fitzpatrickType);
+      // Location denied or a bad/empty payload → keep the mock fallback.
+      if (!result || result.error || !result.today) return;
+      const { currentUV, currentTemp, currentHumidity } = result.today;
+      if (currentTemp == null || currentHumidity == null) return;
+      setRealConditions({ uvIndex: currentUV, temperature: currentTemp, humidity: currentHumidity });
+    } catch {
+      // Network/API failure → leave the mock conditions in place.
+    }
+  }, [userProfile]);
+  useEffect(() => { loadConditions(); }, [loadConditions]);
+
+  // conditions stays mock-backed (live weather, unrelated to session
+  // history — already correct). Everything else below is real-or-honest-
+  // empty now: lastFull/lastDetail stay null until a real session exists
+  // (the exact signal LastSessionCard checks for); the rest fall back only
+  // to the EMPTY_* zero shapes during the brief window before the first
+  // fetch resolves, never to fabricated mock demo content.
+  const conditions = realConditions ?? mockData.conditions;
+  const lastFull   = realLastSession;
+  const lastDetail = realLastDetail;
+  // Minimal {spf, waterResistance, environment} only — never the full hero
+  // object — so SessionSetupSheet's "use same settings" quick-confirm can't
+  // leak stale fields (date, score, duration, ...) from the previous
+  // session into the new one when handleSessionStart spreads this in.
+  const lastSessionParams = lastFull
+    ? { spf: lastFull.spf, waterResistance: lastFull.waterResistance, environment: lastFull.environment }
+    : null;
+  const homeDataLoading   = realTodayStats === null;
+  const todayStats        = realTodayStats        ?? EMPTY_TODAY_STATS;
+  const weeklySnapshot    = realWeeklySnapshot     ?? computeWeeklySnapshot([]);
+  const protectionPattern = realProtectionPattern  ?? EMPTY_PROTECTION_PATTERN;
+  const todayDosePercent  = realTodayDosePercent   ?? 0;
   const firstName = userProfile?.firstName || mockData.user.firstName;
   const lastName  = userProfile?.lastName  || mockData.user.lastName;
   const initials  = getInitials(firstName, lastName);
   const greeting  = getGreeting(firstName);
-
   const [sheetVisible, setSheetVisible]     = useState(false);
   const [settingsVisible, setSettingsVisible] = useState(false);
   const [detailVisible, setDetailVisible]   = useState(false);
   const [trendsVisible, setTrendsVisible]   = useState(false);
   const [activeSession, setActiveSession] = useState(null);
   const [elapsed, setElapsed]             = useState(0);
+  // Real wall-clock anchor for the session, set once at start — the
+  // setInterval below just ticks a display counter; this timestamp is
+  // what elapsed gets reconciled against on every foreground return, so
+  // backgrounding (where JS timers throttle/pause) never leaves the
+  // on-screen elapsed time or protection % reading stale or wrong.
+  const sessionStartTimestampRef = useRef(null);
   // 0 = session fully open (covering home); SCREEN_W = home visible underneath.
   const sessionX = useRef(new Animated.Value(SCREEN_W)).current;
   const scrollRef = useRef(null);
@@ -873,11 +1187,22 @@ export default function HomeScreen({ onSignOut, onNavigateTab, isActiveTab }) {
   // history" from the first launch.
   const trendsLinkTourRef = useTourTarget('trendsLink');
 
+  // Tracks the ScrollView's live offset (no handler was bound to it before)
+  // so the tour-scroll effect below can turn a target's on-screen position
+  // into an absolute scrollTo offset instead of guessing.
+  const scrollOffsetRef = useRef(0);
+  const handleHomeScroll = useCallback((e) => {
+    scrollOffsetRef.current = e.nativeEvent.contentOffset.y;
+  }, []);
+
   // The welcome tour's "device" step lives near the bottom of this
   // ScrollView, below the fold — scroll it into view as soon as that step
   // becomes active so TourOverlay isn't trying to spotlight something
-  // that's still off-screen. Earlier steps all live above the fold, so
-  // scroll back to the top for those.
+  // that's still off-screen. "trendsLink" (the This Week card) sits further
+  // down than the top of the fold on smaller screens, so it gets measured
+  // and nudged into view rather than assumed visible; every earlier target
+  // lives in the fixed header above the ScrollView, so scrolling back to
+  // the top is enough for those.
   const { activeTour: tourActive, stepIndex: tourStepIndex } = useAppTour();
   useEffect(() => {
     if (tourActive?.id !== WELCOME_TOUR_ID) return;
@@ -885,9 +1210,25 @@ export default function HomeScreen({ onSignOut, onNavigateTab, isActiveTab }) {
     if (!step || step.tab !== 'home') return; // only steps that land on Home
     if (step.target === 'device') {
       scrollRef.current?.scrollToEnd({ animated: true });
-    } else {
-      scrollRef.current?.scrollTo({ y: 0, animated: true });
+      return;
     }
+    if (step.target === 'trendsLink') {
+      const node = trendsLinkTourRef.current;
+      if (node?.measureInWindow) {
+        node.measureInWindow((x, y, w, h) => {
+          // Aim for the card sitting a bit below the top of the visible
+          // area (roughly where the spotlight tooltip below it has room),
+          // and only move if it's meaningfully off from that already.
+          const desiredTop = SCREEN_H * 0.3;
+          const delta = y - desiredTop;
+          if (Math.abs(delta) > 4) {
+            scrollRef.current?.scrollTo({ y: Math.max(0, scrollOffsetRef.current + delta), animated: true });
+          }
+        });
+      }
+      return;
+    }
+    scrollRef.current?.scrollTo({ y: 0, animated: true });
   }, [tourActive, tourStepIndex]);
 
   const scrollToTop = useCallback(
@@ -896,11 +1237,34 @@ export default function HomeScreen({ onSignOut, onNavigateTab, isActiveTab }) {
   );
   useScrollToTop('home', scrollToTop);
 
+  // DEBUG: compresses session time so depletion (and the Dynamic Island's
+  // color transition) is visible in minutes instead of hours. Applied to
+  // BOTH the foreground tick and the background wall-clock reconciliation
+  // below so backgrounding the app (to actually look at the Island/Lock
+  // Screen) doesn't get "corrected" back to real-time pace. Set back to 1
+  // once done testing — this doesn't touch the depletion engine itself,
+  // just how fast simulated session-seconds accumulate.
+  const DEBUG_TIME_SCALE = 1;
+
   // Timer lives here so it keeps ticking even when home screen is visible
   useEffect(() => {
     if (!activeSession) return;
-    const id = setInterval(() => setElapsed((s) => s + 1), 1000);
+    const id = setInterval(() => setElapsed((s) => s + DEBUG_TIME_SCALE), 1000);
     return () => clearInterval(id);
+  }, [activeSession]);
+
+  // JS intervals throttle or pause entirely while backgrounded, so the
+  // counter above silently falls behind real time. Reconciling against
+  // the wall-clock start anchor on every return-to-foreground is what
+  // keeps elapsed (and everything derived from it — protection %,
+  // alert timing) honest instead of just resuming the stale count.
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (nextState) => {
+      if (nextState !== 'active' || !activeSession || sessionStartTimestampRef.current == null) return;
+      const realElapsed = Math.floor(((Date.now() - sessionStartTimestampRef.current) / 1000) * DEBUG_TIME_SCALE);
+      setElapsed((prev) => (realElapsed > prev ? realElapsed : prev));
+    });
+    return () => sub.remove();
   }, [activeSession]);
 
   // Open: slide the overlay in from the right (matches SessionDetailScreen's enter).
@@ -909,6 +1273,12 @@ export default function HomeScreen({ onSignOut, onNavigateTab, isActiveTab }) {
       toValue: 0, duration: 460, easing: IOS_EASE_OUT, useNativeDriver: true,
     }).start();
   }, [sessionX]);
+
+  // Lets a tapped reapply notification bring the session screen into view
+  // even if the user had navigated back to Home before backgrounding.
+  useEffect(() => {
+    return setActiveSessionOpener(() => { if (activeSession) slideToSession(); });
+  }, [activeSession, slideToSession]);
 
   // Back button: timed ease-out slide-out, same as SessionDetailScreen's back press.
   const slideToHome = useCallback(() => {
@@ -934,33 +1304,84 @@ export default function HomeScreen({ onSignOut, onNavigateTab, isActiveTab }) {
   const handleSessionStart = useCallback((params) => {
     setSheetVisible(false);
     setElapsed(0);
-    setActiveSession(params);
+    const startedAt = Date.now();
+    sessionStartTimestampRef.current = startedAt;
+    // sessionId doubles as the wall-clock anchor — unique enough per
+    // session and it's exactly the timestamp notification scheduling
+    // needs to anchor off of, no separate uuid required.
+    setActiveSession({ ...params, sessionId: startedAt });
     sessionX.setValue(SCREEN_W); // start off-screen, then slide in
     slideToSession();
-  }, [slideToSession, sessionX]);
+
+    // Creates the real Supabase row in the background — the session starts
+    // instantly above regardless of network latency. dbSessionId merges in
+    // once it resolves; ActiveSessionScreen only needs it by session end
+    // (readings/events are batch-written then), which is always well after
+    // this resolves. A failure here just means this session never persists
+    // (still no crash, no blocked UI) — matches CLAUDE.md's "never block the
+    // whole screen" rule.
+    if (user?.id) {
+      SupabaseService.createSession(user.id, {
+        start_time: new Date(startedAt).toISOString(),
+        spf: params.spf,
+        water_resistance_mins: params.waterResistance,
+        placement: null,
+        environment: params.environment ?? null,
+        latitude: params.latitude ?? null,
+        longitude: params.longitude ?? null,
+        city: params.city ?? null,
+        region: params.region ?? null,
+      }).then(({ data, error }) => {
+        if (error || !data) return;
+        setActiveSession((prev) => (prev && prev.sessionId === startedAt ? { ...prev, dbSessionId: data.id } : prev));
+      }).catch(() => {});
+    }
+  }, [slideToSession, sessionX, user]);
 
   // End of session → the post-session flow: the sync screen covers
   // everything immediately while the session detail mounts (and runs its
   // entrance) hidden underneath; the sync screen then fades itself out to
   // reveal it, and 1s later the check-in sheet rises.
   const [postFlow, setPostFlow] = useState(null); // null | 'syncing' | 'detail'
+  // The just-ended session's real hero fields (from ActiveSessionScreen's
+  // onSessionEnd payload) — null when persistence failed or hasn't
+  // resolved, in which case the post-session flow falls back to lastFull.
+  const [endedSession, setEndedSession] = useState(null);
   const [checkInVisible, setCheckInVisible] = useState(false);
+  // The prior session's Q1 check-in answer, for CheckInSheet's "went out
+  // while recovering from irritation" pattern detection. Fetched once the
+  // post-session flow starts so it's ready by the time the sheet opens.
+  const [previousSkinFeelAfter, setPreviousSkinFeelAfter] = useState(null);
   const checkInTimer = useRef(null);
   useEffect(() => () => clearTimeout(checkInTimer.current), []);
   // The floating tab bar would sit on top of the sync screen and the
   // check-in sheet's buttons — hide it for the whole flow.
   useHideTabBar(!!postFlow);
 
-  const handleSessionEnd = useCallback(() => {
+  const handleSessionEnd = useCallback((payload) => {
     setActiveSession(null);
     setElapsed(0);
+    sessionStartTimestampRef.current = null;
+    // Sessions under 5 minutes are discarded (ActiveSessionScreen never
+    // saves them) — nothing to sync, review, or check in on, so just
+    // drop straight back to the idle Home screen.
+    if (payload?.discarded) return;
+    const session = payload?.session ?? null;
+    setEndedSession(session);
     setPostFlow('syncing');
-  }, []);
+    setPreviousSkinFeelAfter(null);
+    if (user?.id) {
+      SupabaseService.getLastCompletedCheckIn(user.id, session?.id ?? null)
+        .then(({ data }) => setPreviousSkinFeelAfter(data ?? null))
+        .catch(() => {});
+    }
+  }, [user]);
 
   const handleSyncComplete = useCallback(() => {
     setPostFlow('detail');
     checkInTimer.current = setTimeout(() => setCheckInVisible(true), 1000);
-  }, []);
+    loadHomeData(); // refresh Last Session + the three stat cards with what just ended
+  }, [loadHomeData]);
 
   const closePostDetail = useCallback(() => {
     clearTimeout(checkInTimer.current);
@@ -983,6 +1404,10 @@ export default function HomeScreen({ onSignOut, onNavigateTab, isActiveTab }) {
   useRegisterOpener('settings', openSettings);
   useRegisterOpener('trends', openTrends);
   useRegisterOpener('lastSession', openLastDetail);
+  // Lets another tab (History's "Start Session" empty-state button) open
+  // this screen's session-setup sheet remotely, via navigateTo({ tab:
+  // 'home', opener: 'startSession' }) — same registry as the openers above.
+  useRegisterOpener('startSession', () => setSheetVisible(true));
 
   // Swipe-right on the active session drags the overlay back over a stationary
   // home. Same gesture math as SessionDetailScreen; the *Capture handlers claim
@@ -1058,6 +1483,7 @@ export default function HomeScreen({ onSignOut, onNavigateTab, isActiveTab }) {
             contentContainerStyle={st.scrollContent}
             showsVerticalScrollIndicator={false}
             scrollEventThrottle={16}
+            onScroll={handleHomeScroll}
             decelerationRate="normal"
             scrollEnabled={!deviceDragging}
           >
@@ -1065,18 +1491,26 @@ export default function HomeScreen({ onSignOut, onNavigateTab, isActiveTab }) {
               <ProtectionStatsCard
                 stats={todayStats}
                 conditions={conditions}
-                dosePercent={mockData.uvDose.todayPercent}
+                dosePercent={todayDosePercent}
+                empty={!homeDataLoading && todayStats.sessionsToday === 0}
+                loading={homeDataLoading}
               />
             </SlideInView>
             <SlideInView delay={110}>
-              <LastSessionCard session={lastFull} detail={lastDetail} onOpenDetail={openLastDetail} />
+              <LastSessionCard
+                session={lastFull}
+                detail={lastDetail}
+                onOpenDetail={openLastDetail}
+                loading={homeDataLoading}
+              />
             </SlideInView>
             <SlideInView delay={180}>
               <View ref={trendsLinkTourRef}>
                 <WeeklySnapshotCard
                   snapshot={weeklySnapshot}
-                  weeklyDose={lastDetail.pattern.weeklyDose}
+                  weeklyDose={lastDetail?.pattern?.weeklyDose ?? EMPTY_WEEKLY_DOSE}
                   onSeeAll={openTrends}
+                  loading={homeDataLoading}
                 />
               </View>
             </SlideInView>
@@ -1095,7 +1529,7 @@ export default function HomeScreen({ onSignOut, onNavigateTab, isActiveTab }) {
 
           <SessionSetupSheet
             visible={sheetVisible}
-            lastSession={lastSession}
+            lastSession={lastSessionParams}
             onStart={handleSessionStart}
             onDismiss={() => setSheetVisible(false)}
           />
@@ -1137,15 +1571,14 @@ export default function HomeScreen({ onSignOut, onNavigateTab, isActiveTab }) {
       {/* ── Post-session flow: sync → detail reveal → check-in sheet ── */}
       {postFlow && (
         <View style={StyleSheet.absoluteFill}>
-          {/* MOCK: the completed session reuses the latest mock session so
-              the flow is always demonstrable. TODO: pass the real ended
-              session's computed summary once live sessions are wired. */}
-          <SessionDetailScreen session={lastFull} onBack={closePostDetail} scrollKey="home" />
+          {/* Real just-ended session when persistence succeeded; falls back
+              to the latest known session (mock, for a brand-new user with
+              no real sessions yet) only if it didn't. */}
+          <SessionDetailScreen session={endedSession ?? lastFull} onBack={closePostDetail} scrollKey="home" />
           {checkInVisible && (
             <CheckInSheet
-              session={lastFull}
-              // TODO: read the actual previous session's postSession answer.
-              previousSkinFeelAfter={null}
+              session={endedSession ?? lastFull}
+              previousSkinFeelAfter={previousSkinFeelAfter}
               onDismiss={dismissCheckIn}
             />
           )}
@@ -1195,7 +1628,7 @@ const st = StyleSheet.create({
     marginTop: -2,
   },
   avatarText: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 17,
     color: colors.white,
     letterSpacing: 0.6,
@@ -1209,14 +1642,14 @@ const st = StyleSheet.create({
     flex: 1,
   },
   greeting: {
-    fontFamily: 'Inter-Medium',
+    fontFamily: 'Outfit-Regular',
     fontSize: 14,
     color: colors.muted,
     letterSpacing: 0.1,
     marginBottom: 1,
   },
   greetingName: {
-    fontFamily: 'SpaceGrotesk-Bold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 24,
     lineHeight: 28,
     color: colors.ink,
@@ -1239,7 +1672,7 @@ const st = StyleSheet.create({
     borderRadius: 24,
   },
   pillText: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 13,
     color: colors.white,
     letterSpacing: 0.1,
@@ -1262,7 +1695,7 @@ const st = StyleSheet.create({
     backgroundColor: colors.protected,
   },
   pillActiveText: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 13,
     color: colors.ink,
     letterSpacing: 0.1,
@@ -1291,13 +1724,13 @@ const psSt = StyleSheet.create({
     gap: 4,
   },
   heroVal: {
-    fontFamily: 'SpaceGrotesk-Bold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 24,
     color: colors.white,
     letterSpacing: -0.6,
   },
   heroLabel: {
-    fontFamily: 'Inter-Medium',
+    fontFamily: 'Outfit-Regular',
     fontSize: 12,
     color: 'rgba(255,255,255,0.85)',
   },
@@ -1310,15 +1743,43 @@ const psSt = StyleSheet.create({
     gap: 4,
   },
   tileVal: {
-    fontFamily: 'SpaceGrotesk-Bold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 24,
     color: colors.ink,
     letterSpacing: -0.6,
   },
   tileLabel: {
-    fontFamily: 'Inter-Medium',
+    fontFamily: 'Outfit-Regular',
     fontSize: 12,
     color: colors.muted,
+  },
+  emptyWrap: {
+    alignItems: 'center',
+    paddingVertical: 10,
+  },
+  emptyIconWrap: {
+    width: 52,
+    height: 52,
+    borderRadius: 18,
+    backgroundColor: colors.orangeWash,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 14,
+  },
+  emptyTitle: {
+    fontFamily: 'Outfit-Regular',
+    fontSize: 16,
+    color: colors.ink,
+    textAlign: 'center',
+    marginBottom: 6,
+  },
+  emptyMsg: {
+    fontFamily: 'Outfit-Regular',
+    fontSize: 13,
+    color: colors.muted,
+    textAlign: 'center',
+    lineHeight: 19,
+    maxWidth: 260,
   },
 });
 
@@ -1334,7 +1795,7 @@ const lsSt = StyleSheet.create({
     gap: 4,
   },
   statVal: {
-    fontFamily: 'SpaceGrotesk-Bold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 18,
     color: colors.ink,
     letterSpacing: -0.3,
@@ -1343,7 +1804,7 @@ const lsSt = StyleSheet.create({
     color: colors.orange,
   },
   statLabel: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 10,
     color: colors.muted,
     letterSpacing: 1,
@@ -1363,9 +1824,37 @@ const lsSt = StyleSheet.create({
     borderRadius: 12,
   },
   peakVal: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 13,
     color: colors.orangeDark,
+  },
+  emptyWrap: {
+    alignItems: 'center',
+    paddingVertical: 10,
+  },
+  emptyIconWrap: {
+    width: 52,
+    height: 52,
+    borderRadius: 18,
+    backgroundColor: colors.orangeWash,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 14,
+  },
+  emptyTitle: {
+    fontFamily: 'Outfit-Regular',
+    fontSize: 16,
+    color: colors.ink,
+    textAlign: 'center',
+    marginBottom: 6,
+  },
+  emptyMsg: {
+    fontFamily: 'Outfit-Regular',
+    fontSize: 13,
+    color: colors.muted,
+    textAlign: 'center',
+    lineHeight: 19,
+    maxWidth: 260,
   },
 });
 
@@ -1412,12 +1901,12 @@ const wkSt = StyleSheet.create({
     alignItems: 'center',
   },
   footerText: {
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 13,
     color: colors.muted,
   },
   footerPct: {
-    fontFamily: 'SpaceGrotesk-Bold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 16,
     color: colors.ink,
     letterSpacing: -0.3,
@@ -1468,7 +1957,7 @@ const devSt = StyleSheet.create({
     borderRadius: 4,
   },
   name: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 15,
     color: colors.ink,
     letterSpacing: -0.1,
@@ -1505,11 +1994,11 @@ const devSt = StyleSheet.create({
     backgroundColor: colors.muted,
   },
   batPct: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 13,
   },
   lastSynced: {
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 11,
     color: colors.muted,
   },

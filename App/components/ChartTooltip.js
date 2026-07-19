@@ -59,14 +59,14 @@ const st = StyleSheet.create({
     elevation: 6,
   },
   time: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 11,
     color: colors.surface,
     letterSpacing: 0.3,
     marginBottom: 1,
   },
   pct: {
-    fontFamily: 'SpaceGrotesk-Bold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 22,
     color: colors.white,
     letterSpacing: -0.5,
@@ -83,7 +83,7 @@ const st = StyleSheet.create({
     borderRadius: 3.5,
   },
   factorText: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 11,
     color: colors.white,
     flex: 1,

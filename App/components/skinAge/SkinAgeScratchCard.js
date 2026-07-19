@@ -290,7 +290,7 @@ const st = StyleSheet.create({
     gap: 8,
   },
   hintText: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 13,
     color: colors.orangeLight,
     letterSpacing: 0.3,

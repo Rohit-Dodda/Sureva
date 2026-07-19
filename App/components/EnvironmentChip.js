@@ -42,12 +42,12 @@ const st = StyleSheet.create({
     marginBottom: 28,
   },
   text: {
-    fontFamily: 'Inter-Medium',
+    fontFamily: 'Outfit-Regular',
     fontSize: 13,
     color: colors.inkMid,
   },
   value: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     color: colors.orangeDark,
   },
 });

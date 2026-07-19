@@ -39,13 +39,13 @@ const st = StyleSheet.create({
     marginBottom: 12,
   },
   countNumber: {
-    fontFamily: 'SpaceGrotesk-Bold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 30,
     color: colors.ink,
     letterSpacing: -1,
   },
   countLabel: {
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 14,
     color: colors.muted,
   },
@@ -58,13 +58,13 @@ const st = StyleSheet.create({
     borderTopColor: colors.surface,
   },
   alertId: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 13,
     color: colors.ink,
     width: 56,
   },
   alertDetail: {
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 13,
     color: colors.inkMid,
     flex: 1,
@@ -72,7 +72,7 @@ const st = StyleSheet.create({
   },
   alertDetailMissed: {
     color: colors.danger,
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
   },
   ratingBlock: {
     backgroundColor: colors.surface,
@@ -82,7 +82,7 @@ const st = StyleSheet.create({
     marginTop: 12,
   },
   ratingText: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 13,
     color: colors.ink,
     lineHeight: 19,

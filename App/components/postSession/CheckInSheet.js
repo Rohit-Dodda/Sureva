@@ -30,7 +30,7 @@ const QUESTIONS = [
   },
   {
     headline: 'Any feedback for Sureva?',
-    subline: 'Optional — tell us anything about today that we should know.',
+    subline: 'Optional: tell us anything about today that we should know.',
   },
 ];
 
@@ -319,14 +319,14 @@ const st = StyleSheet.create({
     elevation: 8,
   },
   thankYou: {
-    fontFamily: 'SpaceGrotesk-Bold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 26,
     color: colors.ink,
     letterSpacing: -0.6,
     marginTop: 24,
   },
   thankSub: {
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 13,
     color: colors.muted,
     textAlign: 'center',
@@ -338,7 +338,7 @@ const st = StyleSheet.create({
     paddingBottom: 16,
   },
   headerTitle: {
-    fontFamily: 'SpaceGrotesk-Bold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 17,
     color: colors.orange,
     letterSpacing: -0.2,
@@ -368,13 +368,13 @@ const st = StyleSheet.create({
     marginBottom: 10,
   },
   progressLabel: {
-    fontFamily: 'SpaceGrotesk-Bold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 22,
     color: colors.ink,
     letterSpacing: -0.6,
   },
   progressFrac: {
-    fontFamily: 'SpaceGrotesk-Bold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 16,
     color: colors.muted,
   },
@@ -382,7 +382,7 @@ const st = StyleSheet.create({
     color: colors.orange,
   },
   headline: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 17,
     lineHeight: 23,
     color: colors.ink,
@@ -390,7 +390,7 @@ const st = StyleSheet.create({
     marginBottom: 4,
   },
   subline: {
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 12,
     lineHeight: 17,
     color: colors.muted,
@@ -433,7 +433,7 @@ const st = StyleSheet.create({
     shadowOpacity: 0,
   },
   ctaLabel: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 16,
     color: colors.white,
   },
@@ -445,7 +445,7 @@ const st = StyleSheet.create({
     alignSelf: 'center',
   },
   skip: {
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 13,
     color: colors.muted,
   },

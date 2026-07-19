@@ -83,7 +83,7 @@ const st = StyleSheet.create({
     elevation: 8,
   },
   title: {
-    fontFamily: 'SpaceGrotesk-Bold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 21,
     color: colors.ink,
     letterSpacing: -0.5,
@@ -91,7 +91,7 @@ const st = StyleSheet.create({
     textAlign: 'center',
   },
   message: {
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 14,
     color: colors.muted,
     lineHeight: 21,
@@ -109,7 +109,7 @@ const st = StyleSheet.create({
     backgroundColor: colors.danger,
   },
   confirmText: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 16,
     color: colors.white,
     letterSpacing: 0.2,
@@ -121,7 +121,7 @@ const st = StyleSheet.create({
     marginTop: 4,
   },
   cancelText: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 15,
     color: colors.inkMid,
   },

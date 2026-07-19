@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   Text,
+  TextInput,
   TouchableOpacity,
   StyleSheet,
   SafeAreaView,
@@ -12,62 +13,29 @@ import {
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import colors from '../constants/colors';
+import {
+  SKIN_TONES, BURN_OPTIONS, SKIN_TYPES, CONDITIONS_INFO,
+  REFERRAL_SOURCES, REFERRAL_OTHER_ID,
+} from '../constants/onboardingOptions';
 
 const { width } = Dimensions.get('window');
-const TOTAL_STEPS = 5;
+const TOTAL_STEPS = 6;
 
-// ─── Skin tone ────────────────────────────────────────────────
-const SKIN_TONES = [
-  { id: 1, color: '#F3CBA4' },
-  { id: 2, color: '#D4956A' },
-  { id: 3, color: '#BF7A40' },
-  { id: 4, color: '#8B5530' },
-  { id: 5, color: '#7A3E1A' },
-  { id: 6, color: '#2C0D05' },
-];
 const CIRCLE_SIZE = Math.floor((width - 64 - 40) / 3);
 
-// ─── Age ranges ───────────────────────────────────────────────
-const AGE_RANGES = [
-  { id: 0, label: 'Under 12' },
-  { id: 1, label: '12–50' },
-  { id: 2, label: '51–64' },
-  { id: 3, label: '65+' },
-];
-const TRACK_PADDING = 32;
-const TRACK_WIDTH = width - TRACK_PADDING * 2;
-const SEGMENT_WIDTH = TRACK_WIDTH / (AGE_RANGES.length - 1);
-const THUMB_SIZE = 26;
-const TRACK_H = 3;
-const TRACK_CONTAINER_H = 56;
-
-// ─── Burn rate ────────────────────────────────────────────────
-const BURN_OPTIONS = [
-  { id: 'very_fast', label: 'Very quickly',   sub: 'I burn within 15 minutes'   },
-  { id: 'fast',      label: 'Fairly quickly', sub: 'I burn within 30 minutes'   },
-  { id: 'moderate',  label: 'Moderately',     sub: 'I burn after about an hour' },
-  { id: 'rarely',    label: 'Rarely',          sub: 'I barely burn at all'       },
-  { id: 'unsure',    label: "I'm not sure",    sub: null                         },
-];
+// The age step now asks for exact age directly instead of a coarse range
+// slider — this derives the same AGE_RANGES bucket id the depletion engine
+// (ageRangeToGroup) and Skin Age fallback still expect, so nothing
+// downstream needed to change.
+function ageRangeFromExactAge(age) {
+  if (age < 12) return 0;
+  if (age <= 50) return 1;
+  if (age <= 64) return 2;
+  return 3;
+}
 
 // ─── Conditions info content ──────────────────────────────────
-const INFO_CONTENT = {
-  medications: {
-    title: 'Photosensitizing Medications',
-    body: 'These medications increase your skin\'s sensitivity to UV light, meaning you can burn faster and more severely than usual. Sureva uses this to shorten your reapplication intervals and alert you sooner.',
-  },
-  skinCondition: {
-    title: 'Skin Conditions',
-    body: 'Conditions like rosacea, eczema, psoriasis, and lupus make skin more reactive to UV damage. We use this to recommend more protective reapplication intervals and gentler exposure limits.',
-  },
-};
-
-// ─── Skin type ────────────────────────────────────────────────
-const SKIN_TYPES = [
-  { id: 'normal', label: 'Normal' },
-  { id: 'oily',   label: 'Oily'   },
-  { id: 'dry',    label: 'Dry'    },
-];
+const INFO_CONTENT = CONDITIONS_INFO;
 const CARD_GAP = 14;
 const CARD_W = Math.floor((width - 64 - CARD_GAP * 2) / 3);
 
@@ -109,112 +77,24 @@ function SkinToneStep({ value, onChange }) {
 }
 
 // ─── Step 1: age ──────────────────────────────────────────────
-function AgeStep({ value, onChange }) {
-  const hasInteracted = useRef(value !== null);
-  const thumbXVal    = useRef(value !== null ? value * SEGMENT_WIDTH : TRACK_WIDTH / 2);
-  const dragIndex    = useRef(value);
-  const startX       = useRef(thumbXVal.current);
-
-  const thumbX     = useRef(new Animated.Value(thumbXVal.current)).current;
-  const fillOpacity = useRef(new Animated.Value(value !== null ? 1 : 0)).current;
-  const [activeIndex, setActiveIndex] = useState(value);
-
-  const snapTo = (index) => {
-    const clamped = Math.max(0, Math.min(index, AGE_RANGES.length - 1));
-    dragIndex.current  = clamped;
-    thumbXVal.current  = clamped * SEGMENT_WIDTH;
-
-    if (!hasInteracted.current) {
-      hasInteracted.current = true;
-      Animated.timing(fillOpacity, { toValue: 1, duration: 200, useNativeDriver: false }).start();
-    }
-
-    setActiveIndex(clamped);
-    onChange(clamped);
-
-    Animated.spring(thumbX, {
-      toValue: clamped * SEGMENT_WIDTH,
-      tension: 180,
-      friction: 10,
-      useNativeDriver: false,
-    }).start();
-  };
-
-  const panResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder:  () => true,
-      onPanResponderGrant: () => { startX.current = thumbXVal.current; },
-      onPanResponderMove: (_, g) => {
-        const nx = Math.max(0, Math.min(startX.current + g.dx, TRACK_WIDTH));
-        thumbXVal.current = nx;
-        thumbX.setValue(nx);
-        const ni = Math.round(nx / SEGMENT_WIDTH);
-        if (ni !== dragIndex.current) { dragIndex.current = ni; setActiveIndex(ni); }
-        if (!hasInteracted.current) {
-          hasInteracted.current = true;
-          Animated.timing(fillOpacity, { toValue: 1, duration: 200, useNativeDriver: false }).start();
-        }
-      },
-      onPanResponderRelease: () => {
-        snapTo(Math.round(thumbXVal.current / SEGMENT_WIDTH));
-      },
-    })
-  ).current;
-
-  const fillWidth = thumbX.interpolate({
-    inputRange: [0, TRACK_WIDTH], outputRange: [0, TRACK_WIDTH], extrapolate: 'clamp',
-  });
-
-  const trackTop = (TRACK_CONTAINER_H - TRACK_H) / 2;
-  const thumbTop = (TRACK_CONTAINER_H - THUMB_SIZE) / 2;
-
+function AgeStep({ exactAge, onExactAgeChange }) {
   return (
     <View style={shared.stepWrap}>
       <Text style={shared.heading}>How old are you?</Text>
       <Text style={shared.sub}>
         UV sensitivity varies with age. This helps us fine-tune your protection.
       </Text>
-      <View style={ageStyles.sliderWrap}>
-        <View style={[ageStyles.trackContainer, { height: TRACK_CONTAINER_H }]}>
-          <View style={[ageStyles.trackBg, { top: trackTop }]} />
-          <Animated.View style={[ageStyles.trackFill, { top: trackTop, width: fillWidth, opacity: fillOpacity }]} />
-          {AGE_RANGES.map((_, i) => (
-            <TouchableOpacity
-              key={i}
-              style={[ageStyles.tickHit, { left: i * SEGMENT_WIDTH - 16, top: trackTop - 10 }]}
-              onPress={() => snapTo(i)}
-              activeOpacity={0.7}
-            >
-              <View style={[
-                ageStyles.tick,
-                activeIndex !== null && i <= activeIndex ? ageStyles.tickActive : ageStyles.tickInactive,
-              ]} />
-            </TouchableOpacity>
-          ))}
-          <Animated.View
-            style={[
-              ageStyles.thumb,
-              {
-                top: thumbTop,
-                left: -THUMB_SIZE / 2,
-                opacity: hasInteracted.current ? 1 : 0.35,
-                transform: [{ translateX: thumbX }],
-              },
-            ]}
-            {...panResponder.panHandlers}
-          />
-        </View>
-        <View style={ageStyles.labelsRow}>
-          {AGE_RANGES.map((range, i) => (
-            <TouchableOpacity key={i} onPress={() => snapTo(i)} activeOpacity={0.7}>
-              <Text style={[ageStyles.label, activeIndex === i && ageStyles.labelActive]}>
-                {range.label}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-      </View>
+      <TextInput
+        style={ageStyles.exactAgeInput}
+        placeholder="e.g. 27"
+        placeholderTextColor={colors.muted}
+        keyboardType="number-pad"
+        value={exactAge ?? ''}
+        onChangeText={onExactAgeChange}
+        returnKeyType="done"
+        maxLength={3}
+        autoFocus
+      />
     </View>
   );
 }
@@ -535,16 +415,58 @@ function ConditionsStep({ medications, skinCondition, noneSelected, onChangeMeds
   );
 }
 
+// ─── Step 5: referral source ───────────────────────────────────
+// Marketing attribution only — never touches the depletion algorithm —
+// but kept as a required pick like every other step for consistency; the
+// free-text box that "Other" reveals is the only genuinely optional part.
+function ReferralStep({ value, onChange, otherText, onOtherTextChange }) {
+  return (
+    <View style={shared.stepWrap}>
+      <Text style={shared.heading}>Where did you{'\n'}hear about Sureva?</Text>
+      <Text style={shared.sub}>Helps us understand what's working so we can reach more people like you.</Text>
+      <View style={refStyles.wrap}>
+        {REFERRAL_SOURCES.map((opt) => {
+          const selected = value === opt.id;
+          return (
+            <TouchableOpacity
+              key={opt.id}
+              style={[refStyles.chip, selected && refStyles.chipSelected]}
+              onPress={() => onChange(opt.id)}
+              activeOpacity={0.85}
+            >
+              <Text style={[refStyles.chipLabel, selected && refStyles.chipLabelSelected]}>
+                {opt.label}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+      {value === REFERRAL_OTHER_ID && (
+        <TextInput
+          style={refStyles.otherInput}
+          placeholder="Tell us where"
+          placeholderTextColor={colors.muted}
+          value={otherText}
+          onChangeText={onOtherTextChange}
+          autoCorrect={false}
+        />
+      )}
+    </View>
+  );
+}
+
 // ─── Main screen ──────────────────────────────────────────────
 export default function OnboardingScreen({ onBack, onContinue }) {
   const [step,          setStep         ] = useState(0);
   const [skinTone,      setSkinTone     ] = useState(null);
-  const [ageRange,      setAgeRange     ] = useState(null);
+  const [exactAge,      setExactAge     ] = useState('');
   const [skinType,      setSkinType     ] = useState(null);
   const [burnRate,      setBurnRate     ] = useState(null);
   const [medications,   setMedications  ] = useState(false);
   const [skinCondition, setSkinCondition] = useState(false);
   const [noneSelected,  setNoneSelected ] = useState(false);
+  const [referralSource,      setReferralSource     ] = useState(null);
+  const [referralSourceOther, setReferralSourceOther] = useState('');
 
   const contentOpacity   = useRef(new Animated.Value(0)).current;
   const contentTranslate = useRef(new Animated.Value(40)).current;
@@ -576,25 +498,33 @@ export default function OnboardingScreen({ onBack, onContinue }) {
     transition(step - 1, -1);
   };
 
+  const parsedExactAge = parseInt(exactAge, 10);
+
   const canContinue =
     step === 0 ? skinTone !== null :
-    step === 1 ? ageRange !== null :
+    step === 1 ? (exactAge.trim() !== '' && Number.isInteger(parsedExactAge) && parsedExactAge > 0) :
     step === 2 ? skinType !== null :
     step === 3 ? burnRate !== null :
-    medications || skinCondition || noneSelected;
+    step === 4 ? (medications || skinCondition || noneSelected) :
+    referralSource !== null;
 
   const buildAnswers = () => ({
     skinTone,
-    ageRange,
+    ageRange: exactAge.trim() ? ageRangeFromExactAge(parsedExactAge) : null,
+    exactAge: exactAge.trim() ? parsedExactAge : null,
     skinType,
     burnRate: burnRate === 'unsure' ? 'moderate' : burnRate,
     medications,
     skinCondition,
+    referralSource,
+    referralSourceOther: referralSource === REFERRAL_OTHER_ID && referralSourceOther.trim()
+      ? referralSourceOther.trim()
+      : null,
   });
 
   const handleContinue = () => {
     if (!canContinue) return;
-    if (step < 4) { transition(step + 1, 1); return; }
+    if (step < 5) { transition(step + 1, 1); return; }
     onContinue && onContinue(buildAnswers());
   };
 
@@ -639,7 +569,7 @@ export default function OnboardingScreen({ onBack, onContinue }) {
         ]}
       >
         {step === 0 && <SkinToneStep    value={skinTone}     onChange={setSkinTone}      />}
-        {step === 1 && <AgeStep         value={ageRange}     onChange={setAgeRange}      />}
+        {step === 1 && <AgeStep exactAge={exactAge} onExactAgeChange={setExactAge} />}
         {step === 2 && <SkinTypeStep    value={skinType}     onChange={setSkinType}      />}
         {step === 3 && <BurnRateStep    value={burnRate}     onChange={setBurnRate}      />}
         {step === 4 && (
@@ -650,6 +580,14 @@ export default function OnboardingScreen({ onBack, onContinue }) {
             onChangeMeds={setMedications}
             onChangeSkin={setSkinCondition}
             onChangeNone={setNoneSelected}
+          />
+        )}
+        {step === 5 && (
+          <ReferralStep
+            value={referralSource}
+            onChange={setReferralSource}
+            otherText={referralSourceOther}
+            onOtherTextChange={setReferralSourceOther}
           />
         )}
       </Animated.View>
@@ -678,7 +616,7 @@ export default function OnboardingScreen({ onBack, onContinue }) {
 const shared = StyleSheet.create({
   stepWrap: { flex: 1 },
   heading: {
-    fontFamily: 'SpaceGrotesk-Bold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 36,
     color: colors.ink,
     letterSpacing: -1.1,
@@ -686,7 +624,7 @@ const shared = StyleSheet.create({
     marginBottom: 14,
   },
   sub: {
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 16,
     color: colors.muted,
     lineHeight: 24,
@@ -743,62 +681,17 @@ const skinStyles = StyleSheet.create({
   },
 });
 
-// ─── Age slider styles ────────────────────────────────────────
+// ─── Age input styles ─────────────────────────────────────────
 const ageStyles = StyleSheet.create({
-  sliderWrap: {},
-  trackContainer: {
-    position: 'relative',
-    width: TRACK_WIDTH,
-  },
-  trackBg: {
-    position: 'absolute',
-    left: 0, right: 0,
-    height: TRACK_H,
-    borderRadius: 2,
-    backgroundColor: colors.surface,
-  },
-  trackFill: {
-    position: 'absolute',
-    left: 0,
-    height: TRACK_H,
-    borderRadius: 2,
-    backgroundColor: colors.orange,
-  },
-  tickHit: {
-    position: 'absolute',
-    width: 32, height: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  tick: { width: 10, height: 10, borderRadius: 5 },
-  tickActive:   { backgroundColor: colors.orange   },
-  tickInactive: { backgroundColor: colors.border },
-  thumb: {
-    position: 'absolute',
-    width: THUMB_SIZE, height: THUMB_SIZE,
-    borderRadius: THUMB_SIZE / 2,
-    backgroundColor: colors.orange,
-    borderWidth: 3,
-    borderColor: colors.white,
-    shadowColor: colors.orange,
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.35,
-    shadowRadius: 6,
-    elevation: 4,
-  },
-  labelsRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    width: TRACK_WIDTH,
-    marginTop: 14,
-  },
-  label: {
-    fontFamily: 'Inter-Regular',
-    fontSize: 13,
-    color: colors.muted,
-  },
-  labelActive: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+  exactAgeInput: {
+    height: 50,
+    borderRadius: 13,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    backgroundColor: colors.white,
+    paddingHorizontal: 16,
+    fontFamily: 'Outfit-Regular',
+    fontSize: 16,
     color: colors.ink,
   },
 });
@@ -860,7 +753,7 @@ const stStyles = StyleSheet.create({
     backgroundColor: colors.orangeLight + '30',
   },
   label: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 14,
     color: colors.muted,
     marginBottom: 14,
@@ -892,7 +785,7 @@ const burnStyles = StyleSheet.create({
     backgroundColor: colors.orangeLight + '30',
   },
   tileLabel: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 15,
     color: colors.ink,
     marginBottom: 3,
@@ -901,7 +794,7 @@ const burnStyles = StyleSheet.create({
     color: colors.orange,
   },
   tileSub: {
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 13,
     color: colors.muted,
   },
@@ -925,12 +818,12 @@ const burnStyles = StyleSheet.create({
     marginTop: 6,
   },
   unsureLabel: {
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 13,
     color: colors.muted,
   },
   unsureLabelSelected: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     color: colors.orange,
   },
 });
@@ -1019,7 +912,7 @@ const styles = StyleSheet.create({
     elevation: 5,
   },
   continueBtnText: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 17,
     color: colors.muted,
     letterSpacing: 0.2,
@@ -1033,7 +926,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   skipText: {
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 13,
     color: colors.muted,
     letterSpacing: 0.1,
@@ -1084,7 +977,7 @@ const condSt = StyleSheet.create({
     paddingRight: 22,
   },
   rowLabel: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 14,
     color: colors.ink,
   },
@@ -1103,13 +996,13 @@ const condSt = StyleSheet.create({
     justifyContent: 'center',
   },
   infoI: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 9,
     color: colors.muted,
     lineHeight: 11,
   },
   rowSub: {
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 12,
     color: colors.muted,
     lineHeight: 17,
@@ -1151,16 +1044,56 @@ const condSt = StyleSheet.create({
   noneCheckMark: {
     fontSize: 11,
     color: colors.ink,
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     lineHeight: 13,
   },
   noneLabel: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 14,
     color: colors.ink,
   },
   noneLabelSelected: {
     color: colors.white,
+  },
+});
+
+// ─── Referral source styles ────────────────────────────────────
+const refStyles = StyleSheet.create({
+  wrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  chip: {
+    paddingHorizontal: 16,
+    paddingVertical: 11,
+    borderRadius: 22,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+  chipSelected: {
+    borderColor: colors.orange,
+    backgroundColor: colors.orange,
+  },
+  chipLabel: {
+    fontFamily: 'Outfit-Regular',
+    fontSize: 15,
+    color: colors.ink,
+  },
+  chipLabelSelected: {
+    color: colors.white,
+  },
+  otherInput: {
+    marginTop: 20,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    fontFamily: 'Outfit-Regular',
+    fontSize: 15,
+    color: colors.ink,
   },
 });
 
@@ -1197,14 +1130,14 @@ const sheetSt = StyleSheet.create({
     backgroundColor: colors.border,
   },
   title: {
-    fontFamily: 'SpaceGrotesk-Bold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 20,
     color: colors.ink,
     letterSpacing: -0.5,
     marginBottom: 12,
   },
   body: {
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 15,
     color: colors.muted,
     lineHeight: 24,
@@ -1223,7 +1156,7 @@ const sheetSt = StyleSheet.create({
     elevation: 3,
   },
   gotItText: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 16,
     color: colors.white,
   },

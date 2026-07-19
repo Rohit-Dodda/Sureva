@@ -79,7 +79,7 @@ const st = StyleSheet.create({
     marginBottom: 6,
   },
   label: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 13,
     color: colors.muted,
   },
@@ -90,7 +90,7 @@ const st = StyleSheet.create({
     marginTop: 14,
   },
   customLabel: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 13,
     color: colors.inkMid,
     marginBottom: 8,
@@ -103,7 +103,7 @@ const st = StyleSheet.create({
     borderColor: colors.border,
     backgroundColor: colors.white,
     paddingHorizontal: 16,
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 16,
     color: colors.ink,
   },

@@ -1,7 +1,6 @@
 import React, { useMemo, useRef } from 'react';
 import { View, PanResponder } from 'react-native';
 import { Canvas, useFrame } from '@react-three/fiber/native';
-import { ContactShadows } from '@react-three/drei/native';
 import * as THREE from 'three';
 import colors from '../../constants/colors';
 
@@ -451,19 +450,6 @@ function Device3D({
         <spotLight position={[0, 6, 2]} angle={0.5} penumbra={1} intensity={1.2} color="#FFFFFF" />
 
         <DeviceMesh gesture={gesture} spinTrigger={spinTrigger} drag={drag} press={press} />
-
-        {/* Offset to the lower-right so it reads as a directional cast, not a
-            centered horizontal band that looks like a divider above the text. */}
-        <group rotation={[0, 0, -0.32]} position={[0.45, -1.28, 0]}>
-          <ContactShadows
-            scale={1.9}
-            blur={4.5}
-            opacity={0.2}
-            far={1.8}
-            resolution={512}
-            color="#7A4A1E"
-          />
-        </group>
       </Canvas>
     </View>
   );

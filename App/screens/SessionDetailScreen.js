@@ -15,6 +15,10 @@ import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import colors from '../constants/colors';
 import mockData from '../constants/mockData';
+import { useAuth } from '../context/AuthContext';
+import SupabaseService from '../services/SupabaseService';
+import { buildSessionDetail } from '../services/SessionDetailMapper';
+import { engineProfileFor } from '../components/activeSession/sessionMath';
 import SectionCard from '../components/SectionCard';
 import DepletionChart from '../components/DepletionChart';
 import ScoreHero from '../components/sessionDetail/ScoreHero';
@@ -42,6 +46,7 @@ const SPRING = { stiffness: 210, damping: 32, mass: 1, useNativeDriver: true };
 const EASE_OUT = Easing.bezier(0.23, 1, 0.32, 1);
 
 export default function SessionDetailScreen({ session, onBack, scrollKey }) {
+  const { user, userProfile } = useAuth();
   const translateX = useRef(new Animated.Value(SCREEN_WIDTH)).current;
   // The whole screen ignores touches until the entrance finishes, so the
   // opening tap's release (mounted under the finger) can't reach the swipe-back
@@ -52,7 +57,36 @@ export default function SessionDetailScreen({ session, onBack, scrollKey }) {
   const [whatIfVisible, setWhatIfVisible] = useState(false);
   const openWhatIf = useCallback(() => setWhatIfVisible(true), []);
   const closeWhatIf = useCallback(() => setWhatIfVisible(false), []);
-  const detail = mockData.sessionDetails[session.id];
+  // Known mock session ids resolve instantly from mockData; a real session
+  // (a Supabase UUID) has no entry there, so it's fetched + built lazily
+  // below — this is the single seam that makes every screen that opens a
+  // SessionDetailScreen (Home's post-session flow, Last Session card,
+  // History, Passport) work for real data at once, per the service-layer
+  // rule (screens never call Supabase directly).
+  const [detail, setDetail] = useState(mockData.sessionDetails[session.id] ?? null);
+  useEffect(() => {
+    if (mockData.sessionDetails[session.id]) return; // already have it, no fetch needed
+    let cancelled = false;
+    (async () => {
+      try {
+        const [{ data: sessionRow }, { data: historicalRows }] = await Promise.all([
+          SupabaseService.getSessionById(session.id),
+          user?.id ? SupabaseService.getSessions(user.id) : Promise.resolve({ data: [] }),
+        ]);
+        if (cancelled || !sessionRow) return;
+        const profile = engineProfileFor({}, userProfile);
+        const built = buildSessionDetail(
+          sessionRow,
+          profile,
+          (historicalRows ?? []).filter((r) => r.id !== session.id)
+        );
+        setDetail(built);
+      } catch {
+        // Leave detail null — the empty state below already covers this.
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [session.id, user, userProfile]);
   const whatIfData = getSimDataForSession(session.id);
 
   // Own the back gesture while open so the root tab-swipe can't fire underneath
@@ -185,7 +219,9 @@ export default function SessionDetailScreen({ session, onBack, scrollKey }) {
               <SlideInView delay={430}><AlertComplianceCard alerts={detail.alerts} /></SlideInView>
               <SlideInView delay={480}><PatternCard pattern={detail.pattern} /></SlideInView>
               <SlideInView delay={530}><PreventedCard prevented={detail.prevented} /></SlideInView>
-              <SlideInView delay={580}><SurevaTakeCard take={detail.aiTake} /></SlideInView>
+              {detail.aiTake && (
+                <SlideInView delay={580}><SurevaTakeCard take={detail.aiTake} /></SlideInView>
+              )}
               {whatIfData && (
                 <SlideInView delay={630}><WhatIfEntryCard onPress={openWhatIf} /></SlideInView>
               )}
@@ -229,7 +265,7 @@ const st = StyleSheet.create({
     alignItems: 'flex-start',
   },
   headerTitle: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 17,
     color: colors.ink,
     letterSpacing: -0.2,
@@ -243,14 +279,14 @@ const st = StyleSheet.create({
     marginBottom: 20,
   },
   location: {
-    fontFamily: 'SpaceGrotesk-Bold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 28,
     color: colors.ink,
     letterSpacing: -0.8,
     marginBottom: 6,
   },
   envTag: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 11,
     color: colors.orangeDark,
     letterSpacing: 0.8,
@@ -264,12 +300,12 @@ const st = StyleSheet.create({
     marginBottom: 6,
   },
   dateStr: {
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 13,
     color: colors.muted,
   },
   empty: {
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 14,
     color: colors.muted,
     textAlign: 'center',

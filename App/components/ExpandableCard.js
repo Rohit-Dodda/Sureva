@@ -1,6 +1,6 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
-  View, Text, StyleSheet, Animated, LayoutAnimation, Platform, UIManager,
+  View, Text, StyleSheet, LayoutAnimation, Platform, UIManager,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import colors from '../constants/colors';
@@ -37,23 +37,19 @@ export default React.memo(function ExpandableCard({
   glass,
 }) {
   const [open, setOpen] = useState(false);
-  const rotate = useRef(new Animated.Value(0)).current;
   const expandable = Boolean(expandedContent);
 
   const toggle = useCallback(() => {
     if (!expandable) return;
-    const next = !open;
+    // The chevron's rotation rides the same LayoutAnimation spring as the
+    // box's expand/collapse (a plain style change, not a separate Animated
+    // value) so both move on one unified timeline instead of two competing
+    // curves. This also avoids the native-driven-transform-during-
+    // LayoutAnimation combination that crashes Fabric's
+    // LayoutAnimationKeyFrameManager (out-of-bounds Transform::Interpolate).
     LayoutAnimation.configureNext(EXPAND_SPRING);
-    Animated.spring(rotate, {
-      toValue: next ? 1 : 0,
-      useNativeDriver: true,
-      tension: 160,
-      friction: 11,
-    }).start();
-    setOpen(next);
-  }, [expandable, open, rotate]);
-
-  const spin = rotate.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '180deg'] });
+    setOpen(!open);
+  }, [expandable, open]);
 
   return (
     <PressableScale onPress={toggle} scaleTo={0.98} style={[st.card, glass && st.cardGlass, style]}>
@@ -63,9 +59,9 @@ export default React.memo(function ExpandableCard({
         title={title}
         subtitle={subtitle}
         right={expandable ? (
-          <Animated.View style={[st.chevron, { transform: [{ rotate: spin }] }]}>
+          <View style={[st.chevron, { transform: [{ rotate: open ? '180deg' : '0deg' }] }]}>
             <Ionicons name="chevron-down" size={15} color={colors.ink} />
-          </Animated.View>
+          </View>
         ) : null}
       />
       {children}
@@ -132,7 +128,7 @@ const st = StyleSheet.create({
     marginTop: 14,
   },
   linkText: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 13,
     color: colors.orangeDark,
     letterSpacing: 0.1,

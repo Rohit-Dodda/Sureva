@@ -51,7 +51,7 @@ const st = StyleSheet.create({
     backgroundColor: colors.ink,
   },
   spfLabel: {
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 11,
     color: colors.muted,
     letterSpacing: 0.4,
@@ -62,7 +62,7 @@ const st = StyleSheet.create({
     color: colors.surface,
   },
   spfValue: {
-    fontFamily: 'SpaceGrotesk-Bold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 21,
     color: colors.ink,
     letterSpacing: -0.5,
@@ -71,7 +71,7 @@ const st = StyleSheet.create({
     color: colors.white,
   },
   spfNote: {
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 13,
     color: colors.inkMid,
     lineHeight: 19,
@@ -92,7 +92,7 @@ const st = StyleSheet.create({
     marginTop: 2,
   },
   recoText: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 13,
     color: colors.inkMid,
     lineHeight: 19,

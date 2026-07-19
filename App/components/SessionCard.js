@@ -56,7 +56,7 @@ const st = StyleSheet.create({
     marginBottom: 6,
   },
   envTag: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 10,
     color: colors.orangeDark,
     letterSpacing: 0.8,
@@ -68,12 +68,12 @@ const st = StyleSheet.create({
     overflow: 'hidden',
   },
   cardDate: {
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 13,
     color: colors.muted,
   },
   cardLocation: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 20,
     color: colors.ink,
     letterSpacing: -0.5,
@@ -94,7 +94,7 @@ const st = StyleSheet.create({
     paddingVertical: 5,
   },
   pillText: {
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 12,
     color: colors.muted,
   },
@@ -107,7 +107,7 @@ const st = StyleSheet.create({
     justifyContent: 'center',
   },
   scoreText: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 12,
     color: colors.white,
   },

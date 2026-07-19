@@ -45,13 +45,13 @@ const st = StyleSheet.create({
     flex: 1,
   },
   title: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 15,
     color: colors.onDark,
     letterSpacing: -0.1,
   },
   page: {
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 12,
     color: colors.onDarkMuted,
     marginTop: 1,

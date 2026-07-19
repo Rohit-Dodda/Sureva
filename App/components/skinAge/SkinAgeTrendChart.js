@@ -32,7 +32,13 @@ export default React.memo(function SkinAgeTrendChart({ points, realAge, startDat
     const xFor = (i) => (points.length > 1 ? (i / (points.length - 1)) * CHART_W : 0);
     let d = `M ${xFor(0)} ${yFor(points[0].age)}`;
     for (let i = 1; i < points.length; i++) d += ` L ${xFor(i)} ${yFor(points[i].age)}`;
-    return { pathD: d, refY: yFor(realAge), startX: xFor(0) + 1, yFor, xFor };
+    return {
+      pathD: d,
+      refY: yFor(realAge),
+      startX: xFor(0) + 1,
+      yFor,
+      xFor,
+    };
   }, [points, realAge]);
 
   // Scrub state — same pattern as DepletionChart: pageX against the
@@ -187,13 +193,13 @@ const st = StyleSheet.create({
     marginBottom: 4,
   },
   title: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 15,
     color: colors.ink,
     letterSpacing: -0.2,
   },
   trendTag: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 12,
   },
   readoutZone: {
@@ -202,7 +208,7 @@ const st = StyleSheet.create({
     marginBottom: 6,
   },
   hint: {
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 11,
     color: colors.muted,
     textAlign: 'center',
@@ -211,7 +217,7 @@ const st = StyleSheet.create({
     right: 0,
   },
   readout: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 13,
     color: colors.ink,
     textAlign: 'center',
@@ -238,7 +244,7 @@ const st = StyleSheet.create({
   refLabel: {
     position: 'absolute',
     right: 0,
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 10,
     color: colors.muted,
   },
@@ -248,17 +254,17 @@ const st = StyleSheet.create({
     marginTop: 8,
   },
   startLabel: {
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 11,
     color: colors.muted,
   },
   axisLabel: {
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 11,
     color: colors.muted,
   },
   sparseNote: {
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 12,
     color: colors.muted,
     marginTop: 10,

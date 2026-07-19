@@ -111,7 +111,7 @@ const st = StyleSheet.create({
     marginTop: PHRASE_ZONE_OFFSET,
   },
   phrase: {
-    fontFamily: 'Inter-Medium',
+    fontFamily: 'Outfit-Regular',
     fontSize: 15,
     color: colors.inkMid,
     textAlign: 'center',

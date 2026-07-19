@@ -41,6 +41,9 @@ yarn-error.*
 /ios
 /android
 
+# Supabase CLI local state
+supabase/.temp/
+
 # Claude Code tooling (not part of the app)
 /.claude/
 /.agents/

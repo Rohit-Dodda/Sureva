@@ -252,11 +252,20 @@ export default function SessionSetupSheet({ visible, lastSession, onStart, onDis
     setPendingParams(params);
   }, []);
 
+  // Merge in whichever location this sheet-open's own detectEnvironment()
+  // call resolved, regardless of whether the user took the quick-confirm or
+  // full-setup path — neither sub-sheet collects location itself.
   const confirmStart = useCallback(() => {
-    const params = pendingParams;
+    const params = {
+      ...pendingParams,
+      latitude: detection?.status === 'granted' ? detection.latitude : null,
+      longitude: detection?.status === 'granted' ? detection.longitude : null,
+      city: detection?.status === 'granted' ? detection.city : null,
+      region: detection?.status === 'granted' ? detection.region : null,
+    };
     setPendingParams(null);
     onStart(params);
-  }, [pendingParams, onStart]);
+  }, [pendingParams, detection, onStart]);
 
   const sheetTranslate = Animated.add(slideAnim, dragY);
   const overlayOpacity = Animated.multiply(
@@ -306,21 +315,21 @@ export default function SessionSetupSheet({ visible, lastSession, onStart, onDis
 const fst = StyleSheet.create({
   scroll:       { paddingHorizontal: 4, flexShrink: 1 },
   heading: {
-    fontFamily: 'SpaceGrotesk-Bold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 26,
     color: colors.ink,
     letterSpacing: -0.8,
     marginBottom: 8,
   },
   sub: {
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 14,
     color: colors.muted,
     lineHeight: 21,
     marginBottom: 24,
   },
   fieldLabel: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 13,
     color: colors.inkMid,
     marginBottom: 8,
@@ -333,12 +342,12 @@ const fst = StyleSheet.create({
     borderColor: colors.border,
     backgroundColor: colors.white,
     paddingHorizontal: 16,
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 16,
     color: colors.ink,
   },
   helper: {
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 12,
     color: colors.muted,
     marginTop: 6,
@@ -363,7 +372,7 @@ const fst = StyleSheet.create({
     elevation: 0,
   },
   startBtnText: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 17,
     color: colors.white,
     letterSpacing: 0.2,
@@ -379,7 +388,7 @@ const fst = StyleSheet.create({
     marginBottom: 8,
   },
   cancelText: {
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 14,
     color: colors.muted,
   },
@@ -388,7 +397,7 @@ const fst = StyleSheet.create({
 // ─── Quick confirm styles ─────────────────────────────────────
 const qst = StyleSheet.create({
   heading: {
-    fontFamily: 'SpaceGrotesk-Bold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 26,
     color: colors.ink,
     letterSpacing: -0.8,
@@ -403,17 +412,17 @@ const qst = StyleSheet.create({
     marginBottom: 24,
   },
   summaryText: {
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 15,
     color: colors.muted,
     lineHeight: 22,
   },
   summaryBold: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     color: colors.ink,
   },
   summaryQ: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 15,
     color: colors.ink,
     marginTop: 10,
@@ -431,7 +440,7 @@ const qst = StyleSheet.create({
     marginBottom: 10,
   },
   yesBtnText: {
-    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontFamily: 'Outfit-Regular',
     fontSize: 17,
     color: colors.white,
     letterSpacing: 0.2,
@@ -442,7 +451,7 @@ const qst = StyleSheet.create({
     justifyContent: 'center',
   },
   changeBtnText: {
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 14,
     color: colors.inkMid,
   },
@@ -453,7 +462,7 @@ const qst = StyleSheet.create({
     marginBottom: 4,
   },
   cancelText: {
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 13,
     color: colors.muted,
   },

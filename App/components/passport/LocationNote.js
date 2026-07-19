@@ -41,7 +41,7 @@ const st = StyleSheet.create({
   },
   text: {
     flex: 1,
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Outfit-Regular',
     fontSize: 13,
     color: colors.inkMid,
     lineHeight: 18,

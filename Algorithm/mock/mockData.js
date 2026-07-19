@@ -18,6 +18,7 @@ export const mockUserProfile = {
   ageGroup: 'adult',
   skinType: 'oily',
   medicationFlag: false,
+  skinConditionFlag: false,
   devicePlacement: 'shoulder_strap',
   spf: 50,
   waterResistanceRating: 80,
@@ -121,7 +122,8 @@ export function generateMockReadings(profile = mockUserProfile, sessionStartTime
         const { newProtection } = applyWaterEventCut(
           protection,
           eventType,
-          profile.waterResistanceRating
+          profile.waterResistanceRating,
+          prev.activityLevel
         );
         protection = newProtection;
       }
@@ -177,6 +179,7 @@ export const mockCompletedSessions = [
     sweatLoadEstimate: 290,
     longestUnprotectedWindow: 0,
     fastestDepletionMinute: { timestamp: now - 2 * DAY - 2.4 * HOUR, percentageLost: 2.8 },
+    counterfactual: { simulatedMEDDose: 2.1 },
     claudeSummary: null,
   },
   {
@@ -200,6 +203,7 @@ export const mockCompletedSessions = [
     sweatLoadEstimate: 410,
     longestUnprotectedWindow: 0,
     fastestDepletionMinute: { timestamp: now - 5 * DAY - 3.2 * HOUR, percentageLost: 1.4 },
+    counterfactual: { simulatedMEDDose: 0.9 },
     claudeSummary: null,
   },
   {
@@ -226,6 +230,7 @@ export const mockCompletedSessions = [
     sweatLoadEstimate: 380,
     longestUnprotectedWindow: 22,
     fastestDepletionMinute: { timestamp: now - 9 * DAY - 4.1 * HOUR, percentageLost: 3.1 },
+    counterfactual: { simulatedMEDDose: 2.9 },
     claudeSummary: null,
   },
   {
@@ -249,6 +254,7 @@ export const mockCompletedSessions = [
     sweatLoadEstimate: 80,
     longestUnprotectedWindow: 0,
     fastestDepletionMinute: { timestamp: now - 14 * DAY - 4.5 * HOUR, percentageLost: 0.6 },
+    counterfactual: { simulatedMEDDose: 0.4 },
     claudeSummary: null,
   },
   {
@@ -276,6 +282,7 @@ export const mockCompletedSessions = [
     sweatLoadEstimate: 520,
     longestUnprotectedWindow: 44,
     fastestDepletionMinute: { timestamp: now - 20 * DAY - 5.8 * HOUR, percentageLost: 3.6 },
+    counterfactual: { simulatedMEDDose: 3.6 },
     claudeSummary: null,
   },
 ];
