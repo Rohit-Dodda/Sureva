@@ -241,6 +241,76 @@ async function checkEmailExists(email) {
   }
 }
 
+// ── MFA (2FA) ────────────────────────────────────────────────────────
+
+// Step 1 of enabling 2FA: registers a new TOTP factor and returns the QR
+// code (SVG) + secret to show the user. The factor exists but sits
+// "unverified" until verifyMfaEnrollment below succeeds, so an abandoned
+// enrollment never leaves a usable factor behind.
+async function enrollMfa() {
+  try {
+    const { data, error } = await supabase.auth.mfa.enroll({ factorType: 'totp' });
+    if (error) throw error;
+    return { data, error: null };
+  } catch (error) {
+    return { data: null, error };
+  }
+}
+
+// Step 2: proves the user actually scanned the QR and their authenticator
+// app is producing valid codes before the factor counts as active. Also
+// used to re-verify a code typed on MFAChallengeScreen at sign-in — same
+// challenge+verify shape, just against a factor that's already active,
+// which is what raises the session from AAL1 to AAL2.
+async function verifyMfaFactor(factorId, code) {
+  try {
+    const { data: challenge, error: challengeError } = await supabase.auth.mfa.challenge({ factorId });
+    if (challengeError) throw challengeError;
+    const { data, error } = await supabase.auth.mfa.verify({
+      factorId,
+      challengeId: challenge.id,
+      code,
+    });
+    if (error) throw error;
+    return { data, error: null };
+  } catch (error) {
+    return { data: null, error };
+  }
+}
+
+async function unenrollMfa(factorId) {
+  try {
+    const { data, error } = await supabase.auth.mfa.unenroll({ factorId });
+    if (error) throw error;
+    return { data, error: null };
+  } catch (error) {
+    return { data: null, error };
+  }
+}
+
+async function listMfaFactors() {
+  try {
+    const { data, error } = await supabase.auth.mfa.listFactors();
+    if (error) throw error;
+    return { data, error: null };
+  } catch (error) {
+    return { data: null, error };
+  }
+}
+
+// Tells the caller whether the current session still needs to clear an
+// MFA challenge (currentLevel aal1, nextLevel aal2) before it's fully
+// trusted — see AuthContext's mfaPending.
+async function getMfaAssuranceLevel() {
+  try {
+    const { data, error } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+    if (error) throw error;
+    return { data, error: null };
+  } catch (error) {
+    return { data: null, error };
+  }
+}
+
 // ── User profile ────────────────────────────────────────────────────
 
 async function getUserProfile(uid) {
@@ -643,6 +713,11 @@ export default {
   updatePassword,
   updateEmail,
   checkEmailExists,
+  enrollMfa,
+  verifyMfaFactor,
+  unenrollMfa,
+  listMfaFactors,
+  getMfaAssuranceLevel,
   getUserProfile,
   updateUserProfile,
   savePersonalFactor,

@@ -68,6 +68,33 @@ const colors = {
   // card" instead of a solid fill)
   glassDarkBase: 'rgba(15,14,12,0.28)',
   glassDarkBorder: 'rgba(255,255,255,0.14)',
+
+  // Streak tier hues — each tier is a distinct color, not a recolor of orange.
+  // blue (7–49), gold (50–99), pink (100–399), purple (400–599), green (600+).
+  flameBlueStart: '#33E0FF',
+  flameBlue: '#2F80FF',
+  flameBlueEnd: '#2A5BFF',
+  flameGoldStart: '#FFD75E',
+  flameGold: '#F0B429',
+  flameGoldEnd: '#E8981F',
+  flamePinkStart: '#FF83CE',
+  flamePink: '#FF3D9A',
+  flamePinkEnd: '#FF1E7A',
+  flamePurpleStart: '#BE8CFF',
+  flamePurple: '#8A3FFF',
+  flamePurpleEnd: '#6A1FFF',
+  flameGreenStart: '#5AF08F',
+  flameGreen: '#22C55E',
+  flameGreenEnd: '#12A34C',
+
+  // Social brand colors — only used to tint the streak share-sheet icons.
+  brandWhatsapp: '#25D366',
+  brandTelegram: '#229ED9',
+  brandX: '#000000',
+  brandLinkedin: '#0A66C2',
+  brandInstaStart: '#F9A03F',
+  brandInstaMid: '#DB2E7A',
+  brandInstaEnd: '#8A3AB9',
 };
 
 export default colors;

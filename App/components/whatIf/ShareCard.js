@@ -11,7 +11,18 @@ const CHART_H = 120;
 
 // Static image card for sharing: both lines, the headline insight, and
 // the Sureva wordmark. Rendered off-screen and captured with view-shot.
-export default React.memo(function ShareCard({ headline, actualResult, simResult }) {
+// The kicker/labels/strokes default to the What If simulator's framing;
+// the Depletion Lab passes its own ("Your plan" vs "Perfect plan").
+export default React.memo(function ShareCard({
+  headline,
+  actualResult,
+  simResult,
+  kicker = 'SESSION SIMULATOR',
+  labelA = 'Actual',
+  labelB = 'What if',
+  strokeA = colors.onDarkMuted,
+  strokeB = colors.orange,
+}) {
   const actualPath = useMemo(
     () => buildLinePath(actualResult.points, actualResult.durationMinutes, CHART_W, CHART_H),
     [actualResult]
@@ -23,21 +34,21 @@ export default React.memo(function ShareCard({ headline, actualResult, simResult
 
   return (
     <View style={st.card}>
-      <Text style={st.kicker}>SESSION SIMULATOR</Text>
+      <Text style={st.kicker}>{kicker}</Text>
       <Text style={st.headline}>{headline}</Text>
       <Svg width={CHART_W} height={CHART_H} style={st.chart}>
         <Line
           x1="0" y1={yForPct(simResult.alertThreshold, CHART_H)} x2={CHART_W} y2={yForPct(simResult.alertThreshold, CHART_H)}
           stroke={colors.onDarkMuted} strokeWidth="1" strokeDasharray="4,4"
         />
-        <Path d={actualPath} stroke={colors.onDarkMuted} strokeWidth="2" fill="none" strokeLinejoin="round" />
-        <Path d={simPath} stroke={colors.orange} strokeWidth="3" fill="none" strokeLinejoin="round" strokeLinecap="round" />
+        <Path d={actualPath} stroke={strokeA} strokeWidth="2" fill="none" strokeLinejoin="round" />
+        <Path d={simPath} stroke={strokeB} strokeWidth="3" fill="none" strokeLinejoin="round" strokeLinecap="round" />
       </Svg>
       <View style={st.legendRow}>
-        <View style={[st.swatch, { backgroundColor: colors.onDarkMuted }]} />
-        <Text style={st.legendLabel}>Actual</Text>
-        <View style={[st.swatch, { backgroundColor: colors.orange, marginLeft: 12 }]} />
-        <Text style={st.legendLabel}>What if</Text>
+        <View style={[st.swatch, { backgroundColor: strokeA }]} />
+        <Text style={st.legendLabel}>{labelA}</Text>
+        <View style={[st.swatch, { backgroundColor: strokeB, marginLeft: 12 }]} />
+        <Text style={st.legendLabel}>{labelB}</Text>
         <View style={st.spacer} />
         <Text style={st.wordmark}>Sureva</Text>
       </View>

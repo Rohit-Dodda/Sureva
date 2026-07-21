@@ -17,7 +17,7 @@ import colors from '../constants/colors';
 import mockData from '../constants/mockData';
 import { useAuth } from '../context/AuthContext';
 import SupabaseService from '../services/SupabaseService';
-import { buildSessionDetail } from '../services/SessionDetailMapper';
+import { buildSessionDetail, buildWhatIfSimData } from '../services/SessionDetailMapper';
 import { engineProfileFor } from '../components/activeSession/sessionMath';
 import SectionCard from '../components/SectionCard';
 import DepletionChart from '../components/DepletionChart';
@@ -31,8 +31,9 @@ import PreventedCard from '../components/sessionDetail/PreventedCard';
 import SurevaTakeCard from '../components/sessionDetail/SurevaTakeCard';
 import WhatIfEntryCard from '../components/whatIf/WhatIfEntryCard';
 import WhatIfSimulatorScreen from './WhatIfSimulatorScreen';
-// MOCK: raw 30-second readings are synthesized until Week 6 BLE
-// integration; real sessions will carry them on the session document.
+// Mock sessions (mockData.sessionDetails) still resolve their What If
+// inputs from here; real sessions build them from the fetched row instead
+// — see buildWhatIfSimData below.
 import { getSimDataForSession } from '../constants/mockSessionReadings';
 import SlideInView, { IOS_EASE_OUT } from '../components/SlideInView';
 import { useTabSwipeLock } from '../context/SwipeNavContext';
@@ -45,7 +46,7 @@ const SPRING = { stiffness: 210, damping: 32, mass: 1, useNativeDriver: true };
 // Matches the Settings screen's back-button slide-out (timed ease-out, not a spring).
 const EASE_OUT = Easing.bezier(0.23, 1, 0.32, 1);
 
-export default function SessionDetailScreen({ session, onBack, scrollKey }) {
+export default function SessionDetailScreen({ session, onBack, scrollKey, initialRow }) {
   const { user, userProfile } = useAuth();
   const translateX = useRef(new Animated.Value(SCREEN_WIDTH)).current;
   // The whole screen ignores touches until the entrance finishes, so the
@@ -63,31 +64,61 @@ export default function SessionDetailScreen({ session, onBack, scrollKey }) {
   // SessionDetailScreen (Home's post-session flow, Last Session card,
   // History, Passport) work for real data at once, per the service-layer
   // rule (screens never call Supabase directly).
-  const [detail, setDetail] = useState(mockData.sessionDetails[session.id] ?? null);
+  // initialRow (the just-ended session's full readings/events, already in
+  // memory — see HomeScreen's endedSessionRow) lets this build synchronously
+  // on mount, same as the mock-session path: the very first reveal never
+  // depends on a getSessionById round-trip landing before the background
+  // persistence write does (see ActiveSessionScreen's handleEndConfirm).
+  const [detail, setDetail] = useState(() => {
+    if (mockData.sessionDetails[session.id]) return mockData.sessionDetails[session.id];
+    if (initialRow) return buildSessionDetail(initialRow, engineProfileFor({}, userProfile), []);
+    return null;
+  });
+  // Raw joined row (readings + events), kept only for real sessions — needed
+  // to build What If's simulation inputs, which read different fields than
+  // `detail`'s already-narrated breakdown does.
+  const [fetchedRow, setFetchedRow] = useState(initialRow ?? null);
   useEffect(() => {
     if (mockData.sessionDetails[session.id]) return; // already have it, no fetch needed
     let cancelled = false;
     (async () => {
       try {
+        const profile = engineProfileFor({}, userProfile);
+        if (initialRow) {
+          // Already have everything for the main breakdown — only the
+          // Pattern card's historical comparison is worth fetching now.
+          if (!user?.id) return;
+          const { data: historicalRows } = await SupabaseService.getSessions(user.id);
+          if (cancelled) return;
+          const built = buildSessionDetail(
+            initialRow,
+            profile,
+            (historicalRows ?? []).filter((r) => r.id !== session.id)
+          );
+          setDetail(built);
+          return;
+        }
         const [{ data: sessionRow }, { data: historicalRows }] = await Promise.all([
           SupabaseService.getSessionById(session.id),
           user?.id ? SupabaseService.getSessions(user.id) : Promise.resolve({ data: [] }),
         ]);
         if (cancelled || !sessionRow) return;
-        const profile = engineProfileFor({}, userProfile);
         const built = buildSessionDetail(
           sessionRow,
           profile,
           (historicalRows ?? []).filter((r) => r.id !== session.id)
         );
         setDetail(built);
+        setFetchedRow(sessionRow);
       } catch {
         // Leave detail null — the empty state below already covers this.
       }
     })();
     return () => { cancelled = true; };
-  }, [session.id, user, userProfile]);
-  const whatIfData = getSimDataForSession(session.id);
+  }, [session.id, user, userProfile, initialRow]);
+  const whatIfData = mockData.sessionDetails[session.id]
+    ? getSimDataForSession(session.id)
+    : (fetchedRow ? buildWhatIfSimData(fetchedRow, engineProfileFor({}, userProfile)) : null);
 
   // Own the back gesture while open so the root tab-swipe can't fire underneath
   // (a rightward swipe on a tab would otherwise jump to the previous tab).

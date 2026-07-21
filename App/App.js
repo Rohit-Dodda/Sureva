@@ -22,6 +22,7 @@ import SplashIntroScreen from './screens/SplashIntroScreen';
 import AuthScreen from './screens/AuthScreen';
 import CheckEmailScreen from './screens/CheckEmailScreen';
 import SignInScreen from './screens/SignInScreen';
+import MFAChallengeScreen from './screens/MFAChallengeScreen';
 import ForgotPasswordScreen from './screens/ForgotPasswordScreen';
 import ResetPasswordScreen from './screens/ResetPasswordScreen';
 import GetStartedScreen from './screens/GetStartedScreen';
@@ -32,6 +33,7 @@ import HomeScreen from './screens/HomeScreen';
 import ForecastScreen from './screens/ForecastScreen';
 import HistoryScreen from './screens/HistoryScreen';
 import InsightsScreen from './screens/InsightsScreen';
+import StreaksScreen from './screens/StreaksScreen';
 import FloatingTabBar from './components/FloatingTabBar';
 import TabPager from './components/TabPager';
 import { SwipeNavProvider } from './context/SwipeNavContext';
@@ -41,8 +43,9 @@ import { QuickSearchProvider } from './context/QuickSearchContext';
 import QuickSearchOverlay from './components/quickSearch/QuickSearchOverlay';
 import { AppTourProvider } from './context/AppTourContext';
 import TourOverlay from './components/tour/TourOverlay';
+import { StreakProvider } from './context/StreakContext';
 
-const TAB_ORDER = ['home', 'forecast', 'history', 'insights'];
+const TAB_ORDER = ['home', 'forecast', 'history', 'insights', 'streaks'];
 
 function MainAppContent({ onSignOut }) {
   const [activeTab, setActiveTab] = useState('home');
@@ -81,6 +84,7 @@ function MainAppContent({ onSignOut }) {
       { key: 'forecast', render: () => <ForecastScreen /> },
       { key: 'history', render: () => <HistoryScreen isActiveTab={activeTab === 'history'} onNavigateTab={handleTabPress} /> },
       { key: 'insights', render: () => <InsightsScreen isActiveTab={activeTab === 'insights'} /> },
+      { key: 'streaks', render: () => <StreaksScreen isActiveTab={activeTab === 'streaks'} /> },
     ],
     [onSignOut, handleTabPress, activeTab]
   );
@@ -89,17 +93,19 @@ function MainAppContent({ onSignOut }) {
     <SwipeNavProvider lockRef={swipeLockRef}>
       <QuickSearchProvider activeTab={activeTab} setActiveTab={setActiveTab}>
         <AppTourProvider onNavigateTab={setActiveTab}>
-          <View style={appSt.root}>
-            <TabPager
-              tabs={tabs}
-              activeIndex={activeIndex}
-              onIndexChange={handleIndexChange}
-              swipeLockRef={swipeLockRef}
-            />
-            <FloatingTabBar activeTab={activeTab} onTabPress={handleTabPress} />
-            <QuickSearchOverlay />
-            <TourOverlay />
-          </View>
+          <StreakProvider>
+            <View style={appSt.root}>
+              <TabPager
+                tabs={tabs}
+                activeIndex={activeIndex}
+                onIndexChange={handleIndexChange}
+                swipeLockRef={swipeLockRef}
+              />
+              <FloatingTabBar activeTab={activeTab} onTabPress={handleTabPress} />
+              <QuickSearchOverlay />
+              <TourOverlay />
+            </View>
+          </StreakProvider>
         </AppTourProvider>
       </QuickSearchProvider>
     </SwipeNavProvider>
@@ -133,7 +139,7 @@ const FORCE_ONBOARDING_SCREEN_FOR_TESTING = false;
 const FORCE_DEVICE_ONBOARDING_SCREEN_FOR_TESTING = false;
 
 function AppNavigator() {
-  const { user, onboardingComplete, setOnboardingComplete, refreshUserProfile, passwordRecoveryPending } = useAuth();
+  const { user, onboardingComplete, setOnboardingComplete, refreshUserProfile, passwordRecoveryPending, mfaPending } = useAuth();
 
   const [screen, setScreen] = useState('signup');
   const [splashDone, setSplashDone] = useState(false);
@@ -161,6 +167,14 @@ function AppNavigator() {
   // existing, already-onboarded user tapping it should land on setting a
   // new password, not get routed straight into the normal signed-in app.
   if (passwordRecoveryPending) return <ResetPasswordScreen />;
+
+  // A session that exists but hasn't cleared its second factor yet (see
+  // AuthContext's mfaPending) must never fall through to normal signed-in
+  // routing — email/password alone only earns AAL1 when a TOTP factor is
+  // enrolled.
+  if (mfaPending) {
+    return <MFAChallengeScreen onSignOut={async () => { await SupabaseService.signOut(); }} />;
+  }
 
   // ── Signed in ─────────────────────────────────────────────────
   if (user !== null) {

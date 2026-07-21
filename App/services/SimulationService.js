@@ -84,6 +84,7 @@ export function simulateSession({ readings, overrides, userProfile }) {
   const points = [];
   const waterEvents = [];
   const reapplications = [];
+  const scoreReadings = [];
   let alertsFired = 0;
   let firstAlertMinute = null;
   let unprotectedIntervals = 0;
@@ -92,6 +93,7 @@ export function simulateSession({ readings, overrides, userProfile }) {
   for (let i = 0; i < readings.length; i++) {
     const r = readings[i];
     const minute = i * INTERVAL_MINUTES;
+    let alertFiredThisTick = false;
 
     if (!applied && minute >= applicationDelayMinutes) {
       applied = true;
@@ -134,11 +136,22 @@ export function simulateSession({ readings, overrides, userProfile }) {
       // are the same "you need to reapply" event, not a new one.
       if (evaluated.newAlertShouldFire && alertState.level === 1) {
         alertsFired++;
+        alertFiredThisTick = true;
         if (firstAlertMinute == null) firstAlertMinute = minute;
       }
     }
 
     if (protection < UNPROTECTED_THRESHOLD_PCT) unprotectedIntervals++;
+
+    // Minimal reading shape for calculateSessionScore: it only reads
+    // timestamp, protectionPercentage and alertFired. alertFired marks
+    // first-level fires only, matching the alertsFired count above —
+    // escalations of an unanswered alert are the same "reapply" event.
+    scoreReadings.push({
+      timestamp: r.timestamp,
+      protectionPercentage: protection,
+      alertFired: alertFiredThisTick,
+    });
 
     const ambientJoules = (r.uvIndex / MED_CALCULATION.uvIndexIrradianceDivisor) * INTERVAL_SECONDS;
     medJoulesTotal += ambientJoules * transmittedFraction(applied ? protection : 0, spf);
@@ -152,6 +165,8 @@ export function simulateSession({ readings, overrides, userProfile }) {
     points,
     waterEvents,
     reapplications,
+    scoreReadings,
+    reapplicationLog: reapplications.map((rep) => ({ timestamp: startTs + rep.m * 60000 })),
     applicationMinute: applicationDelayMinutes,
     alertThreshold,
     firstAlertMinute,

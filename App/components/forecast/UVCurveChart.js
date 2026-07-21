@@ -35,40 +35,41 @@ export default React.memo(function UVCurveChart({
     const xAt = (i) => (i / (hourly.length - 1)) * plotW;
     const yAt = (uv) => PAD_TOP + (1 - Math.min(uv, UV_MAX) / UV_MAX) * (plotH - PAD_TOP);
 
-    let d = `M ${xAt(0)} ${yAt(hourly[0].uv)}`;
-    for (let i = 1; i < hourly.length; i++) {
+    // The curve is drawn from the once-daily hourly forecast, but "now" uses
+    // a separately-sourced live reading (nowUV) that's often fresher — and
+    // can disagree with what the forecast said for this hour. Splice the
+    // live value into the series at nowIndex before drawing, so the curve
+    // itself passes through the live point instead of the dot floating off
+    // a line that was drawn from a different, stale value at that x.
+    const liveUV = nowIndex != null ? (nowUV != null ? nowUV : hourly[nowIndex].uv) : null;
+    const values = hourly.map((h, i) => (i === nowIndex && liveUV != null ? liveUV : h.uv));
+
+    let d = `M ${xAt(0)} ${yAt(values[0])}`;
+    for (let i = 1; i < values.length; i++) {
       const px = xAt(i - 1);
-      const py = yAt(hourly[i - 1].uv);
+      const py = yAt(values[i - 1]);
       const cx = xAt(i);
-      const cy = yAt(hourly[i].uv);
+      const cy = yAt(values[i]);
       const mx = (px + cx) / 2;
       d += ` Q ${px} ${py} ${mx} ${(py + cy) / 2} T ${cx} ${cy}`;
     }
 
-    // Daily peak (first hour that hits the max UV).
-    const maxUV = Math.max(...hourly.map((h) => h.uv));
-    const peakIdx = hourly.findIndex((h) => h.uv === maxUV);
+    // Daily peak (first hour that hits the max UV), computed on the same
+    // corrected series so it also stays consistent with the drawn curve.
+    const maxUV = Math.max(...values);
+    const peakIdx = values.findIndex((v) => v === maxUV);
 
     const startX = xAt(peakStartIndex);
     const endX = xAt(peakEndIndex);
 
     return {
       line: d,
-      fill: `${d} L ${xAt(hourly.length - 1)} ${plotH} L 0 ${plotH} Z`,
+      fill: `${d} L ${xAt(values.length - 1)} ${plotH} L 0 ${plotH} Z`,
       xAt,
       yAt,
       peakX: startX,
       peakW: endX - startX,
-      now: nowIndex != null
-        // The one live point on the chart: use the fresh nowcast (nowUV) for
-        // both the dot's height and its label so it matches the headline stat,
-        // falling back to the (possibly stale) hourly forecast value only if
-        // no live reading was available.
-        ? (() => {
-            const liveUV = nowUV != null ? nowUV : hourly[nowIndex].uv;
-            return { x: xAt(nowIndex), y: yAt(liveUV), uv: liveUV };
-          })()
-        : null,
+      now: nowIndex != null ? { x: xAt(nowIndex), y: yAt(liveUV), uv: liveUV } : null,
       peak: { x: xAt(peakIdx), y: yAt(maxUV), uv: maxUV },
     };
   }, [hourly, peakStartIndex, peakEndIndex, nowIndex, nowUV, plotW, plotH]);

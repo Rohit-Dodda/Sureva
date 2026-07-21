@@ -24,7 +24,10 @@ import {
 import {
   MED_CALCULATION,
   AGGRESSIVE_MULTIPLIER_THRESHOLD,
+  INTERVAL_MS,
 } from '../../Algorithm/constants/algorithmConstants.js';
+
+const INTERVAL_MINUTES = INTERVAL_MS / 60000;
 
 const DEFAULT_FITZPATRICK = 3;
 
@@ -117,7 +120,7 @@ export function buildSessionHero(row, fitzpatrickType = DEFAULT_FITZPATRICK) {
 // uv/temp/humidity/activity + protection_percentage/depletion_rate) —
 // recomputing them from the same inputs + the user's profile is
 // deterministic and reproducible, and keeps the schema lean.
-function reconstructReadings(readingRows, profile) {
+export function reconstructReadings(readingRows, profile) {
   return [...readingRows]
     .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp))
     .map((r) => {
@@ -513,5 +516,59 @@ export function buildCompletedSessionLike(sessionRow, userProfile) {
     // Only .length is read (the lifetime water-event tally), so the raw
     // event rows are enough — no need to reshape them into cut magnitudes.
     waterEvents: events.filter((e) => e.event_type === 'water_event'),
+  };
+}
+
+// ─── What If simulator: real sessions → SimulationService's input shape ──
+// Mirrors constants/mockSessionReadings.js's per-session shape ({ readings,
+// userProfile, actuals }), built off the same joined session_readings/
+// session_events buildSessionDetail already uses. applicationDelayMinutes
+// has no column yet (no real session has ever recorded when sunscreen
+// actually went on relative to start) so it defaults to 0 — the same
+// fallback SimulationService.overridesFromActuals itself uses. Real water
+// events likewise carry no duration column yet (see reconstructReadings'
+// waterEvent comment above), so the simulator just won't apply a water cut
+// to the "actual" replay for these sessions until BLE data lands — honest,
+// not faked. Returns null when there are no readings to replay, same guard
+// buildSessionDetail/buildCompletedSessionLike use.
+export function buildWhatIfSimData(sessionRow, userProfile) {
+  const readingRows = sessionRow.session_readings ?? [];
+  if (!readingRows.length) return null;
+
+  const profile = {
+    fitzpatrickType: userProfile?.fitzpatrickType ?? DEFAULT_FITZPATRICK,
+    devicePlacement: userProfile?.devicePlacement ?? 'shoulder_strap',
+    skinType: userProfile?.skinType ?? 'normal',
+    personalFactor: userProfile?.personalFactor ?? 1,
+  };
+  const readings = reconstructReadings(readingRows, profile);
+  const startMs = readings[0].timestamp;
+  // SimulationService.simulateSession only ever loops over the readings
+  // array (its own durationMinutes is (readings.length - 1) *
+  // INTERVAL_MINUTES) — a reapplication's own event timestamp isn't
+  // guaranteed to fall inside that span (readings and events are separate
+  // logs during a real session), so clamp rather than let a marker end up
+  // representing a minute the simulation can never actually reach.
+  const maxMinute = Math.max(0, (readings.length - 1) * INTERVAL_MINUTES);
+
+  const reapplicationMinutes = (sessionRow.session_events ?? [])
+    .filter((e) => e.event_type === 'reapplication')
+    .map((e) => {
+      const raw = Math.round((new Date(e.timestamp).getTime() - startMs) / 60000);
+      return Math.min(Math.max(raw, 0), maxMinute);
+    })
+    .sort((a, b) => a - b);
+
+  return {
+    userProfile: profile,
+    actuals: {
+      spf: sessionRow.spf,
+      waterResistanceRating: sessionRow.water_resistance_mins,
+      applicationDelayMinutes: 0,
+      reapplicationMinutes,
+      activityLevel: null,
+      dominantActivity: sessionRow.activity_level ?? 'moderate',
+    },
+    readings,
   };
 }

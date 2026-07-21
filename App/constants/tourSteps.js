@@ -89,4 +89,11 @@ export const MILESTONE_TOURS = {
       text: 'You have logged enough sessions to calculate your Skin Age. Tap here to reveal it.',
     }],
   },
+  streaksFirstVisit: {
+    id: 'streaksFirstVisit',
+    steps: [{
+      target: 'streaksTab',
+      text: 'This is your Streaks tab. Log a session any day — even five minutes in the shade — and the day counts. Keep the chain going and watch it grow.',
+    }],
+  },
 };

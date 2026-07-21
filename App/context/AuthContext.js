@@ -56,6 +56,14 @@ export function AuthProvider({ children }) {
   // normal signed-in/not-signed-in routing, so a recovery session lands
   // on ResetPasswordScreen instead of being treated as a normal sign-in.
   const [passwordRecoveryPending, setPasswordRecoveryPending] = useState(false);
+  // True whenever the session's current AAL (Authenticator Assurance
+  // Level) is behind what a verified 2FA factor requires — signing in
+  // with a correct password still only earns AAL1, so a session with an
+  // enrolled TOTP factor sits here until MFAChallengeScreen raises it to
+  // AAL2. Checked on every auth event (not just fresh sign-ins) since a
+  // cold start can restore a persisted session that never finished its
+  // challenge.
+  const [mfaPending, setMfaPending] = useState(false);
 
   // Cloud-backed so the picture follows the account across devices and
   // reinstalls, not just this one's local storage. Updates the local
@@ -135,6 +143,9 @@ export function AuthProvider({ children }) {
       currentUserIdRef.current = authUser?.id ?? null;
       if (event === 'PASSWORD_RECOVERY') setPasswordRecoveryPending(true);
       if (authUser) {
+        const { data: aal } = await SupabaseService.getMfaAssuranceLevel();
+        setMfaPending(!!aal && aal.nextLevel === 'aal2' && aal.currentLevel !== aal.nextLevel);
+
         let cachedOnboarded = false;
         try {
           cachedOnboarded =
@@ -167,6 +178,7 @@ export function AuthProvider({ children }) {
         setUserProfile(null);
         setProfileImageState(null);
         setPasswordRecoveryPending(false);
+        setMfaPending(false);
       }
       setUser(authUser);
     });
@@ -205,6 +217,7 @@ export function AuthProvider({ children }) {
       user, onboardingComplete, setOnboardingComplete, userProfile, profileImage, setProfileImage,
       updateProfileName, updateProfileFields, refreshUserProfile,
       passwordRecoveryPending, clearPasswordRecoveryPending: () => setPasswordRecoveryPending(false),
+      mfaPending, clearMfaPending: () => setMfaPending(false),
     }}>
       {children}
     </AuthContext.Provider>

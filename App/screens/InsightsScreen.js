@@ -29,10 +29,15 @@ import SurevaTakeCard from '../components/sessionDetail/SurevaTakeCard';
 import ExportReportSheet from '../components/insights/ExportReportSheet';
 import PressableScale from '../components/PressableScale';
 import RevealSkinAgeButton from '../components/skinAge/RevealSkinAgeButton';
+import SunRecapEntry from '../components/sunRecap/SunRecapEntry';
 import SessionLockCard from '../components/SessionLockCard';
 import SkinAgeScreen from './SkinAgeScreen';
 import { useScrollToTop } from '../context/ScrollToTopContext';
 import { useRegisterOpener } from '../context/QuickSearchContext';
+
+// Sun Recap is mid-redesign — hidden from Insights until that work resumes.
+// Flip to true to bring the entry card (and its auto-trigger check) back.
+const SUN_RECAP_ENABLED = false;
 
 export default function InsightsScreen({ isActiveTab }) {
   const { user, userProfile } = useAuth();
@@ -169,7 +174,12 @@ export default function InsightsScreen({ isActiveTab }) {
   return (
     <SafeAreaView style={st.safe}>
       <StatusBar style="dark" />
-      <ScrollView ref={scrollRef} contentContainerStyle={st.scroll} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        ref={scrollRef}
+        style={st.scrollFlex}
+        contentContainerStyle={[st.scroll, isLocked && st.scrollLocked]}
+        showsVerticalScrollIndicator={false}
+      >
         <View style={st.hero}>
           <View style={st.heroRow}>
             <Text style={st.title}>Insights</Text>
@@ -189,13 +199,20 @@ export default function InsightsScreen({ isActiveTab }) {
           </Text>
         </View>
 
+        {/* Sun Recap lives above the insights lock — it's its own periodic
+            artifact, not gated on the session threshold. Paused mid-redesign —
+            flip SUN_RECAP_ENABLED back on to resume. */}
+        {SUN_RECAP_ENABLED && <SunRecapEntry />}
+
         {isLocked ? (
-          <SessionLockCard
-            totalSessions={totalSessions}
-            threshold={SESSION_THRESHOLD}
-            title={`Complete ${SESSION_THRESHOLD} sessions to unlock your Insights`}
-            description={`Sureva learns your skin with every session. Your personal insights and Skin Age unlock after ${SESSION_THRESHOLD} sessions. You have ${totalSessions} so far.`}
-          />
+          <View style={st.lockCenterWrap}>
+            <SessionLockCard
+              totalSessions={totalSessions}
+              threshold={SESSION_THRESHOLD}
+              title={`Complete ${SESSION_THRESHOLD} sessions to unlock your Insights`}
+              description={`Sureva learns your skin with every session. Your personal insights and Skin Age unlock after ${SESSION_THRESHOLD} sessions. You have ${totalSessions} so far.`}
+            />
+          </View>
         ) : (
           <>
             <View ref={revealButtonTourRef}>
@@ -214,7 +231,13 @@ export default function InsightsScreen({ isActiveTab }) {
           </>
         )}
       </ScrollView>
-      <ExportReportSheet visible={exportVisible} onDismiss={closeExport} />
+      <ExportReportSheet
+        visible={exportVisible}
+        onDismiss={closeExport}
+        isLocked={isLocked}
+        totalSessions={totalSessions}
+        threshold={SESSION_THRESHOLD}
+      />
 
       {/* Skin Age — full-screen push over Insights */}
       {skinAgeOpen && (
@@ -231,10 +254,23 @@ const st = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.canvas,
   },
+  scrollFlex: {
+    flex: 1,
+  },
   scroll: {
     paddingHorizontal: 20,
     paddingTop: 24,
     paddingBottom: 130,
+  },
+  // Only applied while locked — grows the content area to fill the
+  // screen so lockCenterWrap below has real space to center within,
+  // instead of the card just hugging the top under the hero.
+  scrollLocked: {
+    flexGrow: 1,
+  },
+  lockCenterWrap: {
+    flex: 1,
+    justifyContent: 'center',
   },
   hero: {
     marginBottom: 22,

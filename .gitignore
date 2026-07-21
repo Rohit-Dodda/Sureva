@@ -50,3 +50,6 @@ supabase/.temp/
 /.graphify/
 /videos/
 /skills-lock.json
+
+# Screen recordings (large binaries, not code)
+*.mov

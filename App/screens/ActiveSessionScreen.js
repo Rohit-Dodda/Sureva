@@ -417,6 +417,7 @@ export default function ActiveSessionScreen({ sessionParams, elapsed, onBack, on
     const completedSession = SessionEngine.endSession();
     const tooShortToSave = elapsed < MIN_SESSION_SECONDS_TO_SAVE;
     let heroSession = null;
+    let sessionDetailRow = null;
     if (completedSession && !tooShortToSave) {
       const updateFields = buildSessionUpdateFields(completedSession);
       // Reuses buildSessionHero's date/duration/location formatting by
@@ -436,6 +437,19 @@ export default function ActiveSessionScreen({ sessionParams, elapsed, onBack, on
       };
       const fitzpatrickType = engineProfileFor(sessionParams, userProfile).fitzpatrickType;
       heroSession = buildSessionHero(mergedRow, fitzpatrickType);
+      // The full joined-row shape SessionDetailScreen would otherwise only
+      // get from a getSessionById round-trip — built here from data already
+      // in memory so the very first detail reveal never has to race the
+      // background persistence below. Without this, a slow network means
+      // the detail screen's own fetch can run before updateSession/
+      // insertSessionReadings have landed, finding an incomplete row (no
+      // readings joined yet) and showing "no details available" until the
+      // user backs out and back in, by which point the write has finished.
+      sessionDetailRow = {
+        ...mergedRow,
+        session_readings: buildSessionReadingRows(completedSession),
+        session_events: buildSessionEventRows(completedSession),
+      };
 
       // Persist in the background — the post-session flow (sync screen →
       // detail reveal) proceeds immediately below regardless of network
@@ -495,7 +509,7 @@ export default function ActiveSessionScreen({ sessionParams, elapsed, onBack, on
       }
     }
 
-    onSessionEnd({ elapsed, sessionParams, reapplyEvents, session: heroSession, discarded: tooShortToSave });
+    onSessionEnd({ elapsed, sessionParams, reapplyEvents, session: heroSession, sessionDetailRow, discarded: tooShortToSave });
   }, [elapsed, sessionParams, reapplyEvents, onSessionEnd, userProfile, protectionPct]);
 
   const statTiles = [

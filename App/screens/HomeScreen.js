@@ -31,6 +31,8 @@ import SettingsScreen from './SettingsScreen';
 import SessionDetailScreen from './SessionDetailScreen';
 import SessionSyncScreen from './SessionSyncScreen';
 import CheckInSheet from '../components/postSession/CheckInSheet';
+import StreakRevealOverlay from '../components/streaks/StreakRevealOverlay';
+import { useStreak } from '../context/StreakContext';
 import { setActiveSessionOpener } from '../services/NotificationService';
 import TrendsScreen from './TrendsScreen';
 import { useScrollToTop } from '../context/ScrollToTopContext';
@@ -429,7 +431,7 @@ const LastSessionCard = React.memo(function LastSessionCard({ session, detail, o
       onLinkPress={onOpenDetail}
       expandedContent={
         <View>
-          <Text style={exSt.verdict}>“{detail.verdict}”</Text>
+          <Text style={exSt.verdict}>{detail.verdict}</Text>
           <View style={exSt.kvRow}>
             <Text style={exSt.kvLabel}>Peak UV</Text>
             <View style={lsSt.peakBadge}>
@@ -449,19 +451,25 @@ const LastSessionCard = React.memo(function LastSessionCard({ session, detail, o
       }
     >
       <View style={lsSt.statsRow}>
-        <View style={lsSt.stat}>
-          <Text style={lsSt.statVal}>{session.duration}</Text>
-          <Text style={lsSt.statLabel}>DURATION</Text>
+        <View style={[lsSt.stat, lsSt.statLeft]}>
+          <View style={lsSt.statInner}>
+            <Text style={lsSt.statVal}>{session.duration}</Text>
+            <Text style={lsSt.statLabel}>DURATION</Text>
+          </View>
         </View>
-        <View style={lsSt.statDivider} />
-        <View style={lsSt.stat}>
-          <Text style={[lsSt.statVal, lsSt.statValAccent]}>{session.score}</Text>
-          <Text style={lsSt.statLabel}>SCORE</Text>
+        <View style={[lsSt.statDivider, lsSt.statDividerLeft]} />
+        <View style={[lsSt.stat, lsSt.statCenter]}>
+          <View style={lsSt.statInner}>
+            <Text style={[lsSt.statVal, lsSt.statValAccent]}>{session.score}</Text>
+            <Text style={lsSt.statLabel}>SCORE</Text>
+          </View>
         </View>
-        <View style={lsSt.statDivider} />
-        <View style={lsSt.stat}>
-          <Text style={lsSt.statVal}>SPF {session.spf}</Text>
-          <Text style={lsSt.statLabel}>{session.environment}</Text>
+        <View style={[lsSt.statDivider, lsSt.statDividerRight]} />
+        <View style={[lsSt.stat, lsSt.statRight]}>
+          <View style={lsSt.statInner}>
+            <Text style={lsSt.statVal}>SPF {session.spf}</Text>
+            <Text style={lsSt.statLabel}>{session.environment}</Text>
+          </View>
         </View>
       </View>
     </ExpandableCard>
@@ -1347,7 +1355,21 @@ export default function HomeScreen({ onSignOut, onNavigateTab, isActiveTab }) {
   // onSessionEnd payload) — null when persistence failed or hasn't
   // resolved, in which case the post-session flow falls back to lastFull.
   const [endedSession, setEndedSession] = useState(null);
+  // The just-ended session's full joined-row shape (readings + events),
+  // already built in memory by ActiveSessionScreen — lets the detail reveal
+  // below skip its own getSessionById fetch entirely, so it never races the
+  // background persistence write (see handleEndConfirm's comment).
+  const [endedSessionRow, setEndedSessionRow] = useState(null);
   const [checkInVisible, setCheckInVisible] = useState(false);
+  // The post-check-in streak reveal: { count, tierKey } while showing, else
+  // null. Fed from the shared StreakContext, which has already refreshed off
+  // the just-saved session by the time the check-in is dismissed.
+  const [streakReveal, setStreakReveal] = useState(null);
+  const { streak, refresh: refreshStreak } = useStreak();
+  // Read the latest streak from a ref inside dismissCheckIn so the callback
+  // never captures a stale value without needing streak in its deps.
+  const streakRef = useRef(streak);
+  streakRef.current = streak;
   // The prior session's Q1 check-in answer, for CheckInSheet's "went out
   // while recovering from irritation" pattern detection. Fetched once the
   // post-session flow starts so it's ready by the time the sheet opens.
@@ -1356,7 +1378,9 @@ export default function HomeScreen({ onSignOut, onNavigateTab, isActiveTab }) {
   useEffect(() => () => clearTimeout(checkInTimer.current), []);
   // The floating tab bar would sit on top of the sync screen and the
   // check-in sheet's buttons — hide it for the whole flow.
-  useHideTabBar(!!postFlow);
+  // Also hide it during the streak reveal — the floating bar (rendered above
+  // this screen from App.js) would otherwise cover the share sheet.
+  useHideTabBar(!!postFlow || !!streakReveal);
 
   const handleSessionEnd = useCallback((payload) => {
     setActiveSession(null);
@@ -1368,6 +1392,7 @@ export default function HomeScreen({ onSignOut, onNavigateTab, isActiveTab }) {
     if (payload?.discarded) return;
     const session = payload?.session ?? null;
     setEndedSession(session);
+    setEndedSessionRow(payload?.sessionDetailRow ?? null);
     setPostFlow('syncing');
     setPreviousSkinFeelAfter(null);
     if (user?.id) {
@@ -1381,7 +1406,8 @@ export default function HomeScreen({ onSignOut, onNavigateTab, isActiveTab }) {
     setPostFlow('detail');
     checkInTimer.current = setTimeout(() => setCheckInVisible(true), 1000);
     loadHomeData(); // refresh Last Session + the three stat cards with what just ended
-  }, [loadHomeData]);
+    refreshStreak(); // and the streak, so the reveal below reads the new day
+  }, [loadHomeData, refreshStreak]);
 
   const closePostDetail = useCallback(() => {
     clearTimeout(checkInTimer.current);
@@ -1389,7 +1415,26 @@ export default function HomeScreen({ onSignOut, onNavigateTab, isActiveTab }) {
     setPostFlow(null);
   }, []);
 
-  const dismissCheckIn = useCallback(() => setCheckInVisible(false), []);
+  // Both paths out of CheckInSheet (skip and submit) converge here. Extend it
+  // — don't fork it — to fire the streak reveal when the just-ended session
+  // actually started or extended the streak. sessionsToday <= 1 means this was
+  // the streak-defining session today (not a same-day repeat), so a second
+  // session on an already-counted day doesn't re-nag.
+  const dismissCheckIn = useCallback(() => {
+    setCheckInVisible(false);
+    const s = streakRef.current;
+    if (s && s.todayLogged && s.currentStreak >= 1 && s.sessionsToday <= 1) {
+      setStreakReveal({ count: s.currentStreak, tierKey: s.tier });
+    }
+  }, []);
+
+  // Tapping the reveal (or its auto-advance) lands on the Streaks tab via the
+  // app's existing tab-switch handler — a tab switch, not a stack push.
+  const onStreakRevealDone = useCallback(() => {
+    setStreakReveal(null);
+    closePostDetail();
+    onNavigateTab?.('streaks');
+  }, [closePostDetail, onNavigateTab]);
 
   const openLastDetail  = useCallback(() => setDetailVisible(true), []);
   const closeLastDetail = useCallback(() => setDetailVisible(false), []);
@@ -1574,7 +1619,12 @@ export default function HomeScreen({ onSignOut, onNavigateTab, isActiveTab }) {
           {/* Real just-ended session when persistence succeeded; falls back
               to the latest known session (mock, for a brand-new user with
               no real sessions yet) only if it didn't. */}
-          <SessionDetailScreen session={endedSession ?? lastFull} onBack={closePostDetail} scrollKey="home" />
+          <SessionDetailScreen
+            session={endedSession ?? lastFull}
+            onBack={closePostDetail}
+            scrollKey="home"
+            initialRow={endedSession ? endedSessionRow : null}
+          />
           {checkInVisible && (
             <CheckInSheet
               session={endedSession ?? lastFull}
@@ -1584,6 +1634,15 @@ export default function HomeScreen({ onSignOut, onNavigateTab, isActiveTab }) {
           )}
           {postFlow === 'syncing' && <SessionSyncScreen onComplete={handleSyncComplete} />}
         </View>
+      )}
+
+      {/* ── Post-check-in streak reveal (sits above everything) ── */}
+      {streakReveal && (
+        <StreakRevealOverlay
+          count={streakReveal.count}
+          tierKey={streakReveal.tierKey}
+          onDone={onStreakRevealDone}
+        />
       )}
     </View>
   );
@@ -1788,31 +1847,70 @@ const lsSt = StyleSheet.create({
   statsRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
+    width: '100%',
+    position: 'relative',
+    paddingHorizontal: 22,
   },
   stat: {
     flex: 1,
+    flexBasis: 0,
+    justifyContent: 'center',
+  },
+  statLeft: {
+    alignItems: 'flex-start',
+  },
+  // Absolutely centered across the full row so the score sits at the true
+  // card center regardless of the left/right column widths or dividers.
+  statCenter: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
     alignItems: 'center',
-    gap: 4,
+  },
+  statRight: {
+    alignItems: 'flex-end',
+  },
+  // Value sits centered over its own label word, independent of how the
+  // column block is aligned within the row.
+  statInner: {
+    alignItems: 'center',
   },
   statVal: {
     fontFamily: 'Outfit-Regular',
     fontSize: 18,
     color: colors.ink,
     letterSpacing: -0.3,
+    textAlign: 'center',
   },
   statValAccent: {
     color: colors.orange,
   },
   statLabel: {
+    marginTop: 4,
     fontFamily: 'Outfit-Regular',
     fontSize: 10,
     color: colors.muted,
     letterSpacing: 1,
+    textAlign: 'center',
   },
   statDivider: {
+    position: 'absolute',
+    top: '50%',
+    marginTop: -17,
     width: 1,
     height: 34,
     backgroundColor: colors.border,
+  },
+  // Symmetric separators sitting between the left/center and center/right
+  // blocks (the score is absolutely centered, so these are placed by hand).
+  statDividerLeft: {
+    left: '38%',
+  },
+  statDividerRight: {
+    right: '38%',
   },
   peakBadge: {
     flexDirection: 'row',

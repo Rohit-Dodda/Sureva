@@ -8,6 +8,7 @@ import colors from '../../constants/colors';
 import { generateReport } from '../../services/ReportService';
 import { useAuth } from '../../context/AuthContext';
 import ReportPreviewModal from './ReportPreviewModal';
+import SessionLockCard from '../SessionLockCard';
 
 const { height: SCREEN_H } = Dimensions.get('window');
 
@@ -22,7 +23,7 @@ const CONTENTS = [
   { icon: 'code-slash-outline', label: 'Structured data', detail: 'Machine-readable, for a doctor’s tool or another AI' },
 ];
 
-export default function ExportReportSheet({ visible, onDismiss }) {
+export default function ExportReportSheet({ visible, onDismiss, isLocked, totalSessions, threshold = 10 }) {
   const { user } = useAuth();
   const [generating, setGenerating] = useState(false);
   const [previewUri, setPreviewUri] = useState(null);
@@ -108,58 +109,75 @@ export default function ExportReportSheet({ visible, onDismiss }) {
             <View style={st.handle} />
           </View>
 
-          <Text style={st.heading}>Your Sun Profile</Text>
-          <Text style={st.sub}>One PDF with everything Sureva knows about you — your skin, trends, patterns, and what helps most. Yours to keep or share.</Text>
+          {isLocked ? (
+            <>
+              <Text style={st.heading}>Your Sun Profile</Text>
+              <SessionLockCard
+                totalSessions={totalSessions}
+                threshold={threshold}
+                title={`Complete ${threshold} sessions to export`}
+                description={`Sureva needs at least ${threshold} sessions to build a profile worth exporting. You have ${totalSessions ?? 0} so far.`}
+              />
+              <TouchableOpacity style={st.cancelBtn} onPress={close} activeOpacity={0.6}>
+                <Text style={st.cancelText}>Close</Text>
+              </TouchableOpacity>
+            </>
+          ) : (
+            <>
+              <Text style={st.heading}>Your Sun Profile</Text>
+              <Text style={st.sub}>One PDF with everything Sureva knows about you — your skin, trends, patterns, and what helps most. Yours to keep or share.</Text>
 
-          <Text style={st.fieldLabel}>What's inside</Text>
-          <ScrollView
-            style={st.scrollArea}
-            contentContainerStyle={st.scrollContent}
-            showsVerticalScrollIndicator={false}
-            bounces={false}
-          >
-            <View style={st.contentsList}>
-              {CONTENTS.map((c, idx) => (
-                <View key={c.label} style={[st.contentRow, idx < CONTENTS.length - 1 && st.contentRowBorder]}>
-                  <View style={st.contentIcon}>
-                    <Ionicons name={c.icon} size={17} color={colors.orangeDark} />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={st.contentLabel}>{c.label}</Text>
-                    <Text style={st.contentDetail}>{c.detail}</Text>
-                  </View>
+              <Text style={st.fieldLabel}>What's inside</Text>
+              <ScrollView
+                style={st.scrollArea}
+                contentContainerStyle={st.scrollContent}
+                showsVerticalScrollIndicator={false}
+                bounces={false}
+              >
+                <View style={st.contentsList}>
+                  {CONTENTS.map((c, idx) => (
+                    <View key={c.label} style={[st.contentRow, idx < CONTENTS.length - 1 && st.contentRowBorder]}>
+                      <View style={st.contentIcon}>
+                        <Ionicons name={c.icon} size={17} color={colors.orangeDark} />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={st.contentLabel}>{c.label}</Text>
+                        <Text style={st.contentDetail}>{c.detail}</Text>
+                      </View>
+                    </View>
+                  ))}
                 </View>
-              ))}
-            </View>
-          </ScrollView>
+              </ScrollView>
 
-          <View style={st.toggleRow}>
-            <View style={{ flex: 1 }}>
-              <Text style={st.toggleLabel}>Include full session-by-session log</Text>
-              <Text style={st.toggleDetail}>Every session, not just your best & hardest — makes the PDF longer.</Text>
-            </View>
-            <Switch
-              value={includeFullLog}
-              onValueChange={setIncludeFullLog}
-              trackColor={{ false: colors.border, true: colors.orangeLight }}
-              thumbColor={includeFullLog ? colors.orange : colors.white}
-            />
-          </View>
+              <View style={st.toggleRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={st.toggleLabel}>Include full session-by-session log</Text>
+                  <Text style={st.toggleDetail}>Every session, not just your best & hardest — makes the PDF longer.</Text>
+                </View>
+                <Switch
+                  value={includeFullLog}
+                  onValueChange={setIncludeFullLog}
+                  trackColor={{ false: colors.border, true: colors.orangeLight }}
+                  thumbColor={includeFullLog ? colors.orange : colors.white}
+                />
+              </View>
 
-          <TouchableOpacity
-            style={[st.generateBtn, generating && st.generateBtnDisabled]}
-            onPress={handleGenerate}
-            activeOpacity={0.85}
-          >
-            {generating ? (
-              <ActivityIndicator color={colors.white} />
-            ) : (
-              <Text style={st.generateBtnText}>Generate Profile</Text>
-            )}
-          </TouchableOpacity>
-          <TouchableOpacity style={st.cancelBtn} onPress={close} activeOpacity={0.6}>
-            <Text style={st.cancelText}>Cancel</Text>
-          </TouchableOpacity>
+              <TouchableOpacity
+                style={[st.generateBtn, generating && st.generateBtnDisabled]}
+                onPress={handleGenerate}
+                activeOpacity={0.85}
+              >
+                {generating ? (
+                  <ActivityIndicator color={colors.white} />
+                ) : (
+                  <Text style={st.generateBtnText}>Generate Profile</Text>
+                )}
+              </TouchableOpacity>
+              <TouchableOpacity style={st.cancelBtn} onPress={close} activeOpacity={0.6}>
+                <Text style={st.cancelText}>Cancel</Text>
+              </TouchableOpacity>
+            </>
+          )}
         </Animated.View>
       </View>
       <ReportPreviewModal visible={!!previewUri} uri={previewUri} onDismiss={closePreview} />

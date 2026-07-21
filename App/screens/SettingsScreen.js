@@ -16,6 +16,7 @@ import AboutSurevaScreen from './AboutSurevaScreen';
 import NotificationSettingsScreen from './NotificationSettingsScreen';
 import EditSkinProfileScreen from './EditSkinProfileScreen';
 import ConfirmDialog from '../components/ConfirmDialog';
+import TwoFactorAuthModal from '../components/TwoFactorAuthModal';
 import { useAppTour } from '../context/AppTourContext';
 import { WELCOME_TOUR_ID, WELCOME_TOUR_STEPS } from '../constants/tourSteps';
 
@@ -81,6 +82,7 @@ export default function SettingsScreen({ visible, onClose, onSignOut }) {
   const [notificationSettingsVisible, setNotificationSettingsVisible] = useState(false);
   const openNotificationSettings = useCallback(() => setNotificationSettingsVisible(true), []);
   const [editSkinProfileVisible, setEditSkinProfileVisible] = useState(false);
+  const [twoFactorVisible, setTwoFactorVisible] = useState(false);
   const [confirmDeleteVisible, setConfirmDeleteVisible] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [exporting, setExporting] = useState(false);
@@ -93,6 +95,14 @@ export default function SettingsScreen({ visible, onClose, onSignOut }) {
     onClose();
     setTimeout(() => restartTour(WELCOME_TOUR_ID, WELCOME_TOUR_STEPS), 450);
   }, [onClose, restartTour]);
+
+  // Face ID/Touch ID/passcode gate before the 2FA setup/disable flow ever
+  // appears — same treatment as Change Password, since turning 2FA off
+  // is at least as sensitive as changing the password itself.
+  const openTwoFactorAuth = useCallback(async () => {
+    const authenticated = await authenticateWithDevice('Confirm it’s you to manage two-factor authentication');
+    if (authenticated) setTwoFactorVisible(true);
+  }, []);
 
   const [confirmFinalVisible, setConfirmFinalVisible] = useState(false);
 
@@ -273,6 +283,16 @@ export default function SettingsScreen({ visible, onClose, onSignOut }) {
               <View style={st.card}>
                 <SettingsRow label="Notifications" isLast onPress={openNotificationSettings} />
               </View>
+
+              <Text style={st.sectionHeading}>SECURITY</Text>
+              <View style={st.card}>
+                <SettingsRow
+                  label="Two-Factor Authentication"
+                  sublabel="Protect your account with an authenticator app"
+                  isLast
+                  onPress={openTwoFactorAuth}
+                />
+              </View>
             </Animated.View>
 
             <Animated.View style={{ opacity: fade2, transform: [{ translateY: slide2 }] }}>
@@ -367,6 +387,11 @@ export default function SettingsScreen({ visible, onClose, onSignOut }) {
       <EditSkinProfileScreen
         visible={editSkinProfileVisible}
         onClose={() => setEditSkinProfileVisible(false)}
+      />
+
+      <TwoFactorAuthModal
+        visible={twoFactorVisible}
+        onClose={() => setTwoFactorVisible(false)}
       />
 
       {/* AboutSurevaScreen slides over settings within the same Modal */}

@@ -13,6 +13,8 @@ import CleanGlassSurface from '../components/CleanGlassSurface';
 import SlideInView from '../components/SlideInView';
 import UVCurveChart from '../components/forecast/UVCurveChart';
 import WeekForecastStrip from '../components/forecast/WeekForecastStrip';
+import PressableScale from '../components/PressableScale';
+import DepletionLabScreen from './DepletionLabScreen';
 import { useScrollToTop } from '../context/ScrollToTopContext';
 
 function currentHourLabel() {
@@ -164,6 +166,24 @@ const WeekCard = React.memo(function WeekCard({ week }) {
   );
 });
 
+// ─── Depletion Lab entry ──────────────────────────────────────
+const DepletionLabCard = React.memo(function DepletionLabCard({ onOpen }) {
+  return (
+    <PressableScale onPress={onOpen} scaleTo={0.98} style={st.labCard}>
+      <View style={st.labIcon}>
+        <Ionicons name="flask" size={20} color={colors.orange} />
+      </View>
+      <View style={st.labTextWrap}>
+        <Text style={st.labTitle}>Depletion Lab</Text>
+        <Text style={st.labLine}>
+          Test any conditions before you face them — run a simulated session and learn exactly when you'd need to reapply.
+        </Text>
+      </View>
+      <Ionicons name="arrow-forward" size={18} color={colors.onDarkMuted} />
+    </PressableScale>
+  );
+});
+
 // ─── Condition Alert ──────────────────────────────────────────
 const ConditionAlertCard = React.memo(function ConditionAlertCard({ alert }) {
   return (
@@ -203,6 +223,9 @@ export default function ForecastScreen() {
   // rather than silently falling back to fake LA weather forever.
   const [forecast, setForecast] = useState(null);
   const [error, setError] = useState(null); // 'denied' | 'error' | null
+  const [labVisible, setLabVisible] = useState(false);
+  const openLab = useCallback(() => setLabVisible(true), []);
+  const closeLab = useCallback(() => setLabVisible(false), []);
 
   const loadForecast = useCallback(async () => {
     setError(null);
@@ -297,6 +320,9 @@ export default function ForecastScreen() {
           <SlideInView delay={110}>
             <RecommendedSetupCard setup={recommendedSetup} />
           </SlideInView>
+          <SlideInView delay={150}>
+            <DepletionLabCard onOpen={openLab} />
+          </SlideInView>
           <SlideInView delay={180}>
             <WeekCard week={week} />
           </SlideInView>
@@ -311,6 +337,8 @@ export default function ForecastScreen() {
           <View style={{ height: 40 }} />
         </ScrollView>
       </SafeAreaView>
+
+      {labVisible && <DepletionLabScreen visible={labVisible} onClose={closeLab} />}
     </View>
   );
 }
@@ -596,6 +624,46 @@ const st = StyleSheet.create({
     fontFamily: 'Outfit-Regular',
     fontSize: 13.5,
     lineHeight: 21,
+    color: colors.onDarkMuted,
+  },
+
+  // Depletion Lab entry
+  labCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    backgroundColor: colors.charcoal,
+    borderRadius: 28,
+    padding: 20,
+    marginBottom: 14,
+    shadowColor: colors.ink,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.12,
+    shadowRadius: 14,
+    elevation: 3,
+  },
+  labIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 16,
+    backgroundColor: colors.charcoalHigh,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  labTextWrap: {
+    flex: 1,
+    gap: 3,
+  },
+  labTitle: {
+    fontFamily: 'Outfit-Regular',
+    fontSize: 16,
+    color: colors.onDark,
+    letterSpacing: -0.3,
+  },
+  labLine: {
+    fontFamily: 'Outfit-Regular',
+    fontSize: 12.5,
+    lineHeight: 18,
     color: colors.onDarkMuted,
   },
 
