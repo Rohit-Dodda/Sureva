@@ -11,6 +11,7 @@ import { MILESTONE_TOURS } from '../constants/tourSteps';
 import { getDayState } from '../services/StreakService';
 import { tierFor } from '../constants/streakTiers';
 import StreakCalendar from '../components/streaks/StreakCalendar';
+import StreakBadgeGallery from '../components/streaks/StreakBadgeGallery';
 import FreezeRow from '../components/streaks/FreezeRow';
 import SlideInView from '../components/SlideInView';
 
@@ -87,6 +88,10 @@ export default function StreaksScreen({ isActiveTab }) {
               </View>
             </View>
           </LinearGradient>
+        </SlideInView>
+
+        <SlideInView delay={120}>
+          <StreakBadgeGallery longestStreak={longestStreak} />
         </SlideInView>
 
         <View style={{ height: 130 }} />

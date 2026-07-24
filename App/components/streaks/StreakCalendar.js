@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useMemo } from 'react';
 import { View, Text, StyleSheet, Pressable, Dimensions } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import colors from '../../constants/colors';
 import { getDayState, dayKey } from '../../services/StreakService';
 import StreakDayCell from './StreakDayCell';
@@ -55,18 +56,15 @@ function StreakCalendar({ streak, gradient, accent }) {
     return rows;
   }, [cursor, streak, now]);
 
-  const prevName = MONTHS[(cursor.month + 11) % 12];
-  const nextName = MONTHS[(cursor.month + 1) % 12];
-
   return (
     <View>
       <View style={st.header}>
-        <Pressable onPress={() => step(-1)} hitSlop={10} style={st.side}>
-          <Text style={st.sideText} numberOfLines={1}>{prevName}</Text>
+        <Pressable onPress={() => step(-1)} hitSlop={10} style={st.arrow}>
+          <Ionicons name="chevron-back" size={20} color={accent || colors.inkMid} />
         </Pressable>
         <Text style={[st.monthLabel, accent && { color: accent }]}>{MONTHS[cursor.month]}</Text>
-        <Pressable onPress={() => step(1)} hitSlop={10} style={[st.side, st.sideRight]}>
-          <Text style={st.sideText} numberOfLines={1}>{nextName}</Text>
+        <Pressable onPress={() => step(1)} hitSlop={10} style={st.arrow}>
+          <Ionicons name="chevron-forward" size={20} color={accent || colors.inkMid} />
         </Pressable>
       </View>
 
@@ -98,13 +96,13 @@ const st = StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: 14,
   },
-  side: { flex: 1 },
-  sideRight: { alignItems: 'flex-end' },
-  sideText: {
-    fontFamily: 'Inter-Medium',
-    fontSize: 14,
-    color: colors.muted,
-    opacity: 0.7,
+  arrow: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surface,
   },
   monthLabel: {
     fontFamily: 'Outfit-Regular',
