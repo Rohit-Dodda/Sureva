@@ -680,6 +680,60 @@ async function getSkinAgeSnapshots(uid) {
   }
 }
 
+// ── Sun Stamps ───────────────────────────────────────────────────────
+
+// Persists one caught stamp. The rarity verdict is stored as decided at
+// capture time rather than recomputed on read: the inputs behind it (the
+// user's own capture history, the local weather baseline) both move on, so
+// re-deriving an old stamp later would silently rewrite what someone already
+// collected. See the migration for the full reasoning.
+async function saveSunStamp(uid, stamp) {
+  try {
+    if (!uid) throw new Error('Not signed in');
+    const { data, error } = await supabase
+      .from('sun_stamps')
+      .insert({
+        user_id: uid,
+        captured_at: new Date(stamp.capturedAt).toISOString(),
+        latitude: stamp.latitude,
+        longitude: stamp.longitude,
+        altitude_m: stamp.altitudeM,
+        place_name: stamp.placeName,
+        sun_altitude: stamp.altitude,
+        sun_azimuth: stamp.azimuth,
+        tier: stamp.tier,
+        reason: stamp.reason,
+        dominant_signal: stamp.dominantSignal,
+        signals: stamp.signals,
+        axis_place: stamp.axes?.place?.slot ?? null,
+        axis_latitude: stamp.axes?.latitude?.slot ?? null,
+        axis_altitude: stamp.axes?.altitude?.slot ?? null,
+        axis_season: stamp.axes?.season?.slot ?? null,
+      })
+      .select()
+      .single();
+    if (error) throw error;
+    return { data, error: null };
+  } catch (error) {
+    return { data: null, error };
+  }
+}
+
+async function getSunStamps(uid) {
+  try {
+    if (!uid) throw new Error('Not signed in');
+    const { data, error } = await supabase
+      .from('sun_stamps')
+      .select('*')
+      .eq('user_id', uid)
+      .order('captured_at', { ascending: false });
+    if (error) throw error;
+    return { data, error: null };
+  } catch (error) {
+    return { data: null, error };
+  }
+}
+
 // ── What If scenarios ────────────────────────────────────────────────
 
 async function saveWhatIfScenario(uid, sessionId, scenario) {
@@ -738,5 +792,7 @@ export default {
   savePostSessionCheckIn,
   saveSkinAgeSnapshot,
   getSkinAgeSnapshots,
+  saveSunStamp,
+  getSunStamps,
   saveWhatIfScenario,
 };

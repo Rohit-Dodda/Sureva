@@ -87,6 +87,85 @@ const colors = {
   flameGreen: '#22C55E',
   flameGreenEnd: '#12A34C',
 
+  // Achievement badge hues — one gradient family per achievement (start →
+  // end), plus an accent (the emblem's outer glow / level pill) and a shade
+  // (the emblem's bottom-inner darkening). Distinct from the streak tier hues
+  // above: those mark *how long* you've logged, these mark *what* you've done.
+  // Sun Hours deliberately reuses the gold tier family — same "time in sun"
+  // idea — so it has no start/accent/end of its own, only a shade.
+  achReapplyStart: '#5FE3C8',
+  achReapplyAccent: '#14B8A6',
+  achReapplyEnd: '#0E9E8F',
+  achReapplyShade: '#08736A',
+  achSunHoursShade: '#B8720F',
+  achPlacesStart: '#8FB4FF',
+  achPlacesAccent: '#4C6EF5',
+  achPlacesEnd: '#3A4FD8',
+  achPlacesShade: '#22308F',
+  achPeakUvStart: '#FF9A6B',
+  achPeakUvAccent: '#F2451D',
+  achPeakUvEnd: '#E01E37',
+  achPeakUvShade: '#9E0F26',
+  achWaterStart: '#7DE8FF',
+  achWaterAccent: '#22B8E6',
+  achWaterEnd: '#0284C7',
+  achWaterShade: '#03608F',
+  achDawnStart: '#FFC4A3',
+  achDawnAccent: '#FF8A5B',
+  achDawnEnd: '#F2704B',
+  achDawnShade: '#C24A28',
+  achDuskStart: '#FFB35C',
+  achDuskAccent: '#F5762E',
+  achDuskEnd: '#E0457B',
+  achDuskShade: '#A82658',
+  achAltitudeStart: '#B9C6E8',
+  achAltitudeAccent: '#7A6ED6',
+  achAltitudeEnd: '#5B4FB5',
+  achAltitudeShade: '#392C87',
+  achLatitudeStart: '#7BE8B4',
+  achLatitudeAccent: '#19B287',
+  achLatitudeEnd: '#0E8F73',
+  achLatitudeShade: '#076152',
+  achFlawlessStart: '#C6F76B',
+  achFlawlessAccent: '#7BC62D',
+  achFlawlessEnd: '#3E9B18',
+  achFlawlessShade: '#2A6B10',
+  achSnowStart: '#D9F1FF',
+  achSnowAccent: '#7FC4EB',
+  achSnowEnd: '#4A9BD6',
+  achSnowShade: '#1F6EA3',
+
+  // Sun Stamp tiers — how rare the light itself was when a stamp was caught.
+  // Deliberately NOT a recolor of the achievement hues above: those mark what
+  // you've done, these mark what the sky was doing. Rarity has to read without
+  // the label, so the cue is chroma RANGE, not just hue — each tier spans a
+  // wider gradient than the last, and only `once` crosses two distant hue
+  // families (indigo → violet → gold).
+  //
+  // The protection colors (protected/warning/danger) are never used here. A
+  // stamp is never a comment on risk.
+  stampEverydayStart: '#BFD8E8',
+  stampEverydayAccent: '#8FA8B8',
+  stampEverydayEnd: '#E8E2D4',
+  stampEverydayShade: '#6B7A85',
+  stampSeasonalStart: '#FFD08A',
+  stampSeasonalAccent: '#F0A03C',
+  stampSeasonalEnd: '#FF8A5B',
+  stampSeasonalShade: '#B85E28',
+  stampAlignmentStart: '#C56BC2',
+  stampAlignmentAccent: '#F2451D',
+  stampAlignmentEnd: '#FFA84E',
+  stampAlignmentShade: '#8A2A5C',
+  stampOnceStart: '#2B2856',
+  stampOnceAccent: '#A870D6',
+  stampOnceEnd: '#F0B429',
+  stampOnceShade: '#1A1638',
+  stampSeal: '#C79A3C',
+  stampSealLight: '#FFEFC0',
+  // The scrim the plate text sits on, so a place name stays legible over any
+  // sky the art happens to produce.
+  stampPlate: 'rgba(10,8,4,0.88)',
+
   // Social brand colors — only used to tint the streak share-sheet icons.
   brandWhatsapp: '#25D366',
   brandTelegram: '#229ED9',

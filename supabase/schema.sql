@@ -70,6 +70,10 @@ create table public.sessions (
   unprotected_minutes numeric,
   latitude numeric,
   longitude numeric,
+  -- Metres above the WGS 84 ellipsoid, from the phone's GPS at session start
+  -- (the wearable has no barometer). Null when permission was denied or the
+  -- fix carried no trustworthy altitude. Drives the Altitude Ace badge.
+  altitude_m numeric,
   location_name text,
   -- city/region, kept separate from the free-text location_name, so
   -- Passport can cluster/group without parsing that string.

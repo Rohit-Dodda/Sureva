@@ -4,8 +4,9 @@ import { Ionicons } from '@expo/vector-icons';
 import colors from '../../constants/colors';
 
 // Quick-start presets so the setup screen isn't intimidating on first
-// open, plus the user's locally saved scenarios. Selecting either simply
-// replaces the whole config.
+// open. Selecting one simply replaces the whole config. "Conditions Now"
+// is the odd one out — it fetches live weather instead of a fixed config,
+// so it's styled apart from the static presets (navy vs. orange).
 export const LAB_PRESETS = [
   {
     name: 'Beach day',
@@ -36,19 +37,28 @@ export const LAB_PRESETS = [
   },
 ];
 
-export default React.memo(function LabPresetChips({ saved, onSelect }) {
+const CONDITIONS_NOW_LABEL = {
+  idle: 'Conditions Now',
+  loading: 'Checking weather…',
+  error: 'Couldn’t fetch, tap to retry',
+};
+
+export default React.memo(function LabPresetChips({ conditionsState = 'idle', onSelect, onConditionsNow }) {
   return (
     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={st.row}>
+      <TouchableOpacity
+        style={[st.chip, st.liveChip]}
+        onPress={onConditionsNow}
+        activeOpacity={0.8}
+        disabled={conditionsState === 'loading'}
+      >
+        <Ionicons name="locate" size={14} color={colors.navy} />
+        <Text style={[st.chipText, st.liveChipText]}>{CONDITIONS_NOW_LABEL[conditionsState]}</Text>
+      </TouchableOpacity>
       {LAB_PRESETS.map((p) => (
         <TouchableOpacity key={p.name} style={st.chip} onPress={() => onSelect(p.config)} activeOpacity={0.8}>
           <Ionicons name={p.icon} size={14} color={colors.orangeDark} />
           <Text style={st.chipText}>{p.name}</Text>
-        </TouchableOpacity>
-      ))}
-      {(saved ?? []).map((s) => (
-        <TouchableOpacity key={s.savedAt} style={[st.chip, st.savedChip]} onPress={() => onSelect(s.config)} activeOpacity={0.8}>
-          <Ionicons name="bookmark" size={13} color={colors.navy} />
-          <Text style={[st.chipText, st.savedChipText]} numberOfLines={1}>{s.name}</Text>
         </TouchableOpacity>
       ))}
     </ScrollView>
@@ -75,11 +85,10 @@ const st = StyleSheet.create({
     fontSize: 13,
     color: colors.orangeDark,
   },
-  savedChip: {
+  liveChip: {
     backgroundColor: colors.navyLight,
-    maxWidth: 220,
   },
-  savedChipText: {
+  liveChipText: {
     color: colors.navy,
   },
 });

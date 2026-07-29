@@ -1,14 +1,14 @@
 import React, { useRef, useCallback, useEffect } from 'react';
 import {
-  Pressable, View, Text, Animated, StyleSheet, Dimensions, Platform, Easing, PanResponder,
+  Pressable, View, Text, Animated, StyleSheet, Dimensions, Easing, PanResponder,
 } from 'react-native';
-import { BlurView } from 'expo-blur';
 import { Ionicons } from '@expo/vector-icons';
 import colors from '../constants/colors';
 import { useTabBarHidden } from '../context/TabBarVisibilityContext';
 import { useTourTarget } from '../context/AppTourContext';
 import { useStreak } from '../context/StreakContext';
 import { tierFor } from '../constants/streakTiers';
+import LiquidGlassShell from './LiquidGlassShell';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 
@@ -30,7 +30,7 @@ const TABS = [
 //    resamples.
 const ICON_SIZE = 25;
 
-const TabItem = React.memo(function TabItem({ tab, isActive, onPress, badge, badgeColor, tourRef }) {
+const TabItem = React.memo(function TabItem({ tab, isActive, onPress, badge, badgeColor, dormant, tourRef }) {
   const scale = useRef(new Animated.Value(1)).current;
 
   // Landing bounce: dip down fast, then spring back up to exactly 1.0 —
@@ -91,9 +91,11 @@ const TabItem = React.memo(function TabItem({ tab, isActive, onPress, badge, bad
           size={ICON_SIZE}
           color={isActive ? '#FFFFFF' : 'rgba(255,255,255,0.70)'}
         />
-        {/* Standard "unread count on a tab" badge — flame + current streak. */}
+        {/* Standard "unread count on a tab" badge — flame + current streak.
+            Gray until today's session is logged, so the badge itself carries
+            the "streak not activated yet" cue rather than the glyph. */}
         {badge > 0 && (
-          <View style={[st.badge, badgeColor && { backgroundColor: badgeColor, borderColor: badgeColor }]}>
+          <View style={[st.badge, { backgroundColor: dormant ? colors.muted : badgeColor, borderColor: dormant ? colors.muted : badgeColor }]}>
             <Ionicons name="flame" size={9} color={colors.white} style={st.badgeFlame} />
             <Text style={st.badgeText} numberOfLines={1}>{badge}</Text>
           </View>
@@ -116,6 +118,9 @@ export default function FloatingTabBar({ activeTab, onTabPress }) {
   const { streak } = useStreak();
   const streakCount = streak?.currentStreak ?? 0;
   const streakAccent = tierFor(streak?.tier).flame;
+  // Gray until today's session is logged — same "activate the streak" cue as
+  // the calendar/badge, just surfaced on the tab icon itself.
+  const streakDormant = !streak?.todayLogged;
   // Spotlight target for the Streaks first-visit milestone tour — the tab icon
   // itself (registered here, consumed by MILESTONE_TOURS.streaksFirstVisit).
   const streaksTabRef = useTourTarget('streaksTab');
@@ -299,8 +304,8 @@ export default function FloatingTabBar({ activeTab, onTabPress }) {
       onTouchCancel={onBarTouchEnd}
       {...dragPan.panHandlers}
     >
-      {/* Glass shell — the ONLY layer that scales/stretches. Blur + tint
-          carry no fine detail, so transforming them never reads as blur. */}
+      {/* Glass shell — the ONLY layer that scales/stretches. Liquid glass
+          carries no fine detail, so transforming it never reads as blur. */}
       <Animated.View
         pointerEvents="none"
         style={[st.shell, {
@@ -311,13 +316,7 @@ export default function FloatingTabBar({ activeTab, onTabPress }) {
           ],
         }]}
       >
-        <BlurView
-          intensity={Platform.OS === 'android' ? 30 : 22}
-          tint="light"
-          experimentalBlurMethod="dimezisBlurView"
-          style={StyleSheet.absoluteFill}
-        />
-        <View pointerEvents="none" style={st.tint} />
+        <LiquidGlassShell borderRadius={50} />
         <Animated.View style={[st.glowOverlay, { opacity: glowOpacity }]} pointerEvents="none" />
         <Animated.View style={[st.lightenOverlay, { opacity: barLight }]} pointerEvents="none" />
       </Animated.View>
@@ -330,13 +329,7 @@ export default function FloatingTabBar({ activeTab, onTabPress }) {
             pointerEvents="none"
             style={[st.indicator, { width: slotW, transform: [{ translateX: indicatorX }] }]}
           >
-            <BlurView
-              intensity={18}
-              tint="light"
-              experimentalBlurMethod="dimezisBlurView"
-              style={[StyleSheet.absoluteFill, st.indicatorBlur]}
-            />
-            <View style={st.indicatorGlass} />
+            <LiquidGlassShell borderRadius={28} intensity={18} />
           </Animated.View>
         )}
 
@@ -348,6 +341,7 @@ export default function FloatingTabBar({ activeTab, onTabPress }) {
             onPress={() => handleTabPress(tab.key)}
             badge={tab.key === 'streaks' ? streakCount : 0}
             badgeColor={tab.key === 'streaks' ? streakAccent : undefined}
+            dormant={tab.key === 'streaks' ? streakDormant : false}
             tourRef={tab.key === 'streaks' ? streaksTabRef : undefined}
           />
         ))}
@@ -367,8 +361,6 @@ const st = StyleSheet.create({
   shell: {
     ...StyleSheet.absoluteFillObject,
     borderRadius: 50,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.30)',
     overflow: 'hidden',
     shadowColor: colors.orangeDark,
     shadowOffset: { width: 0, height: 10 },
@@ -381,10 +373,6 @@ const st = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 8,
     paddingVertical: 5,
-  },
-  tint: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(178,58,12,0.42)',
   },
   glowOverlay: {
     ...StyleSheet.absoluteFillObject,
@@ -438,16 +426,6 @@ const st = StyleSheet.create({
     top: 5,
     height: 46,
     borderRadius: 28,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.40)',
     overflow: 'hidden',
-  },
-  indicatorBlur: {
-    borderRadius: 28,
-  },
-  indicatorGlass: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(255,255,255,0.22)',
-    borderRadius: 28,
   },
 });

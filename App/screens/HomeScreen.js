@@ -44,6 +44,10 @@ import { WELCOME_TOUR_ID, WELCOME_TOUR_STEPS } from '../constants/tourSteps';
 
 const SCREEN_W = Dimensions.get('window').width;
 const SCREEN_H = Dimensions.get('window').height;
+
+// Forces the streak reveal open on Home load, for reviewing its layout without
+// finishing a real session. Must stay false outside of that.
+const PREVIEW_STREAK_REVEAL = false;
 // Active-session overlay slides over a stationary home, exactly like the
 // SessionDetailScreen → list transition. Same spring/easing so it feels identical.
 const SESSION_SWIPE_THRESHOLD = 80;
@@ -1337,6 +1341,7 @@ export default function HomeScreen({ onSignOut, onNavigateTab, isActiveTab }) {
         environment: params.environment ?? null,
         latitude: params.latitude ?? null,
         longitude: params.longitude ?? null,
+        altitude_m: params.altitude ?? null,
         city: params.city ?? null,
         region: params.region ?? null,
       }).then(({ data, error }) => {
@@ -1366,6 +1371,18 @@ export default function HomeScreen({ onSignOut, onNavigateTab, isActiveTab }) {
   // the just-saved session by the time the check-in is dismissed.
   const [streakReveal, setStreakReveal] = useState(null);
   const { streak, refresh: refreshStreak } = useStreak();
+
+  // ⚠️ TEMPORARY — opens the streak reveal on Home load so its layout can be
+  // checked without finishing a real session. Set back to false to ship.
+  // Uses the real streak when there is one, otherwise a stand-in so the screen
+  // still renders on an account with no history. Tap the card to replay.
+  useEffect(() => {
+    if (!PREVIEW_STREAK_REVEAL) return;
+    setStreakReveal({
+      count: streak?.currentStreak || 7,
+      tierKey: streak?.tier || 'blue',
+    });
+  }, [streak?.currentStreak, streak?.tier]);
   // Read the latest streak from a ref inside dismissCheckIn so the callback
   // never captures a stale value without needing streak in its deps.
   const streakRef = useRef(streak);
@@ -1642,6 +1659,7 @@ export default function HomeScreen({ onSignOut, onNavigateTab, isActiveTab }) {
           count={streakReveal.count}
           tierKey={streakReveal.tierKey}
           onDone={onStreakRevealDone}
+          persist={PREVIEW_STREAK_REVEAL}
         />
       )}
     </View>

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, SafeAreaView,
 } from 'react-native';
@@ -11,7 +11,10 @@ import { MILESTONE_TOURS } from '../constants/tourSteps';
 import { getDayState } from '../services/StreakService';
 import { tierFor } from '../constants/streakTiers';
 import StreakCalendar from '../components/streaks/StreakCalendar';
-import StreakBadgeGallery from '../components/streaks/StreakBadgeGallery';
+import BadgeGallery from '../components/streaks/BadgeGallery';
+import BadgesScreen from './BadgesScreen';
+import useNewlyEarned from '../components/streaks/useNewlyEarned';
+import { computeGalleryItems } from '../services/BadgeGalleryService';
 import FreezeRow from '../components/streaks/FreezeRow';
 import SlideInView from '../components/SlideInView';
 
@@ -37,13 +40,52 @@ const pad = (n) => String(n).padStart(2, '0');
 // derived from session history via StreakContext — logging consistency only,
 // never exposure.
 export default function StreaksScreen({ isActiveTab }) {
-  const { streak } = useStreak();
+  const { streak, sessions } = useStreak();
   const { currentStreak, longestStreak, freezes, now } = streak;
   const noActivity = useMemo(() => missedThisMonth(streak, now), [streak, now]);
   const tier = tierFor(streak.tier);
 
   // First time this tab is opened, spotlight the tab icon via the existing
   // milestone-tour system (same as Passport).
+  // Newly-earned detection lives here rather than inside the gallery, because
+  // two things need it: the gallery (to celebrate a featured badge in place)
+  // and this screen (to decide whether to push the full list). Detecting it in
+  // the gallery would consume the set before this screen could react.
+  const items = useMemo(
+    () => computeGalleryItems(sessions, longestStreak),
+    [sessions, longestStreak]
+  );
+  const { newlyEarned, clear: clearNewlyEarned } = useNewlyEarned(items);
+
+  // Full badge list, pushed over this screen from the gallery's "More".
+  // Carries the celebrate set across so a badge that just levelled up plays its
+  // animation there too, rather than only on whichever surface saw it first.
+  const [showAllBadges, setShowAllBadges] = useState(false);
+  const [celebrateIds, setCelebrateIds] = useState(null);
+  const handleSeeAllBadges = useCallback((ids) => {
+    setCelebrateIds(ids);
+    setShowAllBadges(true);
+  }, []);
+  const handleBadgesBack = useCallback(() => {
+    setShowAllBadges(false);
+    setCelebrateIds(null);
+  }, []);
+
+  // Earning a badge pushes the full list and plays its unlock animation. This
+  // fires on arrival at the Streaks tab, which is exactly where the streak
+  // reveal drops the user (HomeScreen's onStreakRevealDone) — so the badge
+  // celebration lands after the streak one rather than fighting it.
+  //
+  // `clearNewlyEarned` runs immediately so the set can't re-trigger this on a
+  // later render; the ids are held in celebrateIds for the screen itself.
+  useEffect(() => {
+    if (!isActiveTab || showAllBadges) return;
+    if (!newlyEarned || newlyEarned.size === 0) return;
+    setCelebrateIds(newlyEarned);
+    setShowAllBadges(true);
+    clearNewlyEarned();
+  }, [isActiveTab, newlyEarned, showAllBadges, clearNewlyEarned]);
+
   const [tourReady, setTourReady] = useState(false);
   useEffect(() => {
     const id = setTimeout(() => setTourReady(true), 500);
@@ -91,11 +133,28 @@ export default function StreaksScreen({ isActiveTab }) {
         </SlideInView>
 
         <SlideInView delay={120}>
-          <StreakBadgeGallery longestStreak={longestStreak} />
+          <BadgeGallery
+            sessions={sessions}
+            longestStreak={longestStreak}
+            newlyEarned={newlyEarned}
+            onSeeAll={handleSeeAllBadges}
+          />
         </SlideInView>
 
         <View style={{ height: 130 }} />
       </ScrollView>
+
+      {/* Full badge list slides over everything, as on Passport. */}
+      {showAllBadges && (
+        <View style={st.overlay}>
+          <BadgesScreen
+            sessions={sessions}
+            longestStreak={longestStreak}
+            celebrateIds={celebrateIds}
+            onBack={handleBadgesBack}
+          />
+        </View>
+      )}
     </SafeAreaView>
   );
 }
@@ -114,6 +173,7 @@ function Stat({ label, value, unit }) {
 
 const st = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.canvas },
+  overlay: { ...StyleSheet.absoluteFillObject },
   topBar: {
     paddingHorizontal: 20,
     paddingTop: 16,

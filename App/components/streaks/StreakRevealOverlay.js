@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useCallback, useMemo, useState } from 'react'
 import {
   Animated, View, Text, StyleSheet, Pressable, StatusBar, Share,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { captureRef } from 'react-native-view-shot';
 import * as Sharing from 'expo-sharing';
 import colors from '../../constants/colors';
@@ -15,15 +16,19 @@ import StreakCountFill from './StreakCountFill';
 import StreakWeekDay from './StreakWeekDay';
 import StreakShareSheet from './StreakShareSheet';
 
-const SHARE_DELAY_MS = 1400; // rises shortly after the light-up begins to settle
 const LETTERS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
 
 // The post-check-in celebration, shaped like a card floating on a flowing
 // orange "aurora" background: a lit flame igniting over the streak count that
 // fills with the tier gradient, this week's progress with the earned day
-// morphing into its badge, a stat panel, and — once the animation settles — a
-// "Share Your Streak" sheet rising from the bottom. `count`/`tierKey` are the
+// morphing into its badge, and a stat panel. `count`/`tierKey` are the
 // celebrated values; the week row and stats come from the shared StreakContext.
+//
+// Continue is the primary action and is always reachable — sharing is opt-in
+// via the link beneath it. The share sheet used to rise on a timer and cover
+// Continue, so every user had to swipe a sheet away to get past a celebration
+// they'd already seen; sharing is the rarer intent, so it no longer sits in
+// front of the common one.
 function StreakRevealOverlay({ count, tierKey, onDone, persist = false }) {
   const { streak, sessions } = useStreak();
   const { userProfile } = useAuth();
@@ -74,13 +79,12 @@ function StreakRevealOverlay({ count, tierKey, onDone, persist = false }) {
     Animated.timing(fade, { toValue: 1, duration: 300, useNativeDriver: true }).start();
   }, [fade]);
 
-  // The share sheet rises once the reveal animation has played; resets and
-  // re-arms on replay.
-  useEffect(() => {
-    setShowShare(false);
-    const id = setTimeout(() => setShowShare(true), SHARE_DELAY_MS);
-    return () => clearTimeout(id);
-  }, [replay]);
+  // The share sheet is opened by the user, never on a timer. Replaying the
+  // reveal closes it so the animation isn't watched through a sheet.
+  useEffect(() => { setShowShare(false); }, [replay]);
+
+  const openShare = useCallback(() => setShowShare(true), []);
+  const closeShare = useCallback(() => setShowShare(false), []);
 
   // This week (Mon–Sun) with each day's logged/frozen state.
   const week = useMemo(() => {
@@ -163,13 +167,23 @@ function StreakRevealOverlay({ count, tierKey, onDone, persist = false }) {
         </View>
       </View>
 
-      {/* Continue sits UNDER the share sheet — swiping the sheet down uncovers
-          it, and tapping it advances to the Streaks tab. */}
-      <Pressable style={[st.continueBtn, { backgroundColor: tier.flame }]} onPress={finish}>
-        <Text style={st.continueText}>Continue</Text>
-      </Pressable>
+      {/* Continue is always tappable; Share opens the sheet on demand. */}
+      <View style={st.actions}>
+        <Pressable style={[st.continueBtn, { backgroundColor: tier.flame }]} onPress={finish}>
+          <Text style={st.continueText}>Continue</Text>
+        </Pressable>
 
-      <StreakShareSheet visible={showShare} onShare={handleShare} />
+        <Pressable
+          style={st.shareLink}
+          onPress={openShare}
+          hitSlop={{ top: 10, bottom: 10, left: 24, right: 24 }}
+        >
+          <Ionicons name="share-outline" size={16} color={tier.flame} />
+          <Text style={[st.shareLinkText, { color: tier.flame }]}>Share</Text>
+        </Pressable>
+      </View>
+
+      <StreakShareSheet visible={showShare} onShare={handleShare} onClose={closeShare} />
     </Animated.View>
   );
 }
@@ -267,11 +281,16 @@ const st = StyleSheet.create({
   statColBorder: { borderRightWidth: 1, borderRightColor: colors.border },
   statLabel: { fontFamily: 'Inter-Medium', fontSize: 12.5, color: colors.muted, marginBottom: 4 },
   statValue: { fontFamily: 'Outfit-Regular', fontSize: 24, color: colors.ink },
-  continueBtn: {
+  // Continue + Share as one bottom stack. Sitting higher than the old lone
+  // Continue leaves room for the Share link underneath without either falling
+  // into the home-indicator area.
+  actions: {
     position: 'absolute',
     left: 40,
     right: 40,
-    bottom: 46,
+    bottom: 36,
+  },
+  continueBtn: {
     height: 54,
     borderRadius: 16,
     backgroundColor: colors.orange,
@@ -279,6 +298,15 @@ const st = StyleSheet.create({
     justifyContent: 'center',
   },
   continueText: { fontFamily: 'Outfit-Regular', fontSize: 17, color: colors.white },
+  shareLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    marginTop: 12,
+    paddingVertical: 8,
+  },
+  shareLinkText: { fontFamily: 'Outfit-Regular', fontSize: 15.5 },
 });
 
 export default React.memo(StreakRevealOverlay);

@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect } from 'react';
 import {
   Animated, View, Text, StyleSheet, Pressable, PanResponder,
 } from 'react-native';
@@ -16,26 +16,27 @@ const APPS = [
   { key: 'linkedin', label: 'LinkedIn', icon: 'logo-linkedin', bg: colors.brandLinkedin },
 ];
 
-// The "Share Your Streak" sheet that rises from the bottom once the reveal has
-// played, sitting ON TOP of the Continue button behind it. Swiping it down
-// slides it out of the way to uncover Continue — it doesn't advance on its own;
-// the user then taps the revealed Continue button. Taps on an app icon open the
-// system share sheet.
-function StreakShareSheet({ visible, onShare }) {
+// The "Share Your Streak" sheet. Opened deliberately from the Share link under
+// Continue — it no longer rises on a timer over the primary action, so nobody
+// has to dismiss a sheet to get past the celebration. Dismiss by swiping down
+// or tapping the dimmed backdrop; taps on an app icon open the system share
+// sheet. Visibility is owned by the parent so the reveal can close it on replay.
+function StreakShareSheet({ visible, onShare, onClose }) {
   const y = useRef(new Animated.Value(HIDDEN_Y)).current;
-  // Once swiped away it stays down (uncovering Continue) until the sheet is
-  // re-armed (visible toggles off, e.g. on replay).
-  const [dismissed, setDismissed] = useState(false);
+  const dim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    Animated.spring(y, { toValue: visible && !dismissed ? 0 : HIDDEN_Y, friction: 11, tension: 64, useNativeDriver: true }).start();
-  }, [visible, dismissed, y]);
+    Animated.parallel([
+      Animated.spring(y, { toValue: visible ? 0 : HIDDEN_Y, friction: 11, tension: 64, useNativeDriver: true }),
+      Animated.timing(dim, { toValue: visible ? 1 : 0, duration: 220, useNativeDriver: true }),
+    ]).start();
+  }, [visible, y, dim]);
 
-  useEffect(() => {
-    if (!visible) setDismissed(false); // re-arm when hidden (replay)
-  }, [visible]);
+  // Held in a ref so the PanResponder — created once — always calls the current
+  // handler rather than the one captured on first render.
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
 
-  const setDismissedRef = useRef(setDismissed);
   const pan = useRef(
     PanResponder.create({
       onMoveShouldSetPanResponder: (_, g) => g.dy > 6 && Math.abs(g.dy) > Math.abs(g.dx),
@@ -43,9 +44,7 @@ function StreakShareSheet({ visible, onShare }) {
       onPanResponderMove: (_, g) => { if (g.dy > 0) y.setValue(g.dy); },
       onPanResponderRelease: (_, g) => {
         if (g.dy > 80 || g.vy > 0.5) {
-          // Slide out of the way to uncover Continue; stays down.
-          Animated.timing(y, { toValue: HIDDEN_Y, duration: 240, useNativeDriver: true }).start();
-          setDismissedRef.current(true);
+          onCloseRef.current?.();
         } else {
           Animated.spring(y, { toValue: 0, friction: 9, tension: 64, useNativeDriver: true }).start();
         }
@@ -54,36 +53,50 @@ function StreakShareSheet({ visible, onShare }) {
   ).current;
 
   return (
-    <Animated.View style={[st.sheet, { transform: [{ translateY: y }] }]} {...pan.panHandlers}>
-      <View style={st.handle} />
-      <View style={st.titleRow}>
-        <Ionicons name="link" size={17} color={colors.orange} />
-        <Text style={st.title}>Share Your Streak</Text>
-      </View>
+    <>
+      <Animated.View
+        style={[StyleSheet.absoluteFill, st.backdrop, { opacity: dim }]}
+        pointerEvents={visible ? 'auto' : 'none'}
+      >
+        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessibilityLabel="Close share sheet" />
+      </Animated.View>
 
-      <View style={st.apps}>
-        {APPS.map((app) => (
-          <Pressable key={app.key} style={st.app} onPress={onShare} hitSlop={6}>
-            {app.gradient ? (
-              <LinearGradient colors={app.gradient} start={{ x: 0.1, y: 0.1 }} end={{ x: 0.9, y: 0.9 }} style={st.iconBox}>
-                <Ionicons name={app.icon} size={26} color={colors.white} />
-              </LinearGradient>
-            ) : (
-              <View style={[st.iconBox, { backgroundColor: app.bg }]}>
-                {app.text ? <Text style={st.xGlyph}>{app.text}</Text> : <Ionicons name={app.icon} size={26} color={colors.white} />}
-              </View>
-            )}
-            <Text style={st.appLabel}>{app.label}</Text>
-          </Pressable>
-        ))}
-      </View>
+      <Animated.View
+        style={[st.sheet, { transform: [{ translateY: y }] }]}
+        pointerEvents={visible ? 'auto' : 'none'}
+        {...pan.panHandlers}
+      >
+        <View style={st.handle} />
+        <View style={st.titleRow}>
+          <Ionicons name="link" size={17} color={colors.orange} />
+          <Text style={st.title}>Share Your Streak</Text>
+        </View>
 
-      <Text style={st.swipeHint}>Swipe down to continue</Text>
-    </Animated.View>
+        <View style={st.apps}>
+          {APPS.map((app) => (
+            <Pressable key={app.key} style={st.app} onPress={onShare} hitSlop={6}>
+              {app.gradient ? (
+                <LinearGradient colors={app.gradient} start={{ x: 0.1, y: 0.1 }} end={{ x: 0.9, y: 0.9 }} style={st.iconBox}>
+                  <Ionicons name={app.icon} size={26} color={colors.white} />
+                </LinearGradient>
+              ) : (
+                <View style={[st.iconBox, { backgroundColor: app.bg }]}>
+                  {app.text ? <Text style={st.xGlyph}>{app.text}</Text> : <Ionicons name={app.icon} size={26} color={colors.white} />}
+                </View>
+              )}
+              <Text style={st.appLabel}>{app.label}</Text>
+            </Pressable>
+          ))}
+        </View>
+
+        <Text style={st.swipeHint}>Swipe down to close</Text>
+      </Animated.View>
+    </>
   );
 }
 
 const st = StyleSheet.create({
+  backdrop: { backgroundColor: 'rgba(23,20,14,0.34)' },
   sheet: {
     position: 'absolute',
     left: 12,

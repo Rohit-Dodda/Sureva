@@ -201,3 +201,11 @@ export function formatLabDuration(minutes) {
 export function scenarioName(config) {
   return `UV ${config.uvIndex} · ${config.temperature}°C · ${formatLabDuration(config.durationMinutes)} · SPF ${config.spf}`;
 }
+
+// Snaps a real-world reading (e.g. live UV/temp/humidity) onto the closest
+// benchmark a SnapSlider actually offers — sliders only know their fixed
+// `values` array, so an unsnapped number would silently render at index 0.
+export function nearestValue(values, target) {
+  if (target == null || Number.isNaN(target)) return values[0];
+  return values.reduce((best, v) => (Math.abs(v - target) < Math.abs(best - target) ? v : best));
+}

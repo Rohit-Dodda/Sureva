@@ -22,10 +22,20 @@ export default React.memo(function ProgressRing({
 }) {
   const r = (size - strokeWidth) / 2;
   const circumference = 2 * Math.PI * r;
-  const anim = useRef(new Animated.Value(0)).current;
+  const clamped = Math.max(0, Math.min(100, percent));
+  // Start at the target value, not 0 — a ring that's simply appearing on
+  // screen (e.g. a badge grid mounting) shouldn't replay a fill-from-empty
+  // animation. Only a real change to `percent` after mount (a celebration's
+  // 0 → target, or a level-up while visible) should animate.
+  const anim = useRef(new Animated.Value(clamped)).current;
   const gradId = useRef(`ringGrad${++gradientSeq}`).current;
+  const isFirstRender = useRef(true);
 
   useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
     Animated.timing(anim, {
       toValue: Math.max(0, Math.min(100, percent)),
       duration,

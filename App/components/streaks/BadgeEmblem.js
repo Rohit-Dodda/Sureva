@@ -1,32 +1,19 @@
 import React, { useRef } from 'react';
-import { View, StyleSheet } from 'react-native';
+import { Animated, View, StyleSheet } from 'react-native';
 import Svg, { Defs, LinearGradient, Stop, Polygon, Circle, Path, Line, G } from 'react-native-svg';
 import { Ionicons } from '@expo/vector-icons';
 import colors from '../../constants/colors';
+import { SHAPE_POINTS, CIRCLE_RADIUS } from './badgeShapes';
+import AchievementIcon from './AchievementIcon';
+import BadgeSheen from './BadgeSheen';
+import useBadgeIdleMotion from './useBadgeIdleMotion';
 
 let seq = 0;
 
-// ─── Shape geometry (0–100 box, matching the design handoff polygons) ──
-const HEXAGON = '50,2 95,26 95,74 50,98 5,74 5,26';
-const SHIELD = '50,0 88,10 88,52 72,82 50,100 28,82 12,52 12,10';
-
-function starPoints(n, outer, inner, cx = 50, cy = 50) {
-  const pts = [];
-  for (let i = 0; i < n * 2; i++) {
-    const r = i % 2 === 0 ? outer : inner;
-    const a = (Math.PI / n) * i - Math.PI / 2;
-    pts.push(`${(cx + r * Math.cos(a)).toFixed(2)},${(cy + r * Math.sin(a)).toFixed(2)}`);
-  }
-  return pts.join(' ');
-}
-
 function ShapeEl({ shape, fill }) {
-  if (shape === 'circle') return <Circle cx={50} cy={50} r={48} fill={fill} />;
-  if (shape === 'hexagon') return <Polygon points={HEXAGON} fill={fill} />;
-  if (shape === 'shield') return <Polygon points={SHIELD} fill={fill} />;
-  if (shape === 'scallop') return <Polygon points={starPoints(16, 50, 44)} fill={fill} />;
-  if (shape === 'star8') return <Polygon points={starPoints(8, 50, 24)} fill={fill} />;
-  return <Circle cx={50} cy={50} r={48} fill={fill} />;
+  const points = SHAPE_POINTS[shape];
+  if (points) return <Polygon points={points} fill={fill} />;
+  return <Circle cx={50} cy={50} r={CIRCLE_RADIUS} fill={fill} />;
 }
 
 // ─── Inner white icons (0–100 box, centered) ──
@@ -73,9 +60,50 @@ function IconEl({ icon }) {
 // The badge emblem: the tier's gradient shape with a top gloss + bottom shade,
 // the white icon on top, and a soft accent glow. Locked = a flat gray shape
 // with a lock icon instead.
-function BadgeEmblem({ size, gradient, glow, shape, icon, locked }) {
+//
+// `iconSet` picks which illustration library `icon` names: 'streak' (the five
+// sun/flame glyphs drawn inline below, in the same 0–100 box as the shape) or
+// 'achievement' (the 15 handoff illustrations, drawn in their own 48-box and
+// centered over the shape). `shadeColor` overrides the bottom-inner darkening;
+// streak badges reuse the gradient's end color, achievements pass the deeper
+// dedicated shade from the handoff.
+function BadgeEmblem({ size, gradient, glow, shape, icon, locked, iconSet = 'streak', shadeColor, sheenDelay = 0 }) {
   const id = useRef(`emb${++seq}`).current;
-  const shade = gradient[1];
+  const shade = shadeColor || gradient[1];
+  const isAchievement = iconSet === 'achievement';
+  const { iconTransform, gradientOpacity } = useBadgeIdleMotion(icon, !locked, sheenDelay);
+
+  // The shape's fills, drawn twice: once with the gradient running start→end,
+  // once reversed. Cross-fading the two is what makes an earned emblem's colour
+  // drift instead of sitting flat. Locked draws only the flat first pass.
+  const shapeLayers = (gradId) => (
+    <>
+      <ShapeEl shape={shape} fill={`url(#${gradId})`} />
+      <ShapeEl shape={shape} fill={`url(#${id}s)`} />
+      <ShapeEl shape={shape} fill={`url(#${id}g)`} />
+    </>
+  );
+
+  const defs = (
+    <Defs>
+      <LinearGradient id={`${id}m`} x1="0" y1="0" x2="1" y2="1">
+        <Stop offset="0" stopColor={gradient[0]} />
+        <Stop offset="1" stopColor={gradient[1]} />
+      </LinearGradient>
+      <LinearGradient id={`${id}r`} x1="0" y1="0" x2="1" y2="1">
+        <Stop offset="0" stopColor={gradient[1]} />
+        <Stop offset="1" stopColor={gradient[0]} />
+      </LinearGradient>
+      <LinearGradient id={`${id}g`} x1="0" y1="0" x2="0" y2="1">
+        <Stop offset="0" stopColor={colors.white} stopOpacity="0.32" />
+        <Stop offset="0.45" stopColor={colors.white} stopOpacity="0" />
+      </LinearGradient>
+      <LinearGradient id={`${id}s`} x1="0" y1="1" x2="0" y2="0">
+        <Stop offset="0" stopColor={shade} stopOpacity="0.5" />
+        <Stop offset="0.38" stopColor={shade} stopOpacity="0" />
+      </LinearGradient>
+    </Defs>
+  );
 
   return (
     <View
@@ -85,38 +113,50 @@ function BadgeEmblem({ size, gradient, glow, shape, icon, locked }) {
       ]}
     >
       <Svg width={size} height={size} viewBox="0 0 100 100">
-        <Defs>
-          <LinearGradient id={`${id}m`} x1="0" y1="0" x2="1" y2="1">
-            <Stop offset="0" stopColor={gradient[0]} />
-            <Stop offset="1" stopColor={gradient[1]} />
-          </LinearGradient>
-          <LinearGradient id={`${id}g`} x1="0" y1="0" x2="0" y2="1">
-            <Stop offset="0" stopColor={colors.white} stopOpacity="0.32" />
-            <Stop offset="0.45" stopColor={colors.white} stopOpacity="0" />
-          </LinearGradient>
-          <LinearGradient id={`${id}s`} x1="0" y1="1" x2="0" y2="0">
-            <Stop offset="0" stopColor={shade} stopOpacity="0.5" />
-            <Stop offset="0.38" stopColor={shade} stopOpacity="0" />
-          </LinearGradient>
-        </Defs>
-
+        {defs}
         {locked ? (
           // A flatter, slightly-dimmed version of the real badge — you clearly
           // see the shape, color, and icon you're working toward, but without
-          // the gloss, shade, or glow that make the earned one feel elegant.
+          // the gloss, shade, glow or motion that make the earned one feel alive.
           <G opacity={0.72}>
             <ShapeEl shape={shape} fill={`url(#${id}m)`} />
-            <IconEl icon={icon} />
           </G>
-        ) : (
-          <>
-            <ShapeEl shape={shape} fill={`url(#${id}m)`} />
-            <ShapeEl shape={shape} fill={`url(#${id}s)`} />
-            <ShapeEl shape={shape} fill={`url(#${id}g)`} />
-            <IconEl icon={icon} />
-          </>
-        )}
+        ) : shapeLayers(`${id}m`)}
       </Svg>
+
+      {/* Reversed-gradient twin, cross-faded over the base — the colour drift. */}
+      {!locked && (
+        <Animated.View style={[StyleSheet.absoluteFill, st.center, { opacity: gradientOpacity }]} pointerEvents="none">
+          <Svg width={size} height={size} viewBox="0 0 100 100">
+            {defs}
+            {shapeLayers(`${id}r`)}
+          </Svg>
+        </Animated.View>
+      )}
+
+      {/* Illustration, in its own animated layer so it can move independently
+          of the shape. Streak glyphs share the shape's 0–100 box; achievement
+          art has its own 48-unit viewBox. */}
+      <Animated.View
+        style={[
+          st.center,
+          StyleSheet.absoluteFill,
+          locked && { opacity: 0.72 },
+          { transform: iconTransform },
+        ]}
+        pointerEvents="none"
+      >
+        {isAchievement ? (
+          <AchievementIcon icon={icon} emblemSize={size} detail={shade} />
+        ) : (
+          <Svg width={size} height={size} viewBox="0 0 100 100">
+            <IconEl icon={icon} />
+          </Svg>
+        )}
+      </Animated.View>
+
+      {/* Glisten, over both shape and icon so the whole emblem catches it. */}
+      {!locked && <BadgeSheen size={size} shape={shape} delay={sheenDelay} />}
 
       {locked && (
         <View

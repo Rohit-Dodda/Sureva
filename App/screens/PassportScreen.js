@@ -37,6 +37,11 @@ import PassportEmptyCard from '../components/passport/PassportEmptyCard';
 import LocationPermissionCard from '../components/passport/LocationPermissionCard';
 import SessionDetailScreen from './SessionDetailScreen';
 import LocationDetailScreen from './LocationDetailScreen';
+import SunScoutScreen from './SunScoutScreen';
+import SunAtlasScreen from './SunAtlasScreen';
+import SunStampsEntryCard from '../components/sunStamps/SunStampsEntryCard';
+import { buildAtlas, atlasProgress, fromRow as mapStampRow } from '../services/SunStampService';
+import { detectEnvironment } from '../services/LocationService';
 
 const STAMPS_KEY = 'sureva_passport_stamps';
 const PERM_PROMPTED_KEY = 'sureva_passport_perm_prompted';
@@ -120,6 +125,80 @@ export default function PassportScreen({ onBack }) {
     return () => { cancelled = true; };
   }, [user]);
   const sessions = realSessions === null ? mockPassportSessions : realSessions;
+
+  // ── Sun Stamps ───────────────────────────────────────────────
+  // Loaded here rather than inside the Atlas screen so the entry card can
+  // show real progress before anything is opened, and so a fresh capture
+  // updates both surfaces from one source.
+  const [sunStamps, setSunStamps] = useState([]);
+  const [scoutVisible, setScoutVisible] = useState(false);
+  const [atlasVisible, setAtlasVisible] = useState(false);
+
+  useEffect(() => {
+    if (!user?.id) return undefined;
+    let cancelled = false;
+    SupabaseService.getSunStamps(user.id)
+      .then(({ data }) => { if (!cancelled) setSunStamps((data ?? []).map(mapStampRow)); })
+      .catch(() => { /* An empty Atlas is the honest fallback, not an error state. */ });
+    return () => { cancelled = true; };
+  }, [user]);
+
+  // Resolved when Scout opens rather than held live — a stale fix would put
+  // the sun in the wrong part of the sky, and there's no reason to hold a
+  // location subscription open while the user is looking at their map.
+  const [scoutLocation, setScoutLocation] = useState(null);
+  const handleOpenScout = useCallback(() => {
+    setScoutVisible(true);
+    detectEnvironment()
+      .then((res) => {
+        if (res?.status !== 'granted') return;
+        setScoutLocation({
+          latitude: res.latitude,
+          longitude: res.longitude,
+          altitude: res.altitude,
+          placeName: res.city ?? res.region ?? null,
+        });
+      })
+      .catch(() => { /* Scout shows its own no-fix state rather than failing. */ });
+  }, []);
+  const handleCloseScout = useCallback(() => setScoutVisible(false), []);
+  const handleOpenAtlas = useCallback(() => setAtlasVisible(true), []);
+  const handleCloseAtlas = useCallback(() => setAtlasVisible(false), []);
+
+  // Only used to order the Season row by the user's own hemisphere, so any
+  // recent real fix is enough. Falls back to the northern order rather than
+  // guessing from an empty history.
+  const userLatitude = useMemo(() => {
+    const fix = sunStamps.find((s) => typeof s.latitude === 'number')
+      ?? sessions.find((s) => typeof s.latitude === 'number');
+    return fix?.latitude ?? 0;
+  }, [sunStamps, sessions]);
+
+  const stampProgress = useMemo(
+    () => atlasProgress(buildAtlas(sunStamps, userLatitude)),
+    [sunStamps, userLatitude]
+  );
+
+  // Optimistically added to the board so the Atlas is already correct when
+  // the reveal dismisses into it; the write follows in the background.
+  const handleStampCaptured = useCallback((stamp) => {
+    if (!stamp) return;
+    setSunStamps((prev) => [stamp, ...prev]);
+    setScoutVisible(false);
+    setAtlasVisible(true);
+    if (user?.id) {
+      // The stamp stays on screen either way — yanking one the user just
+      // watched themselves catch would be worse than a stamp that doesn't
+      // survive a restart. But the failure is never swallowed: a missing
+      // table or a rejected policy has to be visible, or "my Atlas is empty
+      // after reopening" is undebuggable.
+      SupabaseService.saveSunStamp(user.id, stamp)
+        .then(({ error }) => {
+          if (error) console.log('sun stamp not saved:', error?.message ?? error);
+        })
+        .catch((err) => console.log('sun stamp not saved:', err?.message ?? err));
+    }
+  }, [user]);
 
   // First-ever visit with at least one located session — points out the
   // map before the stats/rankings below it, since that's the whole idea
@@ -304,6 +383,13 @@ export default function PassportScreen({ onBack }) {
         contentContainerStyle={st.bottomContent}
         showsVerticalScrollIndicator={false}
       >
+        <SunStampsEntryCard
+          filled={stampProgress.filled}
+          total={stampProgress.total}
+          onScout={handleOpenScout}
+          onOpenAtlas={handleOpenAtlas}
+        />
+
         <PassportStatsCard
           places={stats.places}
           regions={stats.regions}
@@ -348,6 +434,27 @@ export default function PassportScreen({ onBack }) {
             clusters={clusters}
             allSessions={sessions}
             onBack={handleLocationDetailBack}
+          />
+        </View>
+      )}
+
+      {/* Sun Stamps. Scout is a full-screen modal (immersive camera, same as
+          the Depletion Lab); the Atlas is a pushed overlay (browsable, same
+          as the badge gallery). */}
+      <SunScoutScreen
+        visible={scoutVisible}
+        location={scoutLocation}
+        history={sunStamps}
+        onClose={handleCloseScout}
+        onCaptured={handleStampCaptured}
+      />
+
+      {atlasVisible && (
+        <View style={st.detailOverlay}>
+          <SunAtlasScreen
+            stamps={sunStamps}
+            latitude={userLatitude}
+            onBack={handleCloseAtlas}
           />
         </View>
       )}

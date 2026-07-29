@@ -1,4 +1,4 @@
-import colors from './colors';
+import colors from './colors.js';
 
 // Streak milestone badges — the gamified gallery under the Streaks calendar.
 // One per streak tier (7/50/100/400/600), each with its own name, gradient,

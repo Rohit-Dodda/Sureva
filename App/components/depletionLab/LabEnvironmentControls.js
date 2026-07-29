@@ -6,9 +6,9 @@ import OptionToggleRow from '../whatIf/OptionToggleRow';
 import { formatLabDuration } from '../../services/DepletionLabService';
 
 export const DURATION_VALUES = [30, 60, 90, 120, 180, 240, 360, 480];
-const UV_VALUES = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
-const TEMP_VALUES = [15, 20, 25, 30, 35, 40, 45];
-const HUMIDITY_VALUES = [20, 35, 50, 65, 80, 95];
+export const UV_VALUES = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
+export const TEMP_VALUES = [15, 20, 25, 30, 35, 40, 45];
+export const HUMIDITY_VALUES = [20, 35, 50, 65, 80, 95];
 const ACTIVITY_OPTIONS = [
   { label: 'Low', value: 'sedentary' },
   { label: 'Moderate', value: 'moderate' },

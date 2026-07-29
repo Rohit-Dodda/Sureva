@@ -260,6 +260,7 @@ export default function SessionSetupSheet({ visible, lastSession, onStart, onDis
       ...pendingParams,
       latitude: detection?.status === 'granted' ? detection.latitude : null,
       longitude: detection?.status === 'granted' ? detection.longitude : null,
+      altitude: detection?.status === 'granted' ? detection.altitude : null,
       city: detection?.status === 'granted' ? detection.city : null,
       region: detection?.status === 'granted' ? detection.region : null,
     };

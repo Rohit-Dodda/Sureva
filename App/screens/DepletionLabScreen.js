@@ -7,11 +7,12 @@ import { Ionicons } from '@expo/vector-icons';
 import colors from '../constants/colors';
 import { useAuth } from '../context/AuthContext';
 import { engineProfileFor } from '../components/activeSession/sessionMath';
-import { runLab, scenarioName } from '../services/DepletionLabService';
+import { runLab, scenarioName, nearestValue } from '../services/DepletionLabService';
+import { getForecast } from '../services/WeatherService';
 import PressableScale from '../components/PressableScale';
 import SlideInView from '../components/SlideInView';
 import LabPresetChips from '../components/depletionLab/LabPresetChips';
-import LabEnvironmentControls from '../components/depletionLab/LabEnvironmentControls';
+import LabEnvironmentControls, { UV_VALUES, TEMP_VALUES, HUMIDITY_VALUES } from '../components/depletionLab/LabEnvironmentControls';
 import LabProtectionControls from '../components/depletionLab/LabProtectionControls';
 import LabTimelapseChart from '../components/depletionLab/LabTimelapseChart';
 import LabResultsSummary from '../components/depletionLab/LabResultsSummary';
@@ -48,6 +49,7 @@ export default function DepletionLabScreen({ visible, onClose }) {
   const [runId, setRunId] = useState(0);
   const [saveState, setSaveState] = useState('idle'); // idle | saved | error
   const [saved, setSaved] = useState([]);
+  const [conditionsState, setConditionsState] = useState('idle'); // idle | loading | error
 
   // Lock the scroll while a slider/marker knob is held so a drag can't
   // scroll the page or have its gesture stolen (same pattern as the
@@ -89,6 +91,31 @@ export default function DepletionLabScreen({ visible, onClose }) {
       waterBreakMinutes: [...preset.waterBreakMinutes],
     });
   }, []);
+
+  // Fills just the environment sliders (UV, temperature, humidity) from the
+  // user's real current location/weather — everything else (duration,
+  // activity, protection setup) stays whatever they already had, since
+  // those aren't weather-derived. Snapped onto each slider's own benchmark
+  // values so the thumb lands on a real tick, not just the displayed number.
+  const handleConditionsNow = useCallback(async () => {
+    setConditionsState('loading');
+    try {
+      const forecast = await getForecast(userProfile?.fitzpatrickType);
+      if (forecast?.error) {
+        setConditionsState('error');
+        return;
+      }
+      const { currentUV, currentTemp, currentHumidity } = forecast.today;
+      handleChange({
+        uvIndex: nearestValue(UV_VALUES, currentUV),
+        temperature: nearestValue(TEMP_VALUES, currentTemp),
+        humidity: nearestValue(HUMIDITY_VALUES, currentHumidity),
+      });
+      setConditionsState('idle');
+    } catch {
+      setConditionsState('error');
+    }
+  }, [userProfile, handleChange]);
 
   const handleRun = useCallback(() => {
     const profile = engineProfileFor(
@@ -141,7 +168,11 @@ export default function DepletionLabScreen({ visible, onClose }) {
         <ScrollView ref={scrollRef} style={st.scroll} contentContainerStyle={st.scrollContent} showsVerticalScrollIndicator={false}>
           {phase === 'setup' ? (
             <>
-              <LabPresetChips saved={saved} onSelect={handlePreset} />
+              <LabPresetChips
+                conditionsState={conditionsState}
+                onSelect={handlePreset}
+                onConditionsNow={handleConditionsNow}
+              />
               <View style={st.presetGap} />
               <LabEnvironmentControls config={config} onChange={handleChange} onDraggingChange={handleDraggingChange} />
               <LabProtectionControls config={config} onChange={handleChange} onDraggingChange={handleDraggingChange} />
