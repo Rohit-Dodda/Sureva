@@ -135,37 +135,6 @@ const colors = {
   achSnowEnd: '#4A9BD6',
   achSnowShade: '#1F6EA3',
 
-  // Sun Stamp tiers — how rare the light itself was when a stamp was caught.
-  // Deliberately NOT a recolor of the achievement hues above: those mark what
-  // you've done, these mark what the sky was doing. Rarity has to read without
-  // the label, so the cue is chroma RANGE, not just hue — each tier spans a
-  // wider gradient than the last, and only `once` crosses two distant hue
-  // families (indigo → violet → gold).
-  //
-  // The protection colors (protected/warning/danger) are never used here. A
-  // stamp is never a comment on risk.
-  stampEverydayStart: '#BFD8E8',
-  stampEverydayAccent: '#8FA8B8',
-  stampEverydayEnd: '#E8E2D4',
-  stampEverydayShade: '#6B7A85',
-  stampSeasonalStart: '#FFD08A',
-  stampSeasonalAccent: '#F0A03C',
-  stampSeasonalEnd: '#FF8A5B',
-  stampSeasonalShade: '#B85E28',
-  stampAlignmentStart: '#C56BC2',
-  stampAlignmentAccent: '#F2451D',
-  stampAlignmentEnd: '#FFA84E',
-  stampAlignmentShade: '#8A2A5C',
-  stampOnceStart: '#2B2856',
-  stampOnceAccent: '#A870D6',
-  stampOnceEnd: '#F0B429',
-  stampOnceShade: '#1A1638',
-  stampSeal: '#C79A3C',
-  stampSealLight: '#FFEFC0',
-  // The scrim the plate text sits on, so a place name stays legible over any
-  // sky the art happens to produce.
-  stampPlate: 'rgba(10,8,4,0.88)',
-
   // Social brand colors — only used to tint the streak share-sheet icons.
   brandWhatsapp: '#25D366',
   brandTelegram: '#229ED9',
