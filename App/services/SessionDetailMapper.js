@@ -14,18 +14,21 @@ import {
   calculateFactorBreakdown,
   findCriticalMoments,
   calculateEffectiveSpf,
-  calculateMEDDose,
   calculateSweatLoad,
   calculateSkinStressScore,
   calculateCounterfactual,
   calculatePersonalComparison,
   calculateWeeklyCumulativeDose,
+  calculateVitaminDSynthesis,
 } from '../../Algorithm/js/depletionEngine.js';
 import {
   MED_CALCULATION,
   AGGRESSIVE_MULTIPLIER_THRESHOLD,
+  UNPROTECTED_THRESHOLD_PCT,
+  VITAMIN_D_CALCULATION,
   INTERVAL_MS,
 } from '../../Algorithm/constants/algorithmConstants.js';
+import { calculateHeatIndex, heatRiskBandFor } from './HeatRiskService.js';
 
 const INTERVAL_MINUTES = INTERVAL_MS / 60000;
 
@@ -55,10 +58,21 @@ export function formatDuration(minutes) {
 
 // Estimates a session's total MED dose from its stored average_uv +
 // duration — used for rows that only carry hero-level columns (no
-// session_readings joined), e.g. historical sessions fed to the Pattern
-// card's weekly-dose comparison. Sessions with full readings should use
-// calculateMEDDose on the real per-reading uvIndex instead (see buildSkin).
-function estimateMedDoseFromHero(row, fitzpatrickType) {
+// session_readings joined). Feeds buildSessionHero's uvDosePercent
+// (Home's "Today's UV dose" bar, via computeTodayDosePercent), the
+// Pattern card's weekly-dose comparison, and HomeScreen's
+// computeWeeklyBurnDose/computeWeeklySnapshot. Unlike buildSkin's
+// per-session dose (which discounts for the user's real protection
+// curve via calculateCounterfactual — that fix landed only in Session
+// Detail's BurnTrackerCard), this stays ambient-only/ungated by
+// protection — hero rows carry no per-reading protection history to
+// discount against. KNOWN GAP, wider than it first looks: this affects
+// Home's DAILY bar too, not just the weekly one — both currently
+// overstate real burn dose for anyone wearing sunscreen. Fixing it for
+// "today" is tractable (usually 1-2 sessions, an N+1 getSessionById
+// fetch same as InsightsScreen already does); fixing it for a full week
+// is the same idea at higher fetch cost. Neither is done yet.
+export function estimateMedDoseFromHero(row, fitzpatrickType) {
   const avgUv = row.average_uv ?? 0;
   const durationSeconds = (row.duration_minutes ?? 0) * 60;
   const joules = (avgUv / MED_CALCULATION.uvIndexIrradianceDivisor) * durationSeconds;
@@ -151,6 +165,32 @@ export function reconstructReadings(readingRows, profile) {
     });
 }
 
+// The real "today's UV dose" %: sums each of a day's sessions' actual
+// received dose (calculateCounterfactual's actualMEDDose — the same
+// protection-discounted calculation Session Detail's Burn Tracker card
+// uses), not an ambient-only estimate that ignores sunscreen. Needs each
+// session's full readings, so the caller (Home,
+// Active Session) fetches them first — usually just 1-2 sessions per
+// day, the same bounded N+1 pattern InsightsScreen already uses for its
+// own real-session reconstruction. Shared here (not left screen-local)
+// because both Home's daily bar and Active Session's live "today so
+// far" bar need the identical calculation, not two copies that could
+// drift apart.
+export function computeTodayDosePercentReal(fullRows, fitzpatrickType, readingsProfile) {
+  let sum = 0;
+  for (const row of fullRows) {
+    const readingRows = row?.session_readings ?? [];
+    if (!readingRows.length) continue;
+    const readings = reconstructReadings(readingRows, readingsProfile);
+    const { actualMEDDose } = calculateCounterfactual(
+      { readings, spf: row.spf },
+      { fitzpatrickType, spf: row.spf }
+    );
+    sum += Math.round(Math.min(1, actualMEDDose) * 100);
+  }
+  return Math.min(100, sum);
+}
+
 const FACTOR_LABELS = {
   uv: 'UV intensity',
   heatHumidity: 'Heat & humidity',
@@ -213,7 +253,16 @@ function buildSkin(readings, sessionRow, fitzpatrickType) {
   const sweat = `An estimated ${sweatLoadMl}ml of sweat was produced across your session's active periods.`;
   const sebum = 'No dedicated sebum sensor yet — this factor isn\'t tracked without the wearable device.';
 
-  const medDose = calculateMEDDose(readings, fitzpatrickType);
+  // actualMEDDose (not the simpler calculateMEDDose) is what actually
+  // reached skin — it discounts for the user's real protection curve via
+  // the same transmission model uvDoseFraction uses live in
+  // ActiveSessionScreen. Using the ambient-only figure here would show a
+  // well-protected user climbing toward "burned" at the same rate as bare
+  // skin, which is wrong once sunscreen is on.
+  const medDose = calculateCounterfactual(
+    { readings, spf: sessionRow.spf },
+    { fitzpatrickType, spf: sessionRow.spf }
+  ).actualMEDDose;
   const peakTemperature = sessionRow.peak_temperature ?? Math.max(...readings.map((r) => r.temperature));
   const unprotectedMinutes = sessionRow.unprotected_minutes ?? 0;
   const stressScore = calculateSkinStressScore(medDose, unprotectedMinutes, peakTemperature);
@@ -221,9 +270,9 @@ function buildSkin(readings, sessionRow, fitzpatrickType) {
   const level = STRESS_LEVELS[levelIndex];
   const stressNote = `for your Fitzpatrick Type ${fitzpatrickType} skin, driven mostly by ${unprotectedMinutes > 10 ? 'unprotected time' : 'accumulated UV dose'}.`;
 
-  // calculateMEDDose already expresses dose in units of MEDs (1.0 = this
-  // skin type's minimal erythemal dose, by definition), so the threshold
-  // is always exactly 1.0 — no separate lookup needed.
+  // Dose is already expressed in units of MEDs (1.0 = this skin type's
+  // minimal erythemal dose, by definition), so the threshold is always
+  // exactly 1.0 — no separate lookup needed.
   const medThreshold = 1;
   const medLine = medDose >= 1
     ? `You accumulated ${medDose} MEDs today — past the minimal erythemal dose for your skin type.`
@@ -235,6 +284,97 @@ function buildSkin(readings, sessionRow, fitzpatrickType) {
     sweat,
     stress: { level, note: stressNote },
     med: { accumulated: medDose, threshold: medThreshold, line: medLine },
+  };
+}
+
+// Readings each side to average over before classifying — ~2 minutes
+// total at the engine's 30-second cadence (see buildHeatExposure below
+// for why this exists at all).
+const HEAT_SMOOTHING_HALF_WINDOW = 2;
+
+// Peak civilian Heat Index risk reached this session — see
+// HeatRiskService.js for why this is a separate scale from the
+// engine's WBGT (used only for the depletion multiplier). Classifies a
+// rolling average of temperature/humidity rather than each raw 30-second
+// reading: a single noisy tick (pre-BLE, the mock condition generator's
+// fast synthetic drift; post-BLE, a genuine transient sensor blip)
+// shouldn't flicker the reported risk band the way one instant of real
+// weather wouldn't either — sustained conditions should. Walks the
+// smoothed series rather than the stored peak_temperature +
+// average_humidity columns, since heat risk depends on temp and
+// humidity together at the SAME moment — the hottest moment and the
+// most humid moment don't necessarily coincide.
+function buildHeatExposure(readings) {
+  const smoothed = readings.map((_, i) => {
+    const start = Math.max(0, i - HEAT_SMOOTHING_HALF_WINDOW);
+    const end = Math.min(readings.length - 1, i + HEAT_SMOOTHING_HALF_WINDOW);
+    let tempSum = 0;
+    let humiditySum = 0;
+    let count = 0;
+    for (let j = start; j <= end; j++) {
+      tempSum += readings[j].temperature;
+      humiditySum += readings[j].humidity;
+      count++;
+    }
+    return { temperature: tempSum / count, humidity: humiditySum / count, timestamp: readings[i].timestamp };
+  });
+
+  let peak = smoothed[0];
+  let peakHiF = -Infinity;
+  for (const r of smoothed) {
+    const { heatIndexF } = calculateHeatIndex(r.temperature, r.humidity);
+    if (heatIndexF > peakHiF) {
+      peakHiF = heatIndexF;
+      peak = r;
+    }
+  }
+  const band = heatRiskBandFor(peakHiF);
+  const time = formatClock(new Date(peak.timestamp).toISOString());
+  return {
+    peakBand: band.label,
+    peakBandKey: band.key,
+    line: `Your peak heat risk this session was ${band.label.toLowerCase()}, around ${time}.`,
+  };
+}
+
+// Vitamin D synthesized this session — see calculateVitaminDSynthesis's
+// own comment for why this only counts genuinely unprotected minutes
+// (sunscreen blocks synthesis almost entirely, not just partially the
+// way it does for burn dose). exposedSkinFraction isn't collected
+// anywhere yet (onboarding doesn't ask it), so this always falls back
+// to VITAMIN_D_CALCULATION's documented default. Framed as awareness,
+// not a nudge to reduce protection — see the zero-IU line below, which
+// is expected and correct for a well-protected session, not an error
+// state.
+function buildVitaminD(readings, fitzpatrickType) {
+  const { estimateIU, lowIU, highIU } = calculateVitaminDSynthesis(readings, { fitzpatrickType });
+  const targetIU = VITAMIN_D_CALCULATION.dailyTargetIU;
+  const targetPct = Math.round((estimateIU / targetIU) * 100);
+  const line = estimateIU > 0
+    ? `You likely synthesized ${lowIU}–${highIU} IU of vitamin D during unprotected moments this session — roughly ${targetPct}% of a typical daily target.`
+    : "Sunscreen blocks most UVB, so this session likely didn't add much vitamin D — that's expected while staying protected, not a problem to fix.";
+  return { estimateIU, lowIU, highIU, targetIU, targetPct, line };
+}
+
+// Highest raw UV reading during unprotected time — distinct from
+// buildDrivers' peakMultiplier, which weighs in heat/activity too.
+// Burn dose only cares about UV reaching skin, so this looks at UV
+// alone, preferring an unprotected moment (falls back to the session's
+// overall peak UV if the user was never unprotected).
+function buildBurnPeak(readings) {
+  const unprotected = readings.filter((r) => r.protectionPercentage < UNPROTECTED_THRESHOLD_PCT);
+  const pool = unprotected.length ? unprotected : readings;
+  const peak = pool.reduce((a, b) => (b.uvIndex > a.uvIndex ? b : a), pool[0]);
+  const wasUnprotected = peak.protectionPercentage < UNPROTECTED_THRESHOLD_PCT;
+  const time = formatClock(new Date(peak.timestamp).toISOString());
+  const uvIndex = Math.round(peak.uvIndex * 10) / 10;
+  return {
+    time,
+    uvIndex,
+    wasUnprotected,
+    line: wasUnprotected
+      ? `Your highest burn-risk moment was around ${time}, UV ${uvIndex}, while unprotected.`
+      : `Your highest burn-risk moment was around ${time}, UV ${uvIndex}.`,
   };
 }
 
@@ -270,7 +410,7 @@ function buildMoments(readings, eventRows) {
       cut: Math.round(e.protection_at_event ?? 0),
     }));
 
-  return { fastestDrop, bestWindow, longestUnprotected, waterEvents };
+  return { fastestDrop, bestWindow, longestUnprotected, waterEvents, burnPeak: buildBurnPeak(readings) };
 }
 
 function buildAlerts(eventRows) {
@@ -453,6 +593,8 @@ export function buildSessionDetail(sessionRow, userProfile, historicalRows = [])
     drivers: buildDrivers(readings),
     skin: buildSkin(readings, sessionRow, fitzpatrickType),
     moments: buildMoments(readings, events),
+    heatExposure: buildHeatExposure(readings),
+    vitaminD: buildVitaminD(readings, fitzpatrickType),
     alerts: buildAlerts(events),
     pattern: buildPattern(sessionRow, historicalRows, fitzpatrickType),
     prevented: buildPrevented(readings, sessionRow, fitzpatrickType),
@@ -510,7 +652,10 @@ export function buildCompletedSessionLike(sessionRow, userProfile) {
     averageTemperature,
     alertsFired: alertsInfo.fired,
     alertsConfirmed,
-    medDose: calculateMEDDose(readings, fitzpatrickType),
+    // actualMEDDose (not calculateMEDDose) — see buildSkin's comment on
+    // why lifetime dose totals need to be protection-aware too, not
+    // computed as if every session were spent bare-skinned.
+    medDose: counterfactual.actualMEDDose,
     counterfactual,
     factorBreakdown: calculateFactorBreakdown(readings),
     // Only .length is read (the lifetime water-event tally), so the raw

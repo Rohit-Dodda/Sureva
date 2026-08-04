@@ -39,6 +39,7 @@ import {
   SWEAT_REFERENCE_TEMP_C,
   SKIN_STRESS_WEIGHTS,
   SKIN_STRESS_NORMALIZERS,
+  VITAMIN_D_CALCULATION,
 } from '../constants/algorithmConstants.js';
 
 const INTERVAL_MINUTES = INTERVAL_MS / 60000;
@@ -154,7 +155,12 @@ export function calculateAlertThreshold(userProfile) {
   const ageAdjustment = AGE_THRESHOLD_ADJUSTMENTS[userProfile.ageGroup] ?? 0;
   const medicationAdjustment = userProfile.medicationFlag ? MEDICATION_THRESHOLD_ADJUSTMENT : 0;
   const skinConditionAdjustment = userProfile.skinConditionFlag ? SKIN_CONDITION_THRESHOLD_ADJUSTMENT : 0;
-  return base + ageAdjustment + medicationAdjustment + skinConditionAdjustment;
+  // Survey-driven nudge from PersonalCalibrationService.js — see that
+  // file for how this gets derived (a repeated post-session sensitivity
+  // signal, not a one-off). Always >= 0 by construction there, so this
+  // can only ever fire earlier, never later.
+  const calibrationOffset = userProfile.calibrationOffset ?? 0;
+  return base + ageAdjustment + medicationAdjustment + skinConditionAdjustment + calibrationOffset;
 }
 
 // ─── Water events ─────────────────────────────────────────────
@@ -650,6 +656,53 @@ export function calculateCounterfactual(sessionData, userProfile) {
     simulatedUnprotectedMinutes: simulatedUnprotectedIntervals * INTERVAL_MINUTES,
     simulatedMEDDose: Math.round((simulatedJoules / medJoules) * 100) / 100,
     actualMEDDose: Math.round((actualJoules / medJoules) * 100) / 100,
+  };
+}
+
+// ─── Vitamin D synthesis ───────────────────────────────────────
+// See VITAMIN_D_CALCULATION's own citations for the formula's sources.
+// Deliberately does NOT reuse calculateCounterfactual's transmittedFraction
+// model (protected skin transmits 1/SPF of ambient dose) — that's correct
+// for burn dose, where even a small residual UVB leak still matters
+// accumulated over a long exposure, but Matsuoka LY, Ide L, Wortsman J,
+// MacLaughlin JA, Holick MF, "Sunscreens suppress cutaneous vitamin D3
+// synthesis," J Clin Endocrinol Metab 1987;64(6):1165-1168, found SPF 8
+// sunscreen completely prevented any measurable rise in circulating
+// vitamin D3 — close enough to an on/off effect that synthesis is only
+// counted during genuinely unprotected time (the same
+// UNPROTECTED_THRESHOLD_PCT this app already uses elsewhere for exactly
+// that classification), not scaled by residual SPF transmission.
+export function calculateVitaminDSynthesis(readingsArray, { fitzpatrickType, exposedSkinFraction }) {
+  const intervalSeconds = INTERVAL_MS / 1000;
+  const medJoules =
+    MED_CALCULATION.medJoulesPerM2ByFitzpatrick[fitzpatrickType] ??
+    MED_CALCULATION.medJoulesPerM2ByFitzpatrick[3];
+  const bsa = exposedSkinFraction ?? VITAMIN_D_CALCULATION.defaultExposedSkinFraction;
+  const darkerSkinMultiplier = VITAMIN_D_CALCULATION.conservativeDarkerSkinMultiplier[fitzpatrickType] ?? 1;
+
+  let rawIU = 0;
+  for (const r of readingsArray) {
+    if (r.protectionPercentage >= UNPROTECTED_THRESHOLD_PCT) continue;
+    const ambientJoules = (r.uvIndex / MED_CALCULATION.uvIndexIrradianceDivisor) * intervalSeconds;
+    rawIU += (VITAMIN_D_CALCULATION.holickConstant * ambientJoules * bsa) / medJoules;
+  }
+  rawIU *= darkerSkinMultiplier;
+
+  // Asymptotic saturation toward saturationScaleIU — see that
+  // constant's own comment: a real plateau exists (Holick 1981), this
+  // curve shape approximates it, it isn't itself a sourced number.
+  const scale = VITAMIN_D_CALCULATION.saturationScaleIU;
+  const estimateIU = Math.round(scale * (1 - Math.exp(-rawIU / scale)));
+
+  // ±30%, matching the magnitude of uncertainty Dowdy/Sayre/Holick 2010
+  // itself acknowledges in the correction this formula is built on — a
+  // directionally-motivated band, not a rigorously propagated
+  // statistical interval. Shown as a range rather than a falsely
+  // precise single number for exactly that reason.
+  return {
+    estimateIU,
+    lowIU: Math.round(estimateIU * 0.7),
+    highIU: Math.round(estimateIU * 1.3),
   };
 }
 

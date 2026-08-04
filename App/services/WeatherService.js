@@ -52,6 +52,16 @@ function formatDisplayHour(hour) {
   return `${hour - 12} PM`;
 }
 
+// Sunrise/sunset need minutes too ('6:12 AM'), unlike the whole-hour
+// labels above.
+function formatClockTime(date) {
+  let h = date.getHours();
+  const m = String(date.getMinutes()).padStart(2, '0');
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  h = h % 12 || 12;
+  return `${h}:${m} ${ampm}`;
+}
+
 const EPA_MONTHS = { Jan: 0, Feb: 1, Mar: 2, Apr: 3, May: 4, Jun: 5, Jul: 6, Aug: 7, Sep: 8, Oct: 9, Nov: 10, Dec: 11 };
 
 // EPA's DATE_TIME looks like "Jul/16/2026 02 PM".
@@ -151,7 +161,7 @@ export async function getForecast(fitzpatrickType) {
   // the hourly curve/peak still use the forecast arrays, which is correct
   // for planning ahead.
   const url = `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}`
-    + `&current=uv_index,temperature_2m,relative_humidity_2m&hourly=uv_index,temperature_2m,relative_humidity_2m&daily=uv_index_max`
+    + `&current=uv_index,temperature_2m,relative_humidity_2m&hourly=uv_index,temperature_2m,relative_humidity_2m&daily=uv_index_max,sunrise,sunset`
     + `&timezone=auto&forecast_days=7`;
   const res = await fetch(url);
   if (!res.ok) throw new Error(`Weather API error ${res.status}`);
@@ -286,10 +296,18 @@ export async function getForecast(fitzpatrickType) {
     ],
   };
 
+  // Same no-timezone-designator parsing as hourly.time above — timezone=auto
+  // means these already parse as local wall-clock time via new Date(t).
+  const sunrise = data.daily.sunrise?.[0] ? formatClockTime(new Date(data.daily.sunrise[0])) : null;
+  const sunset = data.daily.sunset?.[0] ? formatClockTime(new Date(data.daily.sunset[0])) : null;
+
   return {
     location,
     updated: now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
-    today: { peakWindow, peakStartIndex, peakEndIndex, peakUV, currentUV, currentTemp, currentHumidity, personalRiskUV, riskLine, hourly, bestTime },
+    today: {
+      peakWindow, peakStartIndex, peakEndIndex, peakUV, currentUV, currentTemp, currentHumidity,
+      personalRiskUV, riskLine, hourly, bestTime, sunrise, sunset,
+    },
     recommendedSetup,
     week,
     alert,

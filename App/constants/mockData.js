@@ -444,8 +444,14 @@ const mockData = {
   },
   conditions: {
     uvIndex: 7.2,
-    temperature: 29,
-    humidity: 65,
+    // Heat Index at these baseline values sits mid-"Caution" (85°F), with
+    // ~5°F margin on both sides before crossing into "Normal" or "Extreme
+    // Caution" — the old 29°C/65% base computed to 89°F, right on the
+    // Extreme Caution boundary, so liveConditionsAt's demo swing flipped it
+    // across roughly half the time regardless of damping. uvIndex left
+    // untouched — this is only about the heat-risk baseline.
+    temperature: 28,
+    humidity: 58,
     activity: 'Moderate',
   },
   todayStats: {

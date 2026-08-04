@@ -18,6 +18,8 @@ import { SKIN_AGE_SCRATCHED_KEY } from '../constants/skinAgeStorage';
 import { useTourTarget, useAutoStartTour } from '../context/AppTourContext';
 import { MILESTONE_TOURS } from '../constants/tourSteps';
 import SkinProfileCard from '../components/insights/SkinProfileCard';
+import CalibrationCard from '../components/insights/CalibrationCard';
+import { calibrationSummaryLine } from '../services/PersonalCalibrationService';
 import PatternsCard from '../components/insights/PatternsCard';
 import HistoryCard from '../components/insights/HistoryCard';
 import SeasonalCard from '../components/insights/SeasonalCard';
@@ -40,7 +42,24 @@ import { useRegisterOpener } from '../context/QuickSearchContext';
 const SUN_RECAP_ENABLED = false;
 
 export default function InsightsScreen({ isActiveTab }) {
-  const { user, userProfile } = useAuth();
+  const { user, userProfile, refreshUserProfile } = useAuth();
+
+  // Undo for PersonalCalibrationService's alert-threshold nudge — not
+  // silent, since it changes real alert timing. Writes 0 straight back
+  // (the neutral state, same as computeCalibrationOffset returning
+  // "not triggered"), then refreshes so the card disappears immediately
+  // rather than waiting for the next check-in to recompute it away.
+  const [resettingCalibration, setResettingCalibration] = useState(false);
+  const handleResetCalibration = useCallback(async () => {
+    if (!user?.id || resettingCalibration) return;
+    setResettingCalibration(true);
+    try {
+      await SupabaseService.saveCalibrationOffset(user.id, 0);
+      await refreshUserProfile();
+    } finally {
+      setResettingCalibration(false);
+    }
+  }, [user, resettingCalibration, refreshUserProfile]);
 
   // null = still loading (mock is the placeholder); a resolved array — even
   // an empty one — is the real, honest answer, same pattern as
@@ -220,6 +239,12 @@ export default function InsightsScreen({ isActiveTab }) {
             </View>
 
             <SkinProfileCard profile={insights.skinProfile} />
+            <CalibrationCard
+              offset={userProfile?.calibrationOffset}
+              summary={calibrationSummaryLine(userProfile?.calibrationOffset)}
+              onReset={handleResetCalibration}
+              resetting={resettingCalibration}
+            />
             <PatternsCard patterns={insights.patterns} />
             <HistoryCard history={insights.history} />
             <SeasonalCard seasonal={insights.seasonal} />

@@ -8,12 +8,12 @@ import PressableScale from '../PressableScale';
 export default React.memo(function WhatIfEntryCard({ onPress }) {
   return (
     <View style={st.card}>
-      <Text style={st.headline}>Session Simulator</Text>
+      <Text style={st.headline}>Explore in the Lab</Text>
       <Text style={st.description}>
         Replay this session with different choices and watch how your protection would have changed.
       </Text>
       <PressableScale style={st.button} onPress={onPress}>
-        <Text style={st.buttonLabel}>Open the simulator</Text>
+        <Text style={st.buttonLabel}>Open the Lab</Text>
       </PressableScale>
     </View>
   );

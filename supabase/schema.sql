@@ -33,6 +33,13 @@ create table public.users (
   -- adjusting; engineProfileFor treats null as the neutral
   -- PERSONAL_FACTOR.initial (1.0), never the mock demo profile's value.
   personal_factor numeric,
+  -- Alert-threshold nudge derived from repeated post-session survey
+  -- signals (see PersonalCalibrationService.js) — distinct from
+  -- personal_factor above: needs no BLE hardware, only ever tightens
+  -- (adds to) the threshold, and 0 (not null) is the neutral/no-signal
+  -- state. calculateAlertThreshold adds this the same way it already
+  -- adds the age/medication/skin-condition adjustments.
+  calibration_offset numeric default 0,
   created_at timestamp with time zone default timezone('utc', now())
 );
 
@@ -121,6 +128,10 @@ create table public.post_session_checkins (
   skin_feel_after text,
   skin_feel_before text,
   user_feedback text,
+  -- This session's PostSessionService.buildSkinFeelBeforeCorrections
+  -- alertThresholdTightenPct (0/5/10/15) — a repeated nonzero value
+  -- across several recent check-ins is PersonalCalibrationService's
+  -- signal for a persistent users.calibration_offset nudge.
   barrier_modifier numeric default 0,
   low_calibration_confidence boolean default false,
   flare_up boolean default false,

@@ -15,8 +15,6 @@ const PatternRow = React.memo(function PatternRow({ icon, text }) {
 
 export default React.memo(function PatternCard({ pattern }) {
   if (!pattern) return null;
-  const dosePct = Math.min(100, (pattern.weeklyDose.meds / pattern.weeklyDose.limit) * 100);
-  const overLimit = pattern.weeklyDose.meds > pattern.weeklyDose.limit;
 
   return (
     <SectionCard icon="analytics-outline" title="Your Pattern">
@@ -32,19 +30,6 @@ export default React.memo(function PatternCard({ pattern }) {
       {pattern.seasonalDrift ? (
         <PatternRow icon="leaf-outline" text={pattern.seasonalDrift} />
       ) : null}
-
-      <View style={st.doseBlock}>
-        <Text style={st.doseLabel}>Weekly cumulative dose</Text>
-        <View style={st.doseTrack}>
-          <View
-            style={[
-              st.doseFill,
-              { width: `${dosePct}%`, backgroundColor: overLimit ? colors.danger : colors.protected },
-            ]}
-          />
-        </View>
-        <Text style={st.doseText}>{pattern.weeklyDose.line}</Text>
-      </View>
     </SectionCard>
   );
 });
@@ -64,33 +49,5 @@ const st = StyleSheet.create({
     color: colors.inkMid,
     lineHeight: 19,
     flex: 1,
-  },
-  doseBlock: {
-    marginTop: 2,
-  },
-  doseLabel: {
-    fontFamily: 'Outfit-Regular',
-    fontSize: 12,
-    color: colors.muted,
-    letterSpacing: 0.4,
-    textTransform: 'uppercase',
-    marginBottom: 8,
-  },
-  doseTrack: {
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: colors.surface,
-    overflow: 'hidden',
-    marginBottom: 8,
-  },
-  doseFill: {
-    height: 8,
-    borderRadius: 4,
-  },
-  doseText: {
-    fontFamily: 'Outfit-Regular',
-    fontSize: 13,
-    color: colors.inkMid,
-    lineHeight: 19,
   },
 });

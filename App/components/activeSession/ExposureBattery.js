@@ -23,7 +23,7 @@ export default React.memo(function ExposureBattery({ fraction }) {
 
   return (
     <View style={st.card}>
-      <CardHeader icon="sunny" title="UV exposure today" subtitle={`${pct}% of daily budget`} />
+      <CardHeader icon="sunny" title="Burn Tracker" subtitle={`${pct}% of this session's burn dose`} />
       <View style={st.battery}>
         <View style={st.cells}>
           <LinearGradient
@@ -33,7 +33,6 @@ export default React.memo(function ExposureBattery({ fraction }) {
             style={[st.fill, { width: `${Math.max(3, pct)}%` }]}
           />
         </View>
-        <View style={st.cap} />
       </View>
       <Text style={st.caption}>{caption}</Text>
     </View>
@@ -42,12 +41,12 @@ export default React.memo(function ExposureBattery({ fraction }) {
 
 const st = StyleSheet.create({
   card: {
-    flex: 1,
     backgroundColor: colors.white,
     borderRadius: 20,
     borderWidth: 1,
     borderColor: colors.border,
-    padding: 16,
+    padding: 18,
+    marginHorizontal: 16,
     shadowColor: colors.ink,
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.06,
@@ -68,13 +67,6 @@ const st = StyleSheet.create({
   fill: {
     height: '100%',
     borderRadius: 8,
-  },
-  cap: {
-    width: 4,
-    height: 12,
-    borderRadius: 2,
-    backgroundColor: colors.surface,
-    marginLeft: 3,
   },
   caption: {
     fontFamily: 'Outfit-Regular',

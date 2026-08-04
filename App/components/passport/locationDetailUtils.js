@@ -63,7 +63,9 @@ export function modalUvPeakTimeBucket(sessions) {
 }
 
 // ─── UV ──────────────────────────────────────────────────────────
-const UV_BANDS = [
+// Exported — WorldUvService.js reuses the exact same bands/colors for
+// the Passport World Map rather than inventing a second UV color scale.
+export const UV_BANDS = [
   { label: 'Low', max: 2, color: colors.protected },
   { label: 'Moderate', max: 5, color: colors.protected },
   { label: 'High', max: 7, color: colors.warning },

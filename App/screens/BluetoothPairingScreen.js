@@ -13,8 +13,9 @@ import {
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import colors from '../constants/colors';
-
-const MOCK_DEVICE = { id: '1', name: 'Sureva Device', rssi: -52 };
+import {
+  getMockBluetoothState, startMockDeviceScan, connectToMockDevice,
+} from '../services/DeviceScanSource';
 
 const STAGGER = 110;
 const ENTER_DURATION = 520;
@@ -179,31 +180,68 @@ function CheckmarkAnimation() {
   );
 }
 
+// How long to wait with no device found before giving up — a UX policy
+// decision this screen owns, not something the scan source itself should
+// enforce (a real BLE scan API has no opinion on how long is "too long").
+const SCAN_TIMEOUT_MS = 30000;
+
 // ─── Main screen ──────────────────────────────────────────────
 export default function BluetoothPairingScreen({ onComplete }) {
-  const [pairingState,   setPairingState  ] = useState('instructions');
+  // Starts on 'checkingBluetooth' rather than assuming 'instructions' —
+  // see the Bluetooth-state effect below.
+  const [pairingState,   setPairingState  ] = useState('checkingBluetooth');
+  const [foundDevice,    setFoundDevice   ] = useState(null);
   const [selectedDevice, setSelectedDevice] = useState(null);
-  const scanTimeoutRef       = useRef(null);
-  const transitionTimeoutRef = useRef(null);
+  const scanTimeoutRef  = useRef(null);
+  const scanSourceRef   = useRef(null);
+  const connectTaskRef  = useRef(null);
 
   const illustAnim  = useEntranceAnim(STAGGER);
   const headingAnim = useEntranceAnim(STAGGER * 2);
   const subAnim     = useEntranceAnim(STAGGER * 3);
   const btnAnim     = useEntranceAnim(STAGGER * 4);
 
-  const clearTimers = useCallback(() => {
+  // Tears down whatever's in flight — an active scan, a pending connect
+  // attempt, and the give-up timer — so starting a new attempt (or
+  // unmounting mid-attempt) never leaves a stale one still running in
+  // the background to fire a state update after the fact.
+  const stopActive = useCallback(() => {
     clearTimeout(scanTimeoutRef.current);
-    clearTimeout(transitionTimeoutRef.current);
+    scanSourceRef.current?.stopScan();
+    scanSourceRef.current = null;
+    connectTaskRef.current?.cancel();
+    connectTaskRef.current = null;
   }, []);
 
-  useEffect(() => () => clearTimers(), [clearTimers]);
+  useEffect(() => () => stopActive(), [stopActive]);
+
+  // Real BLE integration checks (and subscribes to changes in) the OS
+  // Bluetooth radio state before assuming pairing is even possible —
+  // getMockBluetoothState is that seam; it always reports on today since
+  // there's no real radio yet, so this effectively always lands on
+  // 'instructions', but the screen never assumes that for granted.
+  useEffect(() => {
+    setPairingState(getMockBluetoothState() === 'poweredOn' ? 'instructions' : 'bluetoothOff');
+  }, []);
 
   const startScanning = useCallback(() => {
-    clearTimers();
+    stopActive();
+    setFoundDevice(null);
+    setSelectedDevice(null);
     setPairingState('scanning');
-    transitionTimeoutRef.current = setTimeout(() => setPairingState('deviceFound'), 3000);
-    scanTimeoutRef.current       = setTimeout(() => setPairingState('error'), 30000);
-  }, [clearTimers]);
+    scanSourceRef.current = startMockDeviceScan({
+      onDeviceFound: (device) => {
+        clearTimeout(scanTimeoutRef.current);
+        scanSourceRef.current?.stopScan();
+        setFoundDevice(device);
+        setPairingState('deviceFound');
+      },
+    });
+    scanTimeoutRef.current = setTimeout(() => {
+      scanSourceRef.current?.stopScan();
+      setPairingState('error');
+    }, SCAN_TIMEOUT_MS);
+  }, [stopActive]);
 
   const handleDeviceTap = useCallback((device) => {
     setSelectedDevice(device);
@@ -211,10 +249,12 @@ export default function BluetoothPairingScreen({ onComplete }) {
 
   const handleConnectSelected = useCallback(() => {
     if (!selectedDevice) return;
-    clearTimers();
     setPairingState('connecting');
-    transitionTimeoutRef.current = setTimeout(() => setPairingState('connected'), 2000);
-  }, [selectedDevice, clearTimers]);
+    connectTaskRef.current = connectToMockDevice(selectedDevice, {
+      onConnected: () => setPairingState('connected'),
+      onError: () => setPairingState('error'),
+    });
+  }, [selectedDevice]);
 
   const handleTryAgain = useCallback(() => startScanning(), [startScanning]);
 
@@ -223,8 +263,13 @@ export default function BluetoothPairingScreen({ onComplete }) {
   }, []);
 
   const handleGetStarted = useCallback(() => {
-    onComplete && onComplete({ connected: true });
-  }, [onComplete]);
+    // selectedDevice comes from the scan source's own onDeviceFound
+    // callback (see startScanning above), not a constant referenced
+    // directly here — a real BLE integration's actual discovered device
+    // (real id/name) flows through this same completion shape without
+    // this callback needing to change.
+    onComplete && onComplete({ connected: true, deviceId: selectedDevice?.id, name: selectedDevice?.name });
+  }, [onComplete, selectedDevice]);
 
   // ── Content ─────────────────────────────────────────────────
   const renderContent = () => {
@@ -253,23 +298,24 @@ export default function BluetoothPairingScreen({ onComplete }) {
         );
 
       case 'deviceFound': {
-        const isSelected = selectedDevice?.id === MOCK_DEVICE.id;
+        if (!foundDevice) return null;
+        const isSelected = selectedDevice?.id === foundDevice.id;
         return (
           <View style={styles.contentCentered}>
             <View style={styles.radarWrap}><RadarAnimation /></View>
             <Text style={styles.scanLabel}>Device found nearby</Text>
             <TouchableOpacity
               style={[styles.deviceCard, isSelected && styles.deviceCardSelected]}
-              onPress={() => handleDeviceTap(MOCK_DEVICE)}
+              onPress={() => handleDeviceTap(foundDevice)}
               activeOpacity={0.75}
             >
               <View style={[styles.deviceIconWrap, isSelected && styles.deviceIconWrapSelected]}>
                 <View style={[styles.deviceIconDot, isSelected && styles.deviceIconDotSelected]} />
               </View>
               <Text style={[styles.deviceName, isSelected && styles.deviceNameSelected]}>
-                {MOCK_DEVICE.name}
+                {foundDevice.name}
               </Text>
-              <SignalIcon rssi={MOCK_DEVICE.rssi} />
+              <SignalIcon rssi={foundDevice.rssi} />
             </TouchableOpacity>
           </View>
         );

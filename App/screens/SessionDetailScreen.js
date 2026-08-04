@@ -24,13 +24,16 @@ import DepletionChart from '../components/DepletionChart';
 import ScoreHero from '../components/sessionDetail/ScoreHero';
 import DriversCard from '../components/sessionDetail/DriversCard';
 import SkinTodayCard from '../components/sessionDetail/SkinTodayCard';
+import BurnTrackerCard from '../components/sessionDetail/BurnTrackerCard';
+import HeatExposureCard from '../components/sessionDetail/HeatExposureCard';
+import VitaminDCard from '../components/sessionDetail/VitaminDCard';
 import MomentsCard from '../components/sessionDetail/MomentsCard';
 import AlertComplianceCard from '../components/sessionDetail/AlertComplianceCard';
 import PatternCard from '../components/sessionDetail/PatternCard';
 import PreventedCard from '../components/sessionDetail/PreventedCard';
 import SurevaTakeCard from '../components/sessionDetail/SurevaTakeCard';
 import WhatIfEntryCard from '../components/whatIf/WhatIfEntryCard';
-import WhatIfSimulatorScreen from './WhatIfSimulatorScreen';
+import DepletionLabScreen from './DepletionLabScreen';
 // Mock sessions (mockData.sessionDetails) still resolve their What If
 // inputs from here; real sessions build them from the fetched row instead
 // — see buildWhatIfSimData below.
@@ -55,9 +58,9 @@ export default function SessionDetailScreen({ session, onBack, scrollKey, initia
   // responder) and the state (drives pointerEvents) flip together.
   const readyRef = useRef(false);
   const [interactive, setInteractive] = useState(false);
-  const [whatIfVisible, setWhatIfVisible] = useState(false);
-  const openWhatIf = useCallback(() => setWhatIfVisible(true), []);
-  const closeWhatIf = useCallback(() => setWhatIfVisible(false), []);
+  const [labVisible, setLabVisible] = useState(false);
+  const openLab = useCallback(() => setLabVisible(true), []);
+  const closeLab = useCallback(() => setLabVisible(false), []);
   // Known mock session ids resolve instantly from mockData; a real session
   // (a Supabase UUID) has no entry there, so it's fetched + built lazily
   // below — this is the single seam that makes every screen that opens a
@@ -246,6 +249,18 @@ export default function SessionDetailScreen({ session, onBack, scrollKey, initia
 
               <SlideInView delay={280}><DriversCard drivers={detail.drivers} /></SlideInView>
               <SlideInView delay={330}><SkinTodayCard skin={detail.skin} /></SlideInView>
+              <SlideInView delay={355}>
+                <BurnTrackerCard
+                  med={detail.skin.med}
+                  burnPeak={detail.moments.burnPeak}
+                />
+              </SlideInView>
+              <SlideInView delay={365}>
+                <HeatExposureCard heatExposure={detail.heatExposure} />
+              </SlideInView>
+              <SlideInView delay={372}>
+                <VitaminDCard vitaminD={detail.vitaminD} />
+              </SlideInView>
               <SlideInView delay={380}><MomentsCard moments={detail.moments} /></SlideInView>
               <SlideInView delay={430}><AlertComplianceCard alerts={detail.alerts} /></SlideInView>
               <SlideInView delay={480}><PatternCard pattern={detail.pattern} /></SlideInView>
@@ -254,7 +269,7 @@ export default function SessionDetailScreen({ session, onBack, scrollKey, initia
                 <SlideInView delay={580}><SurevaTakeCard take={detail.aiTake} /></SlideInView>
               )}
               {whatIfData && (
-                <SlideInView delay={630}><WhatIfEntryCard onPress={openWhatIf} /></SlideInView>
+                <SlideInView delay={630}><WhatIfEntryCard onPress={openLab} /></SlideInView>
               )}
             </>
           ) : (
@@ -262,12 +277,13 @@ export default function SessionDetailScreen({ session, onBack, scrollKey, initia
           )}
         </ScrollView>
 
-        {whatIfData && whatIfVisible && (
-          <WhatIfSimulatorScreen
-            visible={whatIfVisible}
-            onClose={closeWhatIf}
-            session={session}
-            simData={whatIfData}
+        {whatIfData && labVisible && (
+          <DepletionLabScreen
+            visible={labVisible}
+            onClose={closeLab}
+            initialSessionId={session.id}
+            initialSimData={whatIfData}
+            initialHero={session}
           />
         )}
       </SafeAreaView>

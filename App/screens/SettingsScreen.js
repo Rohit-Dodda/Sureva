@@ -15,10 +15,13 @@ import HelpSupportScreen from './HelpSupportScreen';
 import AboutSurevaScreen from './AboutSurevaScreen';
 import NotificationSettingsScreen from './NotificationSettingsScreen';
 import EditSkinProfileScreen from './EditSkinProfileScreen';
+import DevicePlacementScreen from './DevicePlacementScreen';
 import ConfirmDialog from '../components/ConfirmDialog';
 import TwoFactorAuthModal from '../components/TwoFactorAuthModal';
 import { useAppTour } from '../context/AppTourContext';
 import { WELCOME_TOUR_ID, WELCOME_TOUR_STEPS } from '../constants/tourSteps';
+import { useDeviceConnection, formatLastSynced } from '../context/DeviceConnectionContext';
+import { DEVICE_PLACEMENTS } from '../constants/devicePlacementOptions';
 
 const SCREEN_W = Dimensions.get('window').width;
 // Strong ease-out: starts fast, lands smoothly. Never ease-in on UI elements.
@@ -82,11 +85,30 @@ export default function SettingsScreen({ visible, onClose, onSignOut }) {
   const [notificationSettingsVisible, setNotificationSettingsVisible] = useState(false);
   const openNotificationSettings = useCallback(() => setNotificationSettingsVisible(true), []);
   const [editSkinProfileVisible, setEditSkinProfileVisible] = useState(false);
+  const [devicePlacementVisible, setDevicePlacementVisible] = useState(false);
   const [twoFactorVisible, setTwoFactorVisible] = useState(false);
   const [confirmDeleteVisible, setConfirmDeleteVisible] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [exporting, setExporting] = useState(false);
   const { restartTour } = useAppTour();
+  const device = useDeviceConnection();
+  const placementLabel = DEVICE_PLACEMENTS.find(
+    (p) => p.id === (userProfile?.devicePlacement ?? 'shoulder_strap')
+  )?.label ?? 'Shoulder strap or backpack';
+
+  // Real action, not just test tooling — clears the persisted pairing so
+  // the app stops treating this device as paired, mirroring what "forget
+  // this device" means for any other Bluetooth accessory.
+  const handleForgetDevice = useCallback(() => {
+    Alert.alert(
+      'Forget This Device',
+      `Sureva won't remember ${device.name ?? 'this device'} — you'll need to pair again to track a session.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Forget Device', style: 'destructive', onPress: () => device.forgetDevice() },
+      ]
+    );
+  }, [device]);
 
   // The tour's spotlight targets live on Home, underneath this modal — so
   // close first, then start it once this has had time to animate away,
@@ -298,12 +320,43 @@ export default function SettingsScreen({ visible, onClose, onSignOut }) {
             <Animated.View style={{ opacity: fade2, transform: [{ translateY: slide2 }] }}>
               <Text style={st.sectionHeading}>DEVICE</Text>
               <View style={st.card}>
+                {device.paired ? (
+                  <>
+                    <SettingsRow
+                      label={device.name ?? 'Sureva Device'}
+                      sublabel={device.connected
+                        ? `Connected · ${device.battery ?? 0}% · synced ${formatLastSynced(device.lastSyncedAt)}`
+                        : `Disconnected · last synced ${formatLastSynced(device.lastSyncedAt)}`}
+                      hideChevron
+                      onPress={() => {}}
+                    />
+                    <SettingsRow label="Forget This Device" danger onPress={handleForgetDevice} />
+                  </>
+                ) : (
+                  // Not wired to re-open BluetoothPairingScreen from here yet
+                  // — that screen currently only exists pre-onboarding
+                  // (App.js) and has no close/back affordance to be
+                  // presented as a modal the way ProfileScreen/HelpSupport
+                  // etc. are below. Real state (paired vs not) is accurate
+                  // now; actually launching a re-pair from Settings is a
+                  // separate follow-up.
+                  <SettingsRow
+                    label="Pair a Device"
+                    sublabel="No device paired yet"
+                    hideChevron
+                    onPress={() => {}}
+                  />
+                )}
+                {/* Real algorithmic input regardless of pairing state —
+                    calculatePlacementCorrection already applies it to
+                    today's mock readings, so this isn't gated on having a
+                    real device connected. */}
                 <SettingsRow
-                  label="Sureva S1"
-                  sublabel="Connected · 82%"
-                  onPress={() => {}}
+                  label="Device Placement"
+                  sublabel={placementLabel}
+                  isLast
+                  onPress={() => setDevicePlacementVisible(true)}
                 />
-                <SettingsRow label="Pair New Device" isLast onPress={() => {}} />
               </View>
             </Animated.View>
 
@@ -387,6 +440,12 @@ export default function SettingsScreen({ visible, onClose, onSignOut }) {
       <EditSkinProfileScreen
         visible={editSkinProfileVisible}
         onClose={() => setEditSkinProfileVisible(false)}
+      />
+
+      {/* DevicePlacementScreen slides over settings within the same Modal */}
+      <DevicePlacementScreen
+        visible={devicePlacementVisible}
+        onClose={() => setDevicePlacementVisible(false)}
       />
 
       <TwoFactorAuthModal

@@ -13,9 +13,12 @@ import { useAuth } from '../context/AuthContext';
 import SupabaseService from '../services/SupabaseService';
 import { onSessionSaved } from '../services/SessionEventsService';
 import {
-  buildSessionHero, buildSessionDetail, formatDuration, estimateSedFromHero,
+  buildSessionHero, buildSessionDetail, formatDuration, estimateSedFromHero, estimateMedDoseFromHero,
+  computeTodayDosePercentReal,
 } from '../services/SessionDetailMapper';
-import { calculatePersonalComparison } from '../../Algorithm/js/depletionEngine.js';
+import {
+  calculatePersonalComparison, calculateWeeklyCumulativeDose,
+} from '../../Algorithm/js/depletionEngine.js';
 import { engineProfileFor } from '../components/activeSession/sessionMath';
 import { getForecast } from '../services/WeatherService';
 import SessionSetupSheet from '../components/SessionSetupSheet';
@@ -34,6 +37,9 @@ import CheckInSheet from '../components/postSession/CheckInSheet';
 import StreakRevealOverlay from '../components/streaks/StreakRevealOverlay';
 import { useStreak } from '../context/StreakContext';
 import { setActiveSessionOpener } from '../services/NotificationService';
+import * as SessionEngine from '../../Algorithm/services/SessionService.js';
+import * as SessionCheckpointStore from '../services/SessionCheckpointStore';
+import { useDeviceConnection, formatLastSynced } from '../context/DeviceConnectionContext';
 import TrendsScreen from './TrendsScreen';
 import { useScrollToTop } from '../context/ScrollToTopContext';
 import { useHideTabBar } from '../context/TabBarVisibilityContext';
@@ -88,12 +94,20 @@ function formatHrMin(mins) {
 // prop source change only. Conservative throughout: missing data reads as
 // zero/less exposure surfaced, never inflated.
 
+// Rows whose start falls on today's local calendar date — one shared
+// definition of "today" so computeTodayStats, the daily dose percent,
+// and loadHomeData's extra per-session fetch (for the protection-aware
+// version of that dose) can't quietly drift apart.
+function todaysRows(rows) {
+  const now = new Date();
+  return rows.filter((r) => r.start_time && isSameLocalDay(new Date(r.start_time), now));
+}
+
 // Today's Protection card — sessions whose start falls on the local calendar
 // day. Protected time is duration minus unprotected (floored at 0 so a bad
 // row can't produce negative protected time).
 function computeTodayStats(rows) {
-  const now = new Date();
-  const today = rows.filter((r) => r.start_time && isSameLocalDay(new Date(r.start_time), now));
+  const today = todaysRows(rows);
   let protectedMin = 0;
   let unprotectedMin = 0;
   let reapplications = 0;
@@ -184,17 +198,46 @@ function computeProtectionPattern(rows) {
   };
 }
 
-// Today's UV dose as a % of the day's safe limit (one MED = 100%). Reuses
-// buildSessionHero's per-session medDose percent — no new dose formula is
-// invented here — summed over today's sessions and capped at 100 (a full
-// day past the burn threshold still reads as 100%, never more). Same
-// local-calendar-day filter computeTodayStats uses, so the two agree on
-// which sessions count as "today".
+// Ambient-only estimate of today's UV dose — ungated by sunscreen, so it
+// overstates real dose for anyone actually protected (same issue flagged
+// on estimateMedDoseFromHero's own comment). FALLBACK ONLY: loadHomeData
+// prefers computeTodayDosePercentReal below, which discounts for real
+// protection using each session's full readings. This stays only as
+// what shows if that extra fetch fails — degraded-but-present beats a
+// permanently blank bar, but this number is known to run high.
 function computeTodayDosePercent(rows, fitzpatrickType) {
-  const now = new Date();
-  const today = rows.filter((r) => r.start_time && isSameLocalDay(new Date(r.start_time), now));
+  const today = todaysRows(rows);
   const sum = today.reduce((acc, r) => acc + buildSessionHero(r, fitzpatrickType).uvDosePercent, 0);
   return Math.min(100, Math.round(sum));
+}
+
+
+// This week's burn-dose ring on Today's Protection. Only "fires" once
+// there's a genuine week of history to judge against — a 2-day-old
+// account showing e.g. "12% of weekly budget" would read as reassuring
+// when it's really just "no data yet", so this returns null (card hides
+// the row entirely) until the account's oldest session is at least 7
+// days old, rather than showing a misleadingly-low partial-week number.
+function computeWeeklyBurnDose(rows, fitzpatrickType) {
+  if (!rows.length) return null;
+  const earliestMs = rows.reduce((min, r) => {
+    if (!r.start_time) return min;
+    const t = new Date(r.start_time).getTime();
+    return min === null || t < min ? t : min;
+  }, null);
+  if (earliestMs === null || Date.now() - earliestMs < 7 * 86400000) return null;
+
+  const weekly = calculateWeeklyCumulativeDose(
+    rows.map((r) => ({
+      startTime: new Date(r.start_time).getTime(),
+      medDose: estimateMedDoseFromHero(r, fitzpatrickType),
+    })),
+    fitzpatrickType
+  );
+  const pct = weekly.recommendedLimit > 0
+    ? Math.min(100, Math.round((weekly.weeklyTotal / weekly.recommendedLimit) * 100))
+    : 0;
+  return { pct };
 }
 
 // Honest zero-state shapes for a signed-in user with no sessions yet — the
@@ -300,7 +343,7 @@ const StartSessionPill = React.memo(function StartSessionPill({ onPress, session
 });
 
 // ─── Today's Protection card ──────────────────────────────────
-const ProtectionStatsCard = React.memo(function ProtectionStatsCard({ stats, conditions, dosePercent, empty, loading }) {
+const ProtectionStatsCard = React.memo(function ProtectionStatsCard({ stats, conditions, dosePercent, weeklyBurnDose, empty, loading }) {
   // Live weather (conditions) is real regardless of session history, so the
   // chips always render. Only the session-derived tiles + UV dose collapse
   // to an honest empty/zero state when there are no sessions today.
@@ -318,6 +361,10 @@ const ProtectionStatsCard = React.memo(function ProtectionStatsCard({ stats, con
   const doseColor =
     dosePercent < 50 ? colors.protected :
     dosePercent < 80 ? colors.warning : colors.danger;
+  const weeklyColor = weeklyBurnDose && (
+    weeklyBurnDose.pct < 50 ? colors.protected :
+    weeklyBurnDose.pct < 80 ? colors.warning : colors.danger
+  );
 
   return (
     <ExpandableCard
@@ -326,8 +373,8 @@ const ProtectionStatsCard = React.memo(function ProtectionStatsCard({ stats, con
       title="Today's Protection"
       expandedContent={
         <View>
-          <Text style={exSt.sectionLabel}>Conditions right now</Text>
-          <View style={exSt.chipRow}>
+          <Text style={[exSt.sectionLabel, exSt.sectionLabelCenter]}>Conditions right now</Text>
+          <View style={[exSt.chipRow, exSt.chipRowCenter]}>
             {chips.map((chip) => (
               <View key={chip.icon} style={exSt.chip}>
                 <Ionicons name={chip.icon} size={13} color={colors.inkMid} />
@@ -346,6 +393,17 @@ const ProtectionStatsCard = React.memo(function ProtectionStatsCard({ stats, con
           <View style={exSt.track}>
             <View style={[exSt.fill, { width: `${hasData ? dosePercent : 0}%`, backgroundColor: doseColor }]} />
           </View>
+          {weeklyBurnDose && (
+            <>
+              <View style={[exSt.kvRow, exSt.weeklyRow]}>
+                <Text style={exSt.kvLabel}>This week's burn dose</Text>
+                <Text style={[exSt.kvValue, { color: weeklyColor }]}>{weeklyBurnDose.pct}% of weekly budget</Text>
+              </View>
+              <View style={exSt.track}>
+                <View style={[exSt.fill, { width: `${weeklyBurnDose.pct}%`, backgroundColor: weeklyColor }]} />
+              </View>
+            </>
+          )}
         </View>
       }
     >
@@ -615,11 +673,17 @@ const exSt = StyleSheet.create({
     textTransform: 'uppercase',
     marginBottom: 10,
   },
+  sectionLabelCenter: {
+    textAlign: 'center',
+  },
   chipRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
     marginBottom: 14,
+  },
+  chipRowCenter: {
+    justifyContent: 'center',
   },
   chip: {
     flexDirection: 'row',
@@ -650,6 +714,9 @@ const exSt = StyleSheet.create({
     fontFamily: 'Outfit-Regular',
     fontSize: 13,
     color: colors.ink,
+  },
+  weeklyRow: {
+    marginTop: 8,
   },
   track: {
     height: 8,
@@ -988,6 +1055,11 @@ const ProtectionPatternCard = React.memo(function ProtectionPatternCard({ patter
 const DeviceCard = React.memo(function DeviceCard({ device, onDragStart, onDragEnd }) {
   const batColor = device.battery > 30 ? colors.protected : colors.warning;
   const dotColor = device.connected ? colors.protected : colors.danger;
+  // Distinguishes "never paired anything" from "paired, just not
+  // connected right now" — showing a 0% battery bar and "Disconnected"
+  // for a device that's never existed would read as a fault, not an
+  // accurate empty state.
+  const subtitle = device.connected ? 'Connected' : device.paired ? 'Disconnected' : 'Not paired';
   const [guideVisible, setGuideVisible] = useState(false);
   const openGuide  = useCallback(() => setGuideVisible(true), []);
   const closeGuide = useCallback(() => setGuideVisible(false), []);
@@ -999,7 +1071,7 @@ const DeviceCard = React.memo(function DeviceCard({ device, onDragStart, onDragE
       <CardHeader
         icon="bluetooth"
         title="My Device"
-        subtitle={device.connected ? 'Connected' : 'Disconnected'}
+        subtitle={subtitle}
         actionIcon="information-circle-outline"
         onActionPress={openGuide}
       />
@@ -1025,19 +1097,24 @@ const DeviceCard = React.memo(function DeviceCard({ device, onDragStart, onDragE
         <Text style={devSt.name}>{device.name}</Text>
       </View>
 
-      {/* Battery row */}
-      <View style={devSt.batteryRow}>
-        <View style={devSt.batOuter}>
-          <View style={devSt.batBody}>
-            <View style={[devSt.batFill, { width: `${device.battery}%`, backgroundColor: batColor }]} />
+      {/* Battery row — only meaningful once a device has connected at
+          least once and reported a real level. */}
+      {device.paired ? (
+        <View style={devSt.batteryRow}>
+          <View style={devSt.batOuter}>
+            <View style={devSt.batBody}>
+              <View style={[devSt.batFill, { width: `${device.battery}%`, backgroundColor: batColor }]} />
+            </View>
+            <View style={devSt.batNub} />
           </View>
-          <View style={devSt.batNub} />
+          <Text style={[devSt.batPct, { color: batColor }]}>{device.battery}%</Text>
         </View>
-        <Text style={[devSt.batPct, { color: batColor }]}>{device.battery}%</Text>
-      </View>
+      ) : (
+        <Text style={devSt.lastSynced}>Pair your Sureva to see live battery and sync status</Text>
+      )}
 
       {/* Last synced */}
-      <Text style={devSt.lastSynced}>Last synced {device.lastSynced}</Text>
+      {device.paired && <Text style={devSt.lastSynced}>Last synced {device.lastSynced}</Text>}
       </View>
     </View>
   );
@@ -1046,12 +1123,23 @@ const DeviceCard = React.memo(function DeviceCard({ device, onDragStart, onDragE
 // ─── Main screen ──────────────────────────────────────────────
 export default function HomeScreen({ onSignOut, onNavigateTab, isActiveTab }) {
   const { user, userProfile, profileImage } = useAuth();
-  // device stays mock — there's no BLE hardware yet, so no real source for it.
-  // conditions (live UV/temp/humidity) now come from the same WeatherService
-  // the Forecast tab uses, so the two screens can't show different "right now"
-  // numbers; todayStats/weeklySnapshot/protectionPattern below are real,
-  // computed from persisted sessions.
-  const { device } = mockData;
+  // Real shared connection state (DeviceConnectionContext) — no longer
+  // mockData.device, which was permanently hardcoded to "Connected, 78%"
+  // regardless of whether any device had ever been paired. Reshaped to
+  // the exact prop names DeviceCard already expects (name/battery/
+  // connected/lastSynced) so the card itself didn't need to change.
+  // conditions (live UV/temp/humidity) come from the same WeatherService
+  // the Forecast tab uses, so the two screens can't show different "right
+  // now" numbers; todayStats/weeklySnapshot/protectionPattern below are
+  // real, computed from persisted sessions.
+  const deviceConnection = useDeviceConnection();
+  const device = {
+    name: deviceConnection.name ?? mockData.device.name,
+    battery: deviceConnection.battery ?? 0,
+    connected: deviceConnection.connected,
+    paired: deviceConnection.paired,
+    lastSynced: formatLastSynced(deviceConnection.lastSyncedAt),
+  };
   // Last session card runs on the full session record so it can deep-link
   // into the same detail view History uses. All the real card data (last
   // session + the three stat cards) comes from one getSessions fetch — null
@@ -1062,6 +1150,7 @@ export default function HomeScreen({ onSignOut, onNavigateTab, isActiveTab }) {
   const [realWeeklySnapshot, setRealWeeklySnapshot] = useState(null);
   const [realProtectionPattern, setRealProtectionPattern] = useState(null);
   const [realTodayDosePercent, setRealTodayDosePercent] = useState(null);
+  const [realWeeklyBurnDose, setRealWeeklyBurnDose] = useState(null);
   const loadHomeData = useCallback(async () => {
     if (!user?.id) return;
     try {
@@ -1078,7 +1167,33 @@ export default function HomeScreen({ onSignOut, onNavigateTab, isActiveTab }) {
       setRealTodayStats(computeTodayStats(rows));
       setRealWeeklySnapshot(computeWeeklySnapshot(rows));
       setRealProtectionPattern(computeProtectionPattern(rows));
-      setRealTodayDosePercent(computeTodayDosePercent(rows, profile.fitzpatrickType));
+      // Protection-aware daily dose needs each of today's sessions' full
+      // readings — the ambient-only estimate (computeTodayDosePercent)
+      // is only a fallback if this extra fetch fails, never shown as the
+      // primary number, since it's known to overstate dose for a
+      // protected session (this was the actual "bar fills up too fast"
+      // bug, not just a sourcing-confidence question).
+      const today = todaysRows(rows);
+      if (today.length) {
+        try {
+          const fullToday = await Promise.all(today.map((r) => SupabaseService.getSessionById(r.id)));
+          const readingsProfile = {
+            devicePlacement: profile.devicePlacement ?? 'shoulder_strap',
+            skinType: profile.skinType ?? 'normal',
+            personalFactor: profile.personalFactor ?? 1,
+          };
+          setRealTodayDosePercent(computeTodayDosePercentReal(
+            fullToday.map((r) => r.data).filter(Boolean),
+            profile.fitzpatrickType,
+            readingsProfile
+          ));
+        } catch {
+          setRealTodayDosePercent(computeTodayDosePercent(rows, profile.fitzpatrickType));
+        }
+      } else {
+        setRealTodayDosePercent(0);
+      }
+      setRealWeeklyBurnDose(computeWeeklyBurnDose(rows, profile.fitzpatrickType));
       if (rows.length) {
         const mostRecent = rows[0];
         setRealLastSession(buildSessionHero(mostRecent, profile.fitzpatrickType));
@@ -1278,6 +1393,37 @@ export default function HomeScreen({ onSignOut, onNavigateTab, isActiveTab }) {
     });
     return () => sub.remove();
   }, [activeSession]);
+
+  // Recovers a session that was still in progress when the app was last
+  // killed outright — not just backgrounded, which the AppState
+  // reconciliation above already covers. Runs once auth resolves, before
+  // any session could otherwise be started, so activeSession is still
+  // guaranteed null here on a normal cold launch. See
+  // SessionCheckpointStore.js for exactly what's saved and when.
+  useEffect(() => {
+    if (activeSession || !user?.id) return;
+    let cancelled = false;
+    (async () => {
+      const checkpoint = await SessionCheckpointStore.loadCheckpoint();
+      if (!checkpoint || cancelled) return;
+      // Scoped to the signed-in user — a checkpoint left behind by a
+      // different account on a shared device should never be silently
+      // resumed into someone else's session.
+      if (checkpoint.userId !== user.id) {
+        SessionCheckpointStore.clearCheckpoint();
+        return;
+      }
+      SessionEngine.resumeSession(checkpoint.engineState, checkpoint.engineProfile);
+      sessionStartTimestampRef.current = checkpoint.sessionParams.sessionId;
+      const realElapsed = Math.floor(
+        ((Date.now() - checkpoint.sessionParams.sessionId) / 1000) * DEBUG_TIME_SCALE
+      );
+      setElapsed(Math.max(0, realElapsed));
+      sessionX.setValue(0); // land directly back in the session, not slid off-screen
+      setActiveSession(checkpoint.sessionParams);
+    })();
+    return () => { cancelled = true; };
+  }, [user?.id]);
 
   // Open: slide the overlay in from the right (matches SessionDetailScreen's enter).
   const slideToSession = useCallback(() => {
@@ -1554,6 +1700,7 @@ export default function HomeScreen({ onSignOut, onNavigateTab, isActiveTab }) {
                 stats={todayStats}
                 conditions={conditions}
                 dosePercent={todayDosePercent}
+                weeklyBurnDose={realWeeklyBurnDose}
                 empty={!homeDataLoading && todayStats.sessionsToday === 0}
                 loading={homeDataLoading}
               />

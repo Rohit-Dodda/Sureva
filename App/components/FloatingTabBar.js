@@ -13,11 +13,11 @@ import LiquidGlassShell from './LiquidGlassShell';
 const SCREEN_WIDTH = Dimensions.get('window').width;
 
 const TABS = [
-  { key: 'home',     iconDefault: 'home-outline',      iconActive: 'home' },
-  { key: 'forecast', iconDefault: 'partly-sunny-outline', iconActive: 'partly-sunny' },
-  { key: 'history',  iconDefault: 'time-outline',       iconActive: 'time' },
-  { key: 'insights', iconDefault: 'bar-chart-outline',  iconActive: 'bar-chart' },
-  { key: 'streaks',  iconDefault: 'flame-outline',      iconActive: 'flame' },
+  { key: 'home',     iconDefault: 'home-outline',      iconActive: 'home',      label: 'Home' },
+  { key: 'forecast', iconDefault: 'partly-sunny-outline', iconActive: 'partly-sunny', label: 'Forecast' },
+  { key: 'history',  iconDefault: 'time-outline',       iconActive: 'time',      label: 'History' },
+  { key: 'insights', iconDefault: 'bar-chart-outline',  iconActive: 'bar-chart', label: 'Insights' },
+  { key: 'streaks',  iconDefault: 'flame-outline',      iconActive: 'flame',     label: 'Streaks' },
 ];
 
 // Anti-fuzz rules, absolute: a rasterized layer shown at any scale other
@@ -28,7 +28,7 @@ const TABS = [
 //    behind them (blur + tint), which has no fine detail to blur.
 //  • The lean's sideways shift is pure translation — translation never
 //    resamples.
-const ICON_SIZE = 25;
+const ICON_SIZE = 21;
 
 const TabItem = React.memo(function TabItem({ tab, isActive, onPress, badge, badgeColor, dormant, tourRef }) {
   const scale = useRef(new Animated.Value(1)).current;
@@ -101,6 +101,9 @@ const TabItem = React.memo(function TabItem({ tab, isActive, onPress, badge, bad
           </View>
         )}
       </Animated.View>
+      <Text style={[st.tabLabel, isActive && st.tabLabelActive]} numberOfLines={1}>
+        {tab.label}
+      </Text>
     </Pressable>
   );
 });
@@ -353,10 +356,10 @@ export default function FloatingTabBar({ activeTab, onTabPress }) {
 const st = StyleSheet.create({
   pillWrap: {
     position: 'absolute',
-    bottom: 40,
+    bottom: 24,
     zIndex: 10,
     alignSelf: 'center',
-    width: SCREEN_WIDTH * 0.9,
+    width: SCREEN_WIDTH * 0.95,
   },
   shell: {
     ...StyleSheet.absoluteFillObject,
@@ -372,7 +375,7 @@ const st = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 8,
-    paddingVertical: 5,
+    paddingVertical: 3,
   },
   glowOverlay: {
     ...StyleSheet.absoluteFillObject,
@@ -390,10 +393,21 @@ const st = StyleSheet.create({
     justifyContent: 'center',
   },
   iconWrap: {
-    height: 46,
-    borderRadius: 28,
+    height: 34,
+    borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  tabLabel: {
+    fontFamily: 'Outfit-Regular',
+    fontSize: 9,
+    textAlign: 'center',
+    color: 'rgba(255,255,255,0.70)',
+    marginTop: 1,
+    marginBottom: 5,
+  },
+  tabLabelActive: {
+    color: '#FFFFFF',
   },
   badge: {
     position: 'absolute',
@@ -423,9 +437,9 @@ const st = StyleSheet.create({
   indicator: {
     position: 'absolute',
     left: 8,
-    top: 5,
-    height: 46,
-    borderRadius: 28,
+    top: 3,
+    height: 34,
+    borderRadius: 20,
     overflow: 'hidden',
   },
 });

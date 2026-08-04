@@ -13,6 +13,7 @@ import {
   Inter_600SemiBold,
 } from '@expo-google-fonts/inter';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { DeviceConnectionProvider, useDeviceConnection } from './context/DeviceConnectionContext';
 import SupabaseService from './services/SupabaseService';
 import {
   configureNotificationHandler, addReapplyNotificationResponseListener,
@@ -140,6 +141,7 @@ const FORCE_DEVICE_ONBOARDING_SCREEN_FOR_TESTING = false;
 
 function AppNavigator() {
   const { user, onboardingComplete, setOnboardingComplete, refreshUserProfile, passwordRecoveryPending, mfaPending } = useAuth();
+  const { pairDevice } = useDeviceConnection();
 
   const [screen, setScreen] = useState('signup');
   const [splashDone, setSplashDone] = useState(false);
@@ -207,7 +209,17 @@ function AppNavigator() {
     }
 
     if (screen === 'bluetoothPairing') {
-      return <BluetoothPairingScreen onComplete={() => setScreen('deviceOnboarding')} />;
+      return (
+        <BluetoothPairingScreen
+          onComplete={({ deviceId, name }) => {
+            // Previously this payload was discarded entirely (setScreen
+            // was the only thing that ran) — the app had no memory
+            // anywhere that a device had ever been paired.
+            pairDevice({ deviceId: deviceId ?? 'unknown', name: name ?? 'Sureva Device' });
+            setScreen('deviceOnboarding');
+          }}
+        />
+      );
     }
 
     if (screen === 'deviceOnboarding') {
@@ -354,7 +366,9 @@ export default function App() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <AuthProvider>
-        <AppNavigator />
+        <DeviceConnectionProvider>
+          <AppNavigator />
+        </DeviceConnectionProvider>
       </AuthProvider>
     </GestureHandlerRootView>
   );

@@ -23,7 +23,6 @@ const InsightRow = React.memo(function InsightRow({ icon, text }) {
 
 export default React.memo(function SkinTodayCard({ skin }) {
   const stressColor = STRESS_COLORS[skin.stress.level];
-  const medPct = Math.min(100, (skin.med.accumulated / skin.med.threshold) * 100);
 
   return (
     <SectionCard icon="body-outline" title="Your Skin Today">
@@ -47,14 +46,6 @@ export default React.memo(function SkinTodayCard({ skin }) {
           })}
         </View>
         <Text style={st.blockNote}>{skin.stress.note}</Text>
-      </View>
-
-      <View style={st.medBlock}>
-        <Text style={st.blockLabel}>Cumulative UV dose</Text>
-        <View style={st.medTrack}>
-          <View style={[st.medFill, { width: `${medPct}%`, backgroundColor: stressColor }]} />
-        </View>
-        <Text style={st.blockNote}>{skin.med.line}</Text>
       </View>
     </SectionCard>
   );
@@ -114,17 +105,5 @@ const st = StyleSheet.create({
     fontSize: 13,
     color: colors.inkMid,
     lineHeight: 19,
-  },
-  medBlock: {},
-  medTrack: {
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: colors.surface,
-    overflow: 'hidden',
-    marginBottom: 8,
-  },
-  medFill: {
-    height: 8,
-    borderRadius: 4,
   },
 });

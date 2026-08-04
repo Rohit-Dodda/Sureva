@@ -341,6 +341,20 @@ async function savePersonalFactor(uid, value) {
   }
 }
 
+// Best-effort, non-blocking — see PersonalCalibrationService.js. Called
+// right after a post-session check-in saves, so a failure here (most
+// likely: the calibration_offset column migration hasn't been applied
+// yet) must never surface as a check-in save error.
+async function saveCalibrationOffset(uid, value) {
+  try {
+    const { error } = await supabase.from('users').update({ calibration_offset: value }).eq('id', uid);
+    if (error) throw error;
+    return { data: true, error: null };
+  } catch (error) {
+    return { data: null, error };
+  }
+}
+
 async function updateUserProfile(uid, fields) {
   try {
     const { error } = await supabase.from('users').update(fields).eq('id', uid);
@@ -594,6 +608,9 @@ async function savePostSessionCheckIn(uid, sessionId, record) {
       skin_feel_after: record.postSession?.skinFeelAfter ?? null,
       skin_feel_before: record.postSession?.skinFeelBefore ?? null,
       user_feedback: record.postSession?.userFeedback ?? null,
+      // See PersonalCalibrationService.js — this is the per-session signal
+      // that a repeated pattern across recent check-ins gets built from.
+      barrier_modifier: record.sessionCorrections?.alertThresholdTightenPct ?? 0,
       low_calibration_confidence: record.sessionCorrections?.lowCalibrationConfidence ?? false,
       flare_up: record.sessionCorrections?.flareUp ?? false,
     });
@@ -620,6 +637,26 @@ async function getLastCompletedCheckIn(uid, excludeSessionId) {
     const { data, error } = await query.maybeSingle();
     if (error) throw error;
     return { data: data?.skin_feel_after ?? null, error: null };
+  } catch (error) {
+    return { data: null, error };
+  }
+}
+
+// This user's most recent check-ins (barrier_modifier only — the numeric
+// signal PersonalCalibrationService.computeCalibrationOffset looks for a
+// repeated pattern across). Newest first, so the caller's own lookback
+// slice is just recentCheckIns.slice(0, N).
+async function getRecentCheckIns(uid, limit = 20) {
+  try {
+    if (!uid) throw new Error('Not signed in');
+    const { data, error } = await supabase
+      .from('post_session_checkins')
+      .select('barrier_modifier, created_at')
+      .eq('user_id', uid)
+      .order('created_at', { ascending: false })
+      .limit(limit);
+    if (error) throw error;
+    return { data: data ?? [], error: null };
   } catch (error) {
     return { data: null, error };
   }
@@ -721,6 +758,7 @@ export default {
   getUserProfile,
   updateUserProfile,
   savePersonalFactor,
+  saveCalibrationOffset,
   deleteAccountData,
   exportAccountData,
   uploadAvatar,
@@ -734,6 +772,7 @@ export default {
   insertSessionEvent,
   insertSessionEvents,
   getLastCompletedCheckIn,
+  getRecentCheckIns,
   getSessionPinSummaries,
   savePostSessionCheckIn,
   saveSkinAgeSnapshot,

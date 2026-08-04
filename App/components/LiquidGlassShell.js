@@ -16,7 +16,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 // tint — just enough of the brand color for white icon glyphs to stay
 // readable against whatever's actually behind the bar. Purely decorative —
 // an absolute-fill layer the caller stacks real content on top of.
-export default React.memo(function LiquidGlassShell({ borderRadius = 50, intensity, tintColor = 'rgba(178,58,12,0.22)' }) {
+export default React.memo(function LiquidGlassShell({ borderRadius = 50, intensity, tintColor = 'rgba(178,58,12,0.34)' }) {
   const blurIntensity = intensity ?? (Platform.OS === 'android' ? 45 : 34);
 
   return (

@@ -39,8 +39,15 @@ export function addMarkerMinute(minutes, durationMinutes) {
 
 // The Lab's protection block: what's on your skin (SPF, water resistance),
 // your own planned reapplications, and any water breaks — both as
-// draggable markers on the session timeline.
-export default React.memo(function LabProtectionControls({ config, onChange, onDraggingChange }) {
+// draggable markers on the session timeline. showWaterBreaks defaults to
+// true (Custom Conditions mode, where breaks are hypothetical and
+// addable); Past Session mode passes false — a real session's water
+// events already happened at fixed real timestamps, so "add a break" has
+// no meaning there. Every field this reads/writes (spf,
+// waterResistanceRating, reapplicationMinutes) is shared with Past
+// Session's overrides shape, so this component needs no other change
+// to serve both modes.
+export default React.memo(function LabProtectionControls({ config, onChange, onDraggingChange, showWaterBreaks = true }) {
   const setSpf = useCallback((spf) => onChange({ spf }), [onChange]);
   const setWater = useCallback((waterResistanceRating) => onChange({ waterResistanceRating }), [onChange]);
   const setReapps = useCallback((reapplicationMinutes) => onChange({ reapplicationMinutes }), [onChange]);
@@ -94,24 +101,26 @@ export default React.memo(function LabProtectionControls({ config, onChange, onD
         )}
       </ControlCard>
 
-      <ControlCard label="Water activity" actualLabel="Each dip cuts protection the moment it happens">
-        <LabStepperRow label="Water breaks" count={config.waterBreakMinutes.length} max={MAX_MARKERS} onAdd={addBreak} onRemove={removeBreak} />
-        {config.waterBreakMinutes.length > 0 && (
-          <>
-            <View style={st.typeRow}>
-              <OptionToggleRow options={BREAK_TYPE_OPTIONS} value={config.waterBreakType} onChange={setBreakType} />
-            </View>
-            <TimelineMarkers
-              durationMinutes={config.durationMinutes}
-              minutes={config.waterBreakMinutes}
-              onChange={setBreaks}
-              onDraggingChange={onDraggingChange}
-              markerColor={colors.navy}
-            />
-            <Text style={st.hint}>Drag to move when you'd be in the water</Text>
-          </>
-        )}
-      </ControlCard>
+      {showWaterBreaks && (
+        <ControlCard label="Water activity" actualLabel="Each dip cuts protection the moment it happens">
+          <LabStepperRow label="Water breaks" count={config.waterBreakMinutes.length} max={MAX_MARKERS} onAdd={addBreak} onRemove={removeBreak} />
+          {config.waterBreakMinutes.length > 0 && (
+            <>
+              <View style={st.typeRow}>
+                <OptionToggleRow options={BREAK_TYPE_OPTIONS} value={config.waterBreakType} onChange={setBreakType} />
+              </View>
+              <TimelineMarkers
+                durationMinutes={config.durationMinutes}
+                minutes={config.waterBreakMinutes}
+                onChange={setBreaks}
+                onDraggingChange={onDraggingChange}
+                markerColor={colors.navy}
+              />
+              <Text style={st.hint}>Drag to move when you'd be in the water</Text>
+            </>
+          )}
+        </ControlCard>
+      )}
     </>
   );
 });

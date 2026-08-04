@@ -229,9 +229,24 @@ export const SCORE_PENALTY_PER_UNPROTECTED_MINUTE = 2.5; // points off the unpro
 export const COMPLIANCE_TREND_STABILITY_PCT = 5; // within ±5% counts as stable
 
 // ─── MED / UV dose conversion ─────────────────────────────────
-// UV index ≈ erythemally weighted irradiance (W/m²) × 40, so
-// irradiance = uvIndex / 40. 1 SED = 100 J/m². The MED threshold
-// in J/m² varies by Fitzpatrick type (standard dermatology values).
+// UV Index is defined as erythemally-weighted irradiance (W/m²) × 40
+// (WMO Meeting of Experts on UV-B Measurements, Les Diablerets, 1994,
+// WMO Rep. No. 95; erythema weighting per CIE 1987 / ISO-CIE 17166:1999
+// "Erythema Reference Action Spectrum and Standard Erythema Dose").
+// 1 SED = 100 J/m² is fixed by the same ISO-CIE 17166 standard.
+//
+// MED-by-Fitzpatrick-type values below are an APPROXIMATION derived
+// from solar-simulator MED studies, not a single authoritative table:
+//   - Types I-IV cross-checked against Valbuena Mesa et al. 2020,
+//     Actas Dermosifiliogr 111(5), PMID 32408973 (n=113, Bogotá,
+//     Colombia; solar simulator UVA+UVB) and a UK cohort (n=352).
+//   - Types V-VI have NO Fitzpatrick V/VI data in either of the
+//     above; they are extrapolated and run lower than the only
+//     complete 6-type peer-reviewed source found (Shih et al. 2018,
+//     J Invest Dermatol 138(10):2244-2252, PMID 29730334, n=39,
+//     solar-simulated UVR), which reports ~750 J/m² (V) and
+//     ~1520 J/m² (VI) vs. 600/1000 used here. Kept lower deliberately
+//     per this app's conservative-depletion policy; not a medical claim.
 export const MED_CALCULATION = {
   uvIndexIrradianceDivisor: 40, // uvIndex / 40 → W/m²
   sedJoulesPerM2: 100,
@@ -246,6 +261,11 @@ export const MED_CALCULATION = {
 };
 
 // Recommended weekly cumulative MED limit by Fitzpatrick type.
+// NOTE: This is an internal design heuristic, not a citation of a
+// WHO/ARPANSA/dermatology-association guideline — no Fitzpatrick-keyed
+// weekly SED table matching this shape was found in the literature.
+// Treat as approximate; any UI surfacing this should read as an
+// estimate, not a medical limit (see BurnTrackerCard's disclaimer).
 export const WEEKLY_MED_LIMITS = {
   1: 3,
   2: 3,
@@ -277,4 +297,69 @@ export const SKIN_STRESS_NORMALIZERS = {
   maxUnprotectedMinutes: 60,
   tempBaseC: 25,
   tempMaxC: 40,
+};
+
+// ─── Vitamin D synthesis ────────────────────────────────────────
+// Holick's Rule (Holick MF, "Vitamin D: importance in the prevention
+// of cancers, type 1 diabetes, heart disease, and osteoporosis," Am J
+// Clin Nutr 2004;79(3):362-371), corrected by the solar-spectrum
+// factor from Dowdy JC, Sayre RM, Holick MF, "Holick's rule and
+// vitamin D from sunlight," J Steroid Biochem Mol Biol 2010;121(1-2):
+// 328-330 — the original rule was calibrated against a fluorescent
+// sunlamp spectrum, not real sunlight, and the 1.32x factor corrects
+// for that. Formalized into this UV-Index/exposed-BSA/Fitzpatrick-MED
+// form by Kallioğlu MA, et al., "UV index-based model for predicting
+// synthesis of (pre-)vitamin D3 in the mediterranean basin," Sci Rep
+// 2024;14, doi:10.1038/s41598-024-54188-5. This model reuses
+// MED_CALCULATION's uvIndexIrradianceDivisor and
+// medJoulesPerM2ByFitzpatrick directly — not a coincidence, both
+// derive from the same Fitzpatrick/MED convention (see that section's
+// own citations, and their own caveats, since this inherits them).
+export const VITAMIN_D_CALCULATION = {
+  // 16000 (raw Holick's-Rule scalar: 1000 IU / 0.25 MED-fraction /
+  // 0.25 BSA-fraction) x 1.32 (Dowdy/Sayre/Holick 2010 correction).
+  holickConstant: 21120,
+  // Assumed exposed body-surface fraction (roughly face + forearms +
+  // hands under everyday clothing) when no per-user value exists —
+  // onboarding doesn't currently ask this, so it's a conservative
+  // middle-of-the-road default, not a measured input.
+  defaultExposedSkinFraction: 0.25,
+  // IOM (Institute of Medicine) Dietary Reference Intake for Calcium
+  // and Vitamin D, 2011 — the consensus general-population
+  // "sufficiency" target (600 IU/day for ages 1-70). Deliberately NOT
+  // the Endocrine Society's higher "optimal" figure (1500-2000 IU/day,
+  // Holick MF, et al., J Clin Endocrinol Metab 2011;96(7):1911-1930),
+  // which targets at-risk/deficient populations specifically and is a
+  // separate, more aggressive recommendation the two bodies disagree
+  // on — not this app's call to silently pick a side.
+  dailyTargetIU: 600,
+  // Previtamin D3 synthesis plateaus with continued exposure — further
+  // UV instead photoisomerizes it into biologically inert byproducts
+  // (Holick MF, MacLaughlin JA, Doppelt SH, "Regulation of cutaneous
+  // previtamin D3 photosynthesis in man," Science 1981;211(4482):
+  // 590-593). No citable dose-response curve for exactly how fast this
+  // plateau kicks in was found, so this is a physically-motivated
+  // approximation of a real, documented effect, not a sourced number:
+  // the asymptotic scale a saturating (not linear) accumulation curve
+  // approaches, so a multi-hour exposure diminishes in marginal yield
+  // rather than growing unbounded. Calibrated against this formula's
+  // own implied rate (not an independently sourced ceiling): a short
+  // ~15-30min unprotected exposure at high UV should read as a
+  // meaningful chunk of a day's synthesis without already being
+  // maxed out, while an extended multi-hour exposure should approach
+  // (not blow past) a ceiling broadly in line with the multi-thousand-
+  // IU range commonly cited for extended real sun exposure.
+  saturationScaleIU: 10000,
+  // The MED-ratio proxy this formula's Fitzpatrick scaling implicitly
+  // uses (like MED_CALCULATION itself) implies roughly 5x less
+  // synthesis for Type VI vs Type I. A directly-measured melanin study
+  // (Clemens TL, Adams JS, Henderson SL, Holick MF, "Increased skin
+  // pigment reduces the capacity of skin to synthesise vitamin D3,"
+  // Lancet 1982;319(8263):74-76) found a substantially larger gap.
+  // Per this app's "when in doubt, be conservative" principle,
+  // applying no further discount risks overestimating synthesis for
+  // darker skin types and giving false reassurance — this extra
+  // derate is a rough correction toward the more conservative end of
+  // that measured range, not a precisely sourced multiplier.
+  conservativeDarkerSkinMultiplier: { 5: 0.85, 6: 0.7 },
 };

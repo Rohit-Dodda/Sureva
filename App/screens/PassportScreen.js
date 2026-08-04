@@ -31,6 +31,8 @@ import {
   mapPinSummaryToSession,
 } from '../components/passport/passportUtils';
 import PassportMap from '../components/passport/PassportMap';
+import WorldUvMap from '../components/passport/WorldUvMap';
+import OptionToggleRow from '../components/whatIf/OptionToggleRow';
 import PassportStatsCard from '../components/passport/PassportStatsCard';
 import HotspotRankingsSection from '../components/passport/HotspotRankingsSection';
 import PassportEmptyCard from '../components/passport/PassportEmptyCard';
@@ -53,8 +55,19 @@ const TOP_INSET = Platform.OS === 'ios' ? 58 : (RNStatusBar.currentHeight ?? 24)
 
 // Pushed full-screen from the History header's map button; the back
 // button floating over the map slides it back out.
+const SCREEN_MODE_OPTIONS = [
+  { label: 'My Sessions', value: 'mine' },
+  { label: 'World Map', value: 'world' },
+];
+
 export default function PassportScreen({ onBack }) {
   const { user } = useAuth();
+  // World Map is a genuinely different feature (live global UV, decoupled
+  // from personal history) living inside Passport's existing screen
+  // rather than a separate tab — see WorldUvMap.js. Kept as an early
+  // branch, not woven into the "My Sessions" map/expand state below, so
+  // it can't destabilize that already-intricate animated layout.
+  const [screenMode, setScreenMode] = useState('mine');
   const mapRef = useRef(null);
   const listRef = useRef(null);
   const cardOffsets = useRef({});
@@ -258,6 +271,10 @@ export default function PassportScreen({ onBack }) {
     AsyncStorage.setItem(PERM_PROMPTED_KEY, '1').catch(() => {});
   }, []);
 
+  if (screenMode === 'world') {
+    return <WorldUvMap onBack={() => setScreenMode('mine')} />;
+  }
+
   return (
     <Animated.View style={[st.root, { transform: [{ translateX }] }]}>
       <StatusBar style="dark" />
@@ -304,6 +321,10 @@ export default function PassportScreen({ onBack }) {
         contentContainerStyle={st.bottomContent}
         showsVerticalScrollIndicator={false}
       >
+        <View style={st.modeToggleWrap}>
+          <OptionToggleRow options={SCREEN_MODE_OPTIONS} value={screenMode} onChange={setScreenMode} />
+        </View>
+
         <PassportStatsCard
           places={stats.places}
           regions={stats.regions}
@@ -401,6 +422,9 @@ const st = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 20,
     paddingBottom: 40,
+  },
+  modeToggleWrap: {
+    marginBottom: 16,
   },
   detailOverlay: {
     ...StyleSheet.absoluteFillObject,

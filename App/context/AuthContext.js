@@ -31,6 +31,15 @@ function mapUserRow(userRow) {
     // sessions yet" state — engineProfileFor treats null as the neutral
     // PERSONAL_FACTOR.initial.
     personalFactor: userRow.personal_factor ?? null,
+    // See PersonalCalibrationService.js — 0 (not null) is already the
+    // neutral/no-signal state for this one.
+    calibrationOffset: userRow.calibration_offset ?? 0,
+    // null (not the mock profile's 'shoulder_strap') distinguishes "row
+    // predates the device_placement migration" from "explicitly set to
+    // shoulder strap" — engineProfileFor in sessionMath.js falls back to
+    // the mock default for either case, so the distinction only matters
+    // for DevicePlacementScreen deciding whether anything is pre-selected.
+    devicePlacement: userRow.device_placement ?? null,
   } : null;
 }
 
@@ -94,6 +103,19 @@ export function AuthProvider({ children }) {
       last_name: lastName,
     });
     if (!error) setUserProfile((prev) => ({ ...(prev || {}), firstName, lastName }));
+    return { error };
+  }, []);
+
+  // A real algorithmic input, not display data — see
+  // Algorithm/js/depletionEngine.js's calculatePlacementCorrection. A
+  // save here changes the UV correction applied on the very next session
+  // tick (engineProfileFor in sessionMath.js reads userProfile.devicePlacement
+  // directly, no separate wiring needed).
+  const updateDevicePlacement = useCallback(async (devicePlacement) => {
+    const uid = currentUserIdRef.current;
+    if (!uid) return { error: new Error('Not signed in') };
+    const { error } = await SupabaseService.updateUserProfile(uid, { device_placement: devicePlacement });
+    if (!error) setUserProfile((prev) => ({ ...(prev || {}), devicePlacement }));
     return { error };
   }, []);
 
@@ -215,7 +237,7 @@ export function AuthProvider({ children }) {
   return (
     <AuthContext.Provider value={{
       user, onboardingComplete, setOnboardingComplete, userProfile, profileImage, setProfileImage,
-      updateProfileName, updateProfileFields, refreshUserProfile,
+      updateProfileName, updateProfileFields, updateDevicePlacement, refreshUserProfile,
       passwordRecoveryPending, clearPasswordRecoveryPending: () => setPasswordRecoveryPending(false),
       mfaPending, clearMfaPending: () => setMfaPending(false),
     }}>

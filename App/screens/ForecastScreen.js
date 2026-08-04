@@ -82,6 +82,19 @@ const TodayForecastCard = React.memo(function TodayForecastCard({ today, locatio
         </View>
       </View>
 
+      {today.sunrise && today.sunset && (
+        <View style={st.sunRow}>
+          <View style={st.sunItem}>
+            <Ionicons name="sunny-outline" size={14} color={colors.muted} />
+            <Text style={st.sunText}>Sunrise {today.sunrise}</Text>
+          </View>
+          <View style={st.sunItem}>
+            <Ionicons name="moon-outline" size={14} color={colors.muted} />
+            <Text style={st.sunText}>Sunset {today.sunset}</Text>
+          </View>
+        </View>
+      )}
+
       <View style={st.chartWrap}>
         <UVCurveChart
           hourly={today.hourly}
@@ -455,6 +468,21 @@ const st = StyleSheet.create({
   },
 
   // Today — chart
+  sunRow: {
+    flexDirection: 'row',
+    gap: 20,
+    marginBottom: 14,
+  },
+  sunItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+  sunText: {
+    fontFamily: 'Outfit-Regular',
+    fontSize: 12,
+    color: colors.muted,
+  },
   chartWrap: { marginBottom: 4 },
   peakCallout: {
     marginTop: 14,

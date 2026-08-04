@@ -11,6 +11,7 @@ import {
   SKIN_FEEL_BEFORE_OPTIONS,
   buildPostSessionRecord,
 } from '../../services/PostSessionService';
+import { computeCalibrationOffset } from '../../services/PersonalCalibrationService';
 import CheckInOptionList from './CheckInOptionList';
 import CheckInFeedbackInput from './CheckInFeedbackInput';
 import PressableScale from '../PressableScale';
@@ -71,9 +72,16 @@ export default function CheckInSheet({ session, previousSkinFeelAfter, onDismiss
     Animated.timing(enter, { toValue: 1, duration: 240, easing: Easing.out(Easing.quad), useNativeDriver: true }).start();
   }, [step, enter]);
 
-  const persist = useCallback((answers) => {
-    // Session-level storage only — modifiers never touch the profile
-    // baseline. Failures are silent; the check-in never blocks the UI.
+  const persist = useCallback(async (answers) => {
+    // A single session's corrections stay session-level only — see
+    // buildPostSessionRecord's own comment. A REPEATED pattern across
+    // several recent sessions is different: PersonalCalibrationService
+    // reads it back out of what's just been saved and can nudge the
+    // user's persisted alert-threshold calibration. Recomputed fresh off
+    // a rolling window each time (not just written once and left), so an
+    // offset can come back down as older flagged sessions age out, not
+    // just ratchet upward forever. Failures are silent throughout; the
+    // check-in never blocks the UI.
     const sessionMeta = {
       // MOCK context fields — TODO: pass the real completed session's
       // conditions/depletion metadata once live sessions are wired.
@@ -90,7 +98,16 @@ export default function CheckInSheet({ session, previousSkinFeelAfter, onDismiss
       sessionId: session.id,
       sessionDate: session.dateISO ?? session.date,
     });
-    SupabaseService.savePostSessionCheckIn(user?.id, session.id, record).catch(() => {});
+    try {
+      const { error } = await SupabaseService.savePostSessionCheckIn(user?.id, session.id, record);
+      if (error || !user?.id) return;
+      const { data: recentCheckIns } = await SupabaseService.getRecentCheckIns(user.id);
+      if (!recentCheckIns) return;
+      const { offset } = computeCalibrationOffset(recentCheckIns);
+      await SupabaseService.saveCalibrationOffset(user.id, offset);
+    } catch {
+      // Best-effort — never surface as a check-in error.
+    }
   }, [session, previousSkinFeelAfter, user]);
 
   const close = useCallback((answers) => {

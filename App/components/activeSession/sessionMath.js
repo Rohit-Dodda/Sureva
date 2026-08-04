@@ -1,22 +1,19 @@
 import colors from '../../constants/colors';
 import mockData from '../../constants/mockData';
-import {
-  calculateCombinedMultiplier,
-  updateProtectionState,
-} from '../../../Algorithm/js/depletionEngine.js';
-import { INTERVAL_MS, MED_CALCULATION, PERSONAL_FACTOR } from '../../../Algorithm/constants/algorithmConstants.js';
+import { PERSONAL_FACTOR } from '../../../Algorithm/constants/algorithmConstants.js';
 import { mockUserProfile as engineMockProfile } from '../../../Algorithm/mock/mockData.js';
 
 // ─── Depletion model ──────────────────────────────────────────
-// This used to be a separate, hand-rolled formula that duplicated (and
-// drifted from) the real engine — it used a single static UV snapshot
-// even while the condition tiles visibly drifted, and its "dose"
-// gauge conflated raw UV Index with SED (missing the real ~0.9
-// SED-per-UVI-hour conversion the rest of the app uses). Per
-// CLAUDE.md, the JS depletion engine is the one source of truth, so
-// everything below now calls straight into
-// Algorithm/js/depletionEngine.js instead of re-deriving its own math.
-const INTERVAL_SECONDS = INTERVAL_MS / 1000;
+// The live protection %, curve, dose, and vitamin D shown on
+// ActiveSessionScreen all come from Algorithm/services/SessionService.js's
+// real engine state (SessionEngine.getActiveSessionState()), not from
+// anything in this file replaying its own copy of the math — per
+// CLAUDE.md, the JS depletion engine is the one source of truth, and a
+// second parallel implementation here would only be able to drift from
+// it. What's left below is either input shaping (engineProfileFor,
+// liveConditionsAt — the mock/BLE swap seam) or display-only derivations
+// (status colors, chart downsampling, heat averaging) that don't
+// duplicate engine physics.
 
 // Onboarding's burn-rate question is the closer analog to the real
 // clinical Fitzpatrick test (self-reported burn/tan history) than skin
@@ -69,6 +66,20 @@ export function engineProfileFor(sessionParams, userProfile) {
     ...engineMockProfile,
     ...real,
     personalFactor: userProfile?.personalFactor ?? PERSONAL_FACTOR.initial,
+    // See PersonalCalibrationService.js — 0 is already neutral, no
+    // separate "not enough data" fallback needed here.
+    calibrationOffset: userProfile?.calibrationOffset ?? 0,
+    // Real algorithmic input (calculatePlacementCorrection in
+    // depletionEngine.js) — was previously never surfaced here even once
+    // a real value existed on userProfile, since it wasn't part of
+    // `real` above and had no explicit override line like
+    // personalFactor/calibrationOffset do. Without this line, setting a
+    // placement in DevicePlacementScreen would save correctly but never
+    // actually change the depletion math — the whole feature would be
+    // inert. Falls back to the mock default (not gated on
+    // userProfile.skinTone like `real` above, since device placement is
+    // independent of the skin-profile onboarding questions).
+    devicePlacement: userProfile?.devicePlacement ?? engineMockProfile.devicePlacement,
     spf: sessionParams.spf,
     waterResistanceRating: sessionParams.waterResistance,
   };
@@ -80,60 +91,12 @@ export function toEngineActivityLevel(level) {
   return 'sedentary';
 }
 
-// Replays the real engine's per-interval math over the whole session,
-// tick by tick, feeding it the same drifting live conditions the
-// screen already displays — so the protection curve is the same
-// physics runSessionInterval() uses, not a separately tuned formula.
-// A reapply event resets protection to 100% exactly like
-// confirmReapplication() does.
-function buildProtectionSeries(elapsedSecs, reapplyEvents, sessionParams, userProfile) {
-  const profile = engineProfileFor(sessionParams, userProfile);
-  const totalTicks = Math.max(0, Math.floor(elapsedSecs / INTERVAL_SECONDS));
-  const series = [{ t: 0, pct: 100 }];
-  let protection = 100;
-  let depletionRatePerInterval = 0;
-  let tSec = 0;
-  for (let i = 1; i <= totalTicks; i++) {
-    tSec = i * INTERVAL_SECONDS;
-    const justReapplied = reapplyEvents.some((r) => r > tSec - INTERVAL_SECONDS && r <= tSec);
-    if (justReapplied) protection = 100;
-
-    const live = liveConditionsAt(mockData.conditions, tSec);
-    const snapshot = {
-      uvIndex: live.uvIndex,
-      temperature: live.temperature,
-      humidity: live.humidity,
-      activityLevel: toEngineActivityLevel(live.activity),
-    };
-    ({ depletionRatePerInterval } = calculateCombinedMultiplier(snapshot, profile));
-    protection = updateProtectionState(protection, depletionRatePerInterval);
-    series.push({ t: tSec, pct: protection });
-  }
-  if (tSec < elapsedSecs) series.push({ t: elapsedSecs, pct: protection });
-  return { series, protectionPct: protection, depletionRatePerInterval };
-}
-
-// Protection % right now, plus an estimate of minutes remaining
-// projected forward at the CURRENT instantaneous depletion rate (live
-// UV/heat/activity), not a fixed reference-condition formula.
-export function protectionAt(elapsedSecs, reapplyEvents, sessionParams, userProfile) {
-  const { protectionPct, depletionRatePerInterval } = buildProtectionSeries(
-    elapsedSecs,
-    reapplyEvents,
-    sessionParams,
-    userProfile
-  );
-  const minsRemaining = depletionRatePerInterval > 0
-    ? Math.max(0, Math.round((protectionPct / depletionRatePerInterval) * (INTERVAL_SECONDS / 60)))
-    : 0;
-  return { protectionPct, minsRemaining };
-}
-
-// Builds the live depletion curve across the whole session, downsampled
-// for the chart. Derived purely from elapsed + reapplyEvents + the
-// deterministic live-conditions generator, so it's safe to compute on render.
-export function buildCurve(elapsed, reapplyEvents, sessionParams, samples = 40, userProfile) {
-  const { series } = buildProtectionSeries(elapsed, reapplyEvents, sessionParams, userProfile);
+// Downsamples an arbitrary {t, pct} series (real engine readings mapped
+// to chart points — see ActiveSessionScreen's `curve`) for the
+// sparkline, capping how many points get rendered regardless of session
+// length. Pure reshaping, no math of its own, so it works identically
+// whether the series came from mock-fed or real BLE-fed engine readings.
+export function downsampleCurve(series, elapsed, samples = 40) {
   if (series.length <= samples + 1) return series;
   const step = elapsed <= 0 ? 1 : elapsed / samples;
   const points = [];
@@ -147,36 +110,33 @@ export function buildCurve(elapsed, reapplyEvents, sessionParams, samples = 40, 
   return points;
 }
 
-// Accumulated UV dose this session as a 0–1 fraction of THIS profile's
-// actual MED (Minimal Erythemal Dose) — the same SED/MED math the
-// depletion engine uses everywhere else (MED_CALCULATION: UV Index →
-// irradiance → joules → SED), compared against the Fitzpatrick-specific
-// MED threshold rather than one flat number for every skin type.
-// Climbs with time and UV index; resets are not applied (dose is
-// cumulative exposure regardless of sunscreen).
-export function uvDoseFraction(elapsedSecs, userProfile) {
-  const totalTicks = Math.max(0, Math.floor(elapsedSecs / INTERVAL_SECONDS));
-  let joules = 0;
-  let tSec = 0;
-  for (let i = 1; i <= totalTicks; i++) {
-    tSec = i * INTERVAL_SECONDS;
-    const live = liveConditionsAt(mockData.conditions, tSec);
-    joules += (live.uvIndex / MED_CALCULATION.uvIndexIrradianceDivisor) * INTERVAL_SECONDS;
+// Real sustained-conditions average for Heat Risk, over the trailing
+// window of the engine's ACTUAL recorded readings (not a re-derived
+// synthetic sample) — a genuine sensor can have a brief transient blip
+// that shouldn't flip the heat-risk band, so this averages rather than
+// reading the single latest value. This is the one piece of the old
+// smoothedHeatConditions worth keeping post-BLE; the artificial
+// HEAT_SWING_DAMPING constant that used to sit alongside it doesn't
+// belong here anymore — it was compensating for the demo's old 29°C/
+// 65% baseline sitting right on the Extreme Caution boundary (see
+// mockData.js's conditions comment), which has since been recentered
+// with real margin on both sides. Verified against the current
+// baseline: a 120s window with no damping produces a stable band
+// (2 band changes across an 80-tick/40-min simulated session, both
+// during the first two minutes before the window has enough samples).
+export function averagedHeatConditions(readings, windowSecs = 120) {
+  if (!readings || !readings.length) {
+    return { temperature: mockData.conditions.temperature, humidity: mockData.conditions.humidity };
   }
-  if (tSec < elapsedSecs) {
-    const live = liveConditionsAt(mockData.conditions, elapsedSecs);
-    joules += (live.uvIndex / MED_CALCULATION.uvIndexIrradianceDivisor) * (elapsedSecs - tSec);
-  }
-
-  const sed = joules / MED_CALCULATION.sedJoulesPerM2;
-  const fitzpatrickType = userProfile && userProfile.skinTone != null
-    ? estimateFitzpatrickType(userProfile)
-    : engineMockProfile.fitzpatrickType;
-  const medJoules =
-    MED_CALCULATION.medJoulesPerM2ByFitzpatrick[fitzpatrickType] ??
-    MED_CALCULATION.medJoulesPerM2ByFitzpatrick[3];
-  const medSed = medJoules / MED_CALCULATION.sedJoulesPerM2;
-  return Math.max(0, Math.min(1, sed / medSed));
+  const latestTs = readings[readings.length - 1].timestamp;
+  const windowReadings = readings.filter((r) => r.timestamp >= latestTs - windowSecs * 1000);
+  const n = windowReadings.length;
+  const tempSum = windowReadings.reduce((s, r) => s + r.temperature, 0);
+  const humiditySum = windowReadings.reduce((s, r) => s + r.humidity, 0);
+  return {
+    temperature: Math.round((tempSum / n) * 10) / 10,
+    humidity: Math.round(humiditySum / n),
+  };
 }
 
 // ─── Status mapping ───────────────────────────────────────────

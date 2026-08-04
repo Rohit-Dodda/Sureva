@@ -13,24 +13,36 @@ import SlideInView from '../components/SlideInView';
 import SessionHero from '../components/activeSession/SessionHero';
 import SessionSparkline from '../components/activeSession/SessionSparkline';
 import ExposureBattery from '../components/activeSession/ExposureBattery';
+import TodayDoseCard from '../components/activeSession/TodayDoseCard';
+import HeatRiskCard from '../components/activeSession/HeatRiskCard';
+import VitaminDTracker from '../components/activeSession/VitaminDTracker';
 import DriverCard from '../components/activeSession/DriverCard';
 import StatStrip from '../components/activeSession/StatStrip';
 import SessionActions from '../components/activeSession/SessionActions';
 import {
-  protectionAt, buildCurve, uvDoseFraction, statusFor,
-  uvIndexColor, keyDriver, formatElapsed, liveConditionsAt, engineProfileFor,
-  toEngineActivityLevel,
+  statusFor, uvIndexColor, keyDriver, formatElapsed, liveConditionsAt, engineProfileFor,
+  downsampleCurve, averagedHeatConditions,
 } from '../components/activeSession/sessionMath';
-import { calculateAlertThreshold, evaluateAlertState, updatePersonalFactor } from '../../Algorithm/js/depletionEngine.js';
-import { INTERVAL_MS, ALERT_ESCALATION, PERSONAL_FACTOR } from '../../Algorithm/constants/algorithmConstants.js';
+import {
+  calculateAlertThreshold, evaluateAlertState, updatePersonalFactor,
+  calculateCounterfactual, calculateVitaminDSynthesis,
+} from '../../Algorithm/js/depletionEngine.js';
+import {
+  INTERVAL_MS, ALERT_ESCALATION, PERSONAL_FACTOR, VITAMIN_D_CALCULATION,
+} from '../../Algorithm/constants/algorithmConstants.js';
 import * as SessionEngine from '../../Algorithm/services/SessionService.js';
 import SupabaseService from '../services/SupabaseService';
 import { notifySessionSaved } from '../services/SessionEventsService';
 import { startSessionActivity, updateSessionActivity, endSessionActivity } from '../services/LiveActivityService';
-import { buildSessionHero, buildSessionUpdateFields, buildSessionReadingRows, buildSessionEventRows } from '../services/SessionDetailMapper';
+import {
+  buildSessionHero, buildSessionUpdateFields, buildSessionReadingRows, buildSessionEventRows,
+  computeTodayDosePercentReal,
+} from '../services/SessionDetailMapper';
 import {
   ensureNotificationPermission, scheduleReapplyAlerts, cancelAllForSession,
 } from '../services/NotificationService';
+import * as SessionCheckpointStore from '../services/SessionCheckpointStore';
+import { startMockReadingSource } from '../services/SessionReadingSource';
 
 const INTERVAL_SECONDS = INTERVAL_MS / 1000;
 
@@ -57,6 +69,16 @@ const MIN_SESSION_SECONDS_TO_SAVE = 5 * 60;
 
 const { width: SCREEN_W } = Dimensions.get('window');
 const GAUGE_SIZE = Math.round(SCREEN_W * 0.58);
+
+// Same-calendar-day check by local fields, mirroring HomeScreen's own
+// isSameLocalDay (deliberately duplicated rather than shared — see that
+// file's comment on todaysRows for why "today" filtering stays local to
+// each screen in this codebase).
+function isSameLocalDay(a, b) {
+  return a.getFullYear() === b.getFullYear()
+    && a.getMonth() === b.getMonth()
+    && a.getDate() === b.getDate();
+}
 
 // ─── End session confirmation modal ──────────────────────────
 const EndSessionModal = React.memo(function EndSessionModal({ visible, tooShort, onConfirm, onCancel }) {
@@ -136,10 +158,49 @@ export default function ActiveSessionScreen({ sessionParams, elapsed, onBack, on
   const { user, userProfile, refreshUserProfile } = useAuth();
   const [showEndModal, setShowEndModal] = useState(false);
   const [snoozed, setSnoozed] = useState(false);
-  const [reapplyEvents, setReapplyEvents] = useState([]); // seconds since session start
+  // If HomeScreen already resumed a checkpointed session before mounting
+  // this screen (see its own restore-on-launch effect), the engine's
+  // reapplicationLog already has the real history — reapplyEvents (used
+  // only for the chart markers and the REAPPLIES stat tile, nothing the
+  // engine itself needs) is rebuilt from it so a resumed session doesn't
+  // silently forget reapplies that happened before the app was killed.
+  const [reapplyEvents, setReapplyEvents] = useState(() => {
+    const existing = SessionEngine.getActiveSessionState();
+    if (!existing?.reapplicationLog?.length) return [];
+    return existing.reapplicationLog.map((r) => Math.round((r.timestamp - existing.startTime) / 1000));
+  });
   const [inShade, setInShade] = useState(false);
-  const [alertState, setAlertState] = useState(() => freshAlertState(Date.now()));
+  // Seeded from the real last-application time (most recent reapply, or
+  // session start if none) rather than "now" when resuming a checkpoint
+  // — using Date.now() here would make the safety-floor notification
+  // math below think a reapply just happened, handing out a fresh
+  // 2-hour window instead of the real remaining one.
+  const [alertState, setAlertState] = useState(() => {
+    const existing = SessionEngine.getActiveSessionState();
+    const lastApplicationTime = existing?.reapplicationLog?.length
+      ? existing.reapplicationLog[existing.reapplicationLog.length - 1].timestamp
+      : (existing?.startTime ?? Date.now());
+    return freshAlertState(lastApplicationTime);
+  });
   const [hasNotifyPermission, setHasNotifyPermission] = useState(false);
+  // The real engine's state (Algorithm/services/SessionService.js) —
+  // protectionPercentage + the full readings log — mirrored into React
+  // state so protectionPct/curve/dose/vitaminD/heatConditions below can
+  // all read it directly instead of each maintaining their own replay of
+  // the session from t=0. This IS what gets persisted at session end
+  // (buildSessionReadingRows etc. in handleEndConfirm read the same
+  // engine), so the screen is now always showing exactly what will be
+  // saved, not a numerically-matching-but-separate simulation of it.
+  // Lazily seeded from the engine directly (not null) so a resumed
+  // session renders its real, already-in-progress numbers on the very
+  // first frame instead of flashing a fresh 100%/empty state first.
+  const [engineSession, setEngineSession] = useState(() => SessionEngine.getActiveSessionState());
+  // Real dose from today's PRIOR completed sessions only (this one in
+  // progress isn't in Supabase yet) — combined with the live `dose` below
+  // for the total shown on TodayDoseCard. Fetched once per mount since
+  // prior sessions can't change mid-session; null while loading so the
+  // card doesn't flash "0%" then jump once the fetch resolves.
+  const [priorTodayDosePct, setPriorTodayDosePct] = useState(null);
 
   const btnScale = useRef(new Animated.Value(1)).current;
   const confirmOpac = useRef(new Animated.Value(0)).current;
@@ -150,44 +211,79 @@ export default function ActiveSessionScreen({ sessionParams, elapsed, onBack, on
   const alertStateRef = useRef(alertState);
   alertStateRef.current = alertState;
 
-  // Drives the real engine session (Algorithm/services/SessionService.js)
-  // in parallel with the visual curve above — sessionMath's replay is
-  // purely for rendering; this is what actually gets persisted at session
-  // end. Started once per mount, matching this screen's one-session
-  // lifecycle (a new ActiveSessionScreen mounts per session).
+  // Writes the current engine state to disk so an accidental app kill
+  // (not just backgrounding — see HomeScreen's AppState wall-clock
+  // reconciliation for that) doesn't lose the session outright. Called
+  // after every processed reading and every reapply; cleared in
+  // handleEndConfirm once the session actually ends.
+  const saveCheckpoint = useCallback((latestEngineState) => {
+    if (!latestEngineState) return;
+    SessionCheckpointStore.saveCheckpoint({
+      userId: user?.id ?? null,
+      sessionParams,
+      engineState: latestEngineState,
+      engineProfile: engineProfileFor(sessionParams, userProfile),
+    });
+  }, [sessionParams, userProfile, user?.id]);
+
+  // The ONE place a reading — mock or, eventually, real — turns into an
+  // engine update. Nothing upstream of this loops over elapsed time or
+  // counts ticks anymore; it just reacts to whatever arrives.
+  const handleIncomingReading = useCallback((reading) => {
+    const latest = SessionEngine.processInterval(reading);
+    if (latest) {
+      setEngineSession(latest);
+      saveCheckpoint(latest);
+    }
+  }, [saveCheckpoint]);
+
+  // Kept current every render so the mount-only effect below (which
+  // registers a stable callback with the reading source once and never
+  // re-subscribes) always calls the latest version — same pattern as
+  // alertStateRef above — rather than closing over sessionParams/
+  // userProfile as they were at the very first mount.
+  const handleIncomingReadingRef = useRef(handleIncomingReading);
+  handleIncomingReadingRef.current = handleIncomingReading;
+
+  // Starts the real engine session (Algorithm/services/SessionService.js)
+  // and the reading source that feeds it — this IS the session; there's
+  // no separate visual replay anymore. Started once per mount, matching
+  // this screen's one-session lifecycle (a new ActiveSessionScreen mounts
+  // per session) — UNLESS HomeScreen already called
+  // SessionEngine.resumeSession(...) before mounting this screen (see its
+  // restore-on-launch effect), in which case the engine already has a
+  // live session and starting a fresh one would wipe the recovered
+  // history; the reading source picks up numbering from where the
+  // resumed readings log left off instead of replaying it.
+  //
+  // startMockReadingSource is the single seam real hardware integration
+  // replaces (see that file's header) — everything else in this screen
+  // reacts to whatever readings arrive through handleIncomingReading,
+  // regardless of source.
   const engineStartedRef = useRef(false);
   useEffect(() => {
     if (engineStartedRef.current) return;
     engineStartedRef.current = true;
-    const engineProfile = engineProfileFor(sessionParams, userProfile);
-    SessionEngine.startSession(engineProfile, {
-      spf: sessionParams.spf,
-      waterResistanceRating: sessionParams.waterResistance,
-      placement: engineProfile.devicePlacement,
-    });
-  }, []);
 
-  // Feeds the engine one real tick per INTERVAL_MS of elapsed time, using
-  // the same liveConditionsAt snapshot already driving the visual curve so
-  // persisted readings match what was displayed. Tracks ticks already
-  // processed (not just the last one) so a rapid catch-up after
-  // backgrounding doesn't skip intervals the engine needs for its readings log.
-  const lastProcessedTickRef = useRef(0);
-  useEffect(() => {
-    const currentTick = Math.floor(elapsed / INTERVAL_SECONDS);
-    for (let tick = lastProcessedTickRef.current + 1; tick <= currentTick; tick++) {
-      const tSec = tick * INTERVAL_SECONDS;
-      const live = liveConditionsAt(mockData.conditions, tSec);
-      SessionEngine.processInterval({
-        timestamp: Date.now(),
-        uvIndex: live.uvIndex,
-        temperature: live.temperature,
-        humidity: live.humidity,
-        activityLevel: toEngineActivityLevel(live.activity),
+    let session = SessionEngine.getActiveSessionState();
+    if (!session) {
+      const engineProfile = engineProfileFor(sessionParams, userProfile);
+      SessionEngine.startSession(engineProfile, {
+        spf: sessionParams.spf,
+        waterResistanceRating: sessionParams.waterResistance,
+        placement: engineProfile.devicePlacement,
       });
+      session = SessionEngine.getActiveSessionState();
+      setEngineSession(session);
     }
-    lastProcessedTickRef.current = Math.max(lastProcessedTickRef.current, currentTick);
-  }, [elapsed]);
+
+    const source = startMockReadingSource({
+      startTime: session.startTime,
+      alreadyEmittedCount: session.readings.length,
+      onReading: (reading) => handleIncomingReadingRef.current(reading),
+    });
+    return () => source.stop();
+  }, []);
   // The last level-1 crossing time we actually scheduled a notification
   // for — compared against the freshly-estimated one each tick so we only
   // reschedule when the estimate has drifted enough to matter (or been
@@ -199,10 +295,21 @@ export default function ActiveSessionScreen({ sessionParams, elapsed, onBack, on
   // separately from lastScheduledLevel1Ref.
   const lastActivityPctRef = useRef(null);
 
-  const { protectionPct, minsRemaining } = useMemo(
-    () => protectionAt(elapsed, reapplyEvents, sessionParams, userProfile),
-    [elapsed, reapplyEvents, sessionParams, userProfile]
-  );
+  // Straight off the real engine state — no separate "time to zero"
+  // formula. protectionPct defaults to 100 before the engine's first tick
+  // lands (fresh session); minsRemaining projects forward from the most
+  // recent real interval's depletion rate, same as before, just reading
+  // it from the actual last reading instead of a replayed one.
+  const protectionPct = engineSession?.protectionPercentage ?? 100;
+  const lastEngineReading = engineSession?.readings?.length
+    ? engineSession.readings[engineSession.readings.length - 1]
+    : null;
+  const minsRemaining = useMemo(() => {
+    const rate = lastEngineReading?.depletionRatePerInterval ?? 0;
+    return rate > 0
+      ? Math.max(0, Math.round((protectionPct / rate) * (INTERVAL_SECONDS / 60)))
+      : 0;
+  }, [protectionPct, lastEngineReading]);
 
   const alertThreshold = useMemo(
     () => calculateAlertThreshold(engineProfileFor(sessionParams, userProfile)),
@@ -259,17 +366,60 @@ export default function ActiveSessionScreen({ sessionParams, elapsed, onBack, on
     liveActivityIdRef.current = startSessionActivity(protectionPct, nextAlertDate);
   }, []);
 
-  const curve = useMemo(
-    () => buildCurve(elapsed, reapplyEvents, sessionParams, 40, userProfile),
-    [elapsed, reapplyEvents, sessionParams, userProfile]
-  );
+  // {t, pct} points straight from the engine's real readings log (t = secs
+  // since session start), prefixed with the 100%-at-start point and, if the
+  // clock has ticked past the last recorded reading, a trailing point that
+  // holds the current value — same shape the chart always expected, now
+  // sourced from what actually happened instead of a replay.
+  const curve = useMemo(() => {
+    const readings = engineSession?.readings ?? [];
+    const startTime = engineSession?.startTime ?? Date.now();
+    const series = [{ t: 0, pct: 100 }];
+    let lastT = 0;
+    for (const r of readings) {
+      lastT = Math.round((r.timestamp - startTime) / 1000);
+      series.push({ t: lastT, pct: r.protectionPercentage });
+    }
+    if (lastT < elapsed) series.push({ t: elapsed, pct: protectionPct });
+    return downsampleCurve(series, elapsed, 40);
+  }, [engineSession, elapsed, protectionPct]);
 
   // Live conditions drift over the session (BLE/weather seam). The chart's
   // factor meters and the condition tiles both read from this so they move
   // together as the session evolves.
   const liveConditions = useMemo(() => liveConditionsAt(mockData.conditions, elapsed), [elapsed]);
 
-  const dose = useMemo(() => uvDoseFraction(elapsed, userProfile), [elapsed, userProfile]);
+  // Protection-discounted burn dose so far, computed the same way
+  // Session Detail's Burn Tracker and Home's daily dose bar are
+  // (calculateCounterfactual's actualMEDDose on the real readings log) —
+  // one calculation used everywhere a "how much dose has this session
+  // actually delivered" number is needed, live or post-hoc.
+  const dose = useMemo(() => {
+    const readings = engineSession?.readings ?? [];
+    if (!readings.length) return 0;
+    const profile = engineProfileFor(sessionParams, userProfile);
+    const { actualMEDDose } = calculateCounterfactual(
+      { readings, spf: sessionParams.spf },
+      { fitzpatrickType: profile.fitzpatrickType, spf: sessionParams.spf }
+    );
+    return Math.max(0, Math.min(1, actualMEDDose));
+  }, [engineSession, sessionParams, userProfile]);
+
+  const heatConditions = useMemo(
+    () => averagedHeatConditions(engineSession?.readings ?? []),
+    [engineSession]
+  );
+
+  const vitaminD = useMemo(() => {
+    const targetIU = VITAMIN_D_CALCULATION.dailyTargetIU;
+    const readings = engineSession?.readings ?? [];
+    if (!readings.length) return { estimateIU: 0, lowIU: 0, highIU: 0, targetIU, targetPct: 0 };
+    const profile = engineProfileFor(sessionParams, userProfile);
+    const { estimateIU, lowIU, highIU } = calculateVitaminDSynthesis(readings, {
+      fitzpatrickType: profile.fitzpatrickType,
+    });
+    return { estimateIU, lowIU, highIU, targetIU, targetPct: Math.round((estimateIU / targetIU) * 100) };
+  }, [engineSession, sessionParams, userProfile]);
   const driver = useMemo(
     () => keyDriver(liveConditions.uvIndex, sessionParams.environment),
     [liveConditions.uvIndex, sessionParams.environment]
@@ -318,6 +468,46 @@ export default function ActiveSessionScreen({ sessionParams, elapsed, onBack, on
     return () => { cancelled = true; };
   }, []);
 
+  // Today's prior sessions' real dose, for TodayDoseCard's running total.
+  // A failed fetch just leaves the card showing this session's dose alone
+  // (treats prior as 0) rather than blocking the screen — same
+  // never-block-the-whole-screen convention as everywhere else here.
+  useEffect(() => {
+    if (!user?.id) { setPriorTodayDosePct(0); return; }
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data: rows } = await SupabaseService.getSessions(user.id);
+        const now = new Date();
+        const todayRows = (rows ?? []).filter((r) => r.start_time && isSameLocalDay(new Date(r.start_time), now));
+        if (!todayRows.length) { if (!cancelled) setPriorTodayDosePct(0); return; }
+        const fullToday = await Promise.all(todayRows.map((r) => SupabaseService.getSessionById(r.id)));
+        const engineProfile = engineProfileFor(sessionParams, userProfile);
+        const readingsProfile = {
+          devicePlacement: engineProfile.devicePlacement,
+          skinType: userProfile?.skinType ?? 'normal',
+          personalFactor: userProfile?.personalFactor ?? 1,
+        };
+        const realPct = computeTodayDosePercentReal(
+          fullToday.map((r) => r.data).filter(Boolean),
+          engineProfile.fitzpatrickType,
+          readingsProfile
+        );
+        if (!cancelled) setPriorTodayDosePct(realPct);
+      } catch {
+        if (!cancelled) setPriorTodayDosePct(0);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [user?.id]);
+
+  // Prior completed sessions today + this session's live running dose,
+  // capped at 100% same as Home's daily bar.
+  const todayDoseTotalPct = useMemo(() => {
+    const prior = priorTodayDosePct ?? 0;
+    return Math.min(100, prior + Math.round(dose * 100));
+  }, [priorTodayDosePct, dose]);
+
   // Keeps the scheduled OS notifications AND the Live Activity anchored to
   // the live estimate. Levels 2/3/safety-floor are fixed offsets the
   // notification service derives from level-1 and lastApplicationTime —
@@ -365,7 +555,13 @@ export default function ActiveSessionScreen({ sessionParams, elapsed, onBack, on
     setReapplyEvents((prev) => [...prev, elapsed]);
     setSnoozed(false);
     setAlertState(freshAlertState(Date.now()));
-    SessionEngine.handleReapplication();
+    // Pushed into engineSession immediately (not left to the next tick,
+    // up to 30s away) so protectionPct/curve/dose reflect the reset the
+    // instant the button is pressed, matching what the engine itself
+    // already did synchronously.
+    const resumed = SessionEngine.handleReapplication();
+    setEngineSession(resumed);
+    saveCheckpoint(resumed);
     // Forces the scheduling effect above to re-anchor from the reset
     // 100%-protection starting point on its next run, rather than
     // comparing against the pre-reapply estimate.
@@ -375,7 +571,7 @@ export default function ActiveSessionScreen({ sessionParams, elapsed, onBack, on
       Animated.spring(btnScale, { toValue: 1, tension: 180, friction: 8, useNativeDriver: true }),
     ]).start();
     showToast('Protection reset, clock restarted');
-  }, [elapsed, btnScale, showToast]);
+  }, [elapsed, btnScale, showToast, saveCheckpoint]);
 
   const handleSnooze = useCallback(() => {
     setSnoozed((s) => {
@@ -413,6 +609,11 @@ export default function ActiveSessionScreen({ sessionParams, elapsed, onBack, on
     setShowEndModal(false);
     if (sessionParams.sessionId) cancelAllForSession(sessionParams.sessionId);
     endSessionActivity(liveActivityIdRef.current, protectionPct);
+    // The session is ending one way or another below (saved or
+    // discarded) — either way there's no longer an in-progress session
+    // to recover, so the checkpoint would otherwise be stale leftover
+    // data from here on.
+    SessionCheckpointStore.clearCheckpoint();
 
     const completedSession = SessionEngine.endSession();
     const tooShortToSave = elapsed < MIN_SESSION_SECONDS_TO_SAVE;
@@ -562,16 +763,26 @@ export default function ActiveSessionScreen({ sessionParams, elapsed, onBack, on
         </SlideInView>
 
         <SlideInView delay={210} style={st.gap}>
-          <View style={st.rowGap}>
-            <ExposureBattery fraction={dose} />
-          </View>
+          <ExposureBattery fraction={dose} />
+        </SlideInView>
+
+        <SlideInView delay={222} style={st.gap}>
+          <TodayDoseCard pct={todayDoseTotalPct} />
+        </SlideInView>
+
+        <SlideInView delay={235} style={st.gap}>
+          <HeatRiskCard temperature={heatConditions.temperature} humidity={heatConditions.humidity} />
         </SlideInView>
 
         <SlideInView delay={260} style={st.gap}>
+          <VitaminDTracker vitaminD={vitaminD} />
+        </SlideInView>
+
+        <SlideInView delay={285} style={st.gap}>
           <StatStrip tiles={statTiles} />
         </SlideInView>
 
-        <SlideInView delay={300} style={st.gap}>
+        <SlideInView delay={325} style={st.gap}>
           <StatStrip tiles={condTiles} />
         </SlideInView>
       </ScrollView>
@@ -693,7 +904,6 @@ const st = StyleSheet.create({
     height: 220,
   },
   gap: { marginTop: 14 },
-  rowGap: { flexDirection: 'row', marginHorizontal: 16, gap: 12 },
   buttonArea: {
     position: 'absolute',
     left: 0, right: 0, bottom: 0,

@@ -31,6 +31,19 @@ export function startSession(userProfile, sessionConfig) {
   return activeSession;
 }
 
+// Rehydrates a checkpointed session (see App/services/
+// SessionCheckpointStore.js) after an app kill wiped the module-level
+// state above — same shape startSession would have produced, just
+// restored instead of freshly initialized, so every other function here
+// (processInterval, handleReapplication, endSession...) continues
+// exactly as if the app had never closed. Callers must not also call
+// startSession afterward for the same session.
+export function resumeSession(sessionState, userProfile) {
+  activeProfile = userProfile;
+  activeSession = sessionState;
+  return activeSession;
+}
+
 // Called every 30 seconds during an active session, from real BLE data
 // or from the simulator.
 export function processInterval(sensorSnapshot) {
