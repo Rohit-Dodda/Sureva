@@ -1,0 +1,19 @@
+-- `public.sun_stamps` is an orphan. Commit b1b68c4 "Remove Sun Stamps &
+-- the Atlas" (2026-07-29) deleted the feature from the app but left its
+-- table behind in the live database, and the table was never in
+-- schema.sql to begin with — so a rebuild from that file would not
+-- recreate it, which is proof nothing else depends on it.
+--
+-- It is not a hole on its own: RLS is enabled and its single policy is
+-- correctly scoped to `auth.uid() = user_id`, verified 2026-08-06, and an
+-- unauthenticated REST probe returns zero rows. But it is still reachable
+-- through the public PostgREST API, and it stores location data
+-- (latitude, longitude, place_name) for a feature that no longer ships.
+-- Data we no longer have a reason to hold is data we should not be
+-- holding, and an unreferenced table is exactly where a future
+-- policy change goes unreviewed.
+--
+-- The 2 rows dropped here were the developer's own test taps, both from
+-- the same coordinates 18 seconds apart on the day the feature was
+-- removed. Contents were exported before running this.
+drop table if exists public.sun_stamps;
