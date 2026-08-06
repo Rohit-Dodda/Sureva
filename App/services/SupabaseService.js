@@ -433,6 +433,32 @@ function avatarPath(uid) {
   return `${uid}/avatar.jpg`;
 }
 
+// These mirror the avatars bucket's own file_size_limit and
+// allowed_mime_types (supabase/schema.sql). Storage is what actually
+// enforces the rule — a device-side check is bypassable — so this pair
+// exists purely to fail a bad pick with a message the user can act on
+// instead of a raw storage error.
+const MAX_AVATAR_BYTES = 5 * 1024 * 1024;
+
+// Read from the file's own leading bytes rather than trusting the picker's
+// extension: whatever we pass as contentType becomes the stored object's
+// Content-Type on a publicly readable URL, so it has to describe what the
+// bytes really are. Returns null for anything that isn't an image we allow.
+function sniffImageMimeType(buffer) {
+  const b = new Uint8Array(buffer.slice(0, 12));
+  if (b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff) return 'image/jpeg';
+  if (b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47) return 'image/png';
+  if (b[0] === 0x52 && b[1] === 0x49 && b[2] === 0x46 && b[3] === 0x46 &&
+      b[8] === 0x57 && b[9] === 0x45 && b[10] === 0x42 && b[11] === 0x50) return 'image/webp';
+  // HEIC/HEIF share the ISO-BMFF 'ftyp' box at offset 4; the brand that
+  // follows distinguishes them from other MP4-family containers.
+  if (b[4] === 0x66 && b[5] === 0x74 && b[6] === 0x79 && b[7] === 0x70) {
+    const brand = String.fromCharCode(b[8], b[9], b[10], b[11]);
+    if (brand.startsWith('hei') || brand.startsWith('hev') || brand === 'mif1') return 'image/heic';
+  }
+  return null;
+}
+
 // Uploads a locally-picked image (from expo-image-picker) to the public
 // avatars bucket and stamps the resulting URL onto public.users. The
 // query-string timestamp busts <Image> caching on re-upload, since the
@@ -441,11 +467,23 @@ async function uploadAvatar(uid, localUri) {
   try {
     const response = await fetch(localUri);
     const arraybuffer = await response.arrayBuffer();
+
+    if (arraybuffer.byteLength > MAX_AVATAR_BYTES) {
+      return { data: null, error: new Error('That image is too large — please pick one under 5 MB.') };
+    }
+    const contentType = sniffImageMimeType(arraybuffer);
+    if (!contentType) {
+      return { data: null, error: new Error('That file isn’t a supported image. Please pick a JPEG, PNG, WebP, or HEIC photo.') };
+    }
+
+    // The path keeps its .jpg name for the deterministic single-object
+    // layout above; the object's real type travels in contentType, which
+    // is what Storage and <Image> both go by.
     const path = avatarPath(uid);
 
     const { error: uploadError } = await supabase.storage
       .from('avatars')
-      .upload(path, arraybuffer, { contentType: 'image/jpeg', upsert: true });
+      .upload(path, arraybuffer, { contentType, upsert: true });
     if (uploadError) throw uploadError;
 
     const { data: publicUrlData } = supabase.storage.from('avatars').getPublicUrl(path);

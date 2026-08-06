@@ -146,13 +146,25 @@ export default function ProfileScreen({
 
   const pickFrom = useCallback(async (type) => {
     const uri = await requestAndPick(type);
-    if (uri) onProfileImageChange(uri);
+    if (!uri) return;
+    // The avatars bucket rejects anything oversized or not an image, and
+    // the picture has already been rolled back by the time we get here —
+    // so the only thing left is to tell the user why it didn't stick.
+    const { error } = (await onProfileImageChange(uri)) ?? {};
+    if (error) Alert.alert('Photo Not Saved', error.message);
+  }, [onProfileImageChange]);
+
+  // Removal rolls back the same way a failed upload does, so it needs the
+  // same explanation — otherwise the picture just quietly comes back.
+  const removePhoto = useCallback(async () => {
+    const { error } = (await onProfileImageChange(null)) ?? {};
+    if (error) Alert.alert('Photo Not Removed', error.message);
   }, [onProfileImageChange]);
 
   const photoSheetOptions = [
     { label: 'Take Photo',          onPress: () => pickFrom('camera')  },
     { label: 'Choose from Library', onPress: () => pickFrom('library') },
-    ...(profileImage ? [{ label: 'Remove Photo', destructive: true, onPress: () => onProfileImageChange(null) }] : []),
+    ...(profileImage ? [{ label: 'Remove Photo', destructive: true, onPress: removePhoto }] : []),
   ];
 
   const { scale: camScale, onPressIn: camPressIn, onPressOut: camPressOut } = usePressScale(0.88);

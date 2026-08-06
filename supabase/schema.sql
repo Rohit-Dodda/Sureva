@@ -208,7 +208,21 @@ create policy "Users can only access their own what if scenarios"
 -- Public bucket so avatar URLs work directly in <Image> with no signed-URL
 -- refresh logic — profile pictures aren't sensitive data. Writes are still
 -- locked to each user's own folder via RLS.
-insert into storage.buckets (id, name, public) values ('avatars', 'avatars', true) on conflict (id) do nothing;
+--
+-- The size and MIME limits are part of the bucket definition, not an
+-- afterthought: RLS controls *where* a user may write, these control
+-- *what* they may write. Without them a valid token could put an
+-- arbitrary payload of any size on a public URL under our own domain.
+-- The client-side checks in SupabaseService.uploadAvatar mirror these for
+-- a readable error message, but Storage is what actually enforces them.
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values (
+  'avatars', 'avatars', true, 5242880,
+  array['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif']
+)
+on conflict (id) do update
+set file_size_limit = excluded.file_size_limit,
+    allowed_mime_types = excluded.allowed_mime_types;
 
 create policy "Avatar images are publicly accessible"
   on storage.objects for select using (bucket_id = 'avatars');

@@ -78,18 +78,32 @@ export function AuthProvider({ children }) {
   // reinstalls, not just this one's local storage. Updates the local
   // state optimistically (the locally-picked URI paints instantly) while
   // the real upload/removal happens in the background.
+  // A rejected upload (too large, or not an image the avatars bucket
+  // accepts) has to put the old picture back — otherwise the optimistic
+  // paint above leaves the UI showing an avatar that was never stored.
+  // The error is handed back so the screen can say what went wrong.
   const setProfileImage = useCallback(async (uri) => {
     const uid = currentUserIdRef.current;
-    if (!uid) return;
+    if (!uid) return { error: new Error('Not signed in') };
+    const previous = profileImage;
     if (uri) {
       setProfileImageState(uri);
       const { data: hostedUrl, error } = await SupabaseService.uploadAvatar(uid, uri);
-      if (!error && hostedUrl) setProfileImageState(hostedUrl);
-    } else {
-      setProfileImageState(null);
-      await SupabaseService.removeAvatar(uid);
+      if (error) {
+        setProfileImageState(previous);
+        return { error };
+      }
+      if (hostedUrl) setProfileImageState(hostedUrl);
+      return { error: null };
     }
-  }, []);
+    setProfileImageState(null);
+    const { error } = await SupabaseService.removeAvatar(uid);
+    if (error) {
+      setProfileImageState(previous);
+      return { error };
+    }
+    return { error: null };
+  }, [profileImage]);
 
   // Same optimistic-write pattern as setProfileImage above: updates
   // public.users in the background, but only applies it to local state
