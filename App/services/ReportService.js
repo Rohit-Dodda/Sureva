@@ -37,8 +37,20 @@ const FITZPATRICK_LABELS = {
 };
 const ROMAN = { 1: 'I', 2: 'II', 3: 'III', 4: 'IV', 5: 'V', 6: 'VI' };
 
+// Escapes both quote characters as well as the angle brackets, so this is
+// safe inside an attribute (title="${esc(x)}") and not just between tags.
+// Today every call site is in text position, where the quotes would be
+// redundant — but the report interpolates self-reported profile text
+// (name, medications, conditions) that the user types freely, and the
+// first attribute that ever gets added shouldn't have to notice this.
+// & must be replaced first or it would double-escape the entities below.
 function esc(s) {
-  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
 
 function todayStr() {

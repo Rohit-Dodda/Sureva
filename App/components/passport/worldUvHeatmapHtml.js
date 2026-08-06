@@ -23,7 +23,15 @@ export const WORLD_UV_HEATMAP_HTML = `<!DOCTYPE html>
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <!-- Pinned by content hash, not just by version number: unpkg is a
+       third party, and without integrity a compromised CDN (or anyone
+       able to answer for that host) could serve arbitrary JS into this
+       WebView. The browser refuses the file if the bytes don't hash to
+       these exact values. Regenerate on any Leaflet upgrade with:
+       curl -sL <url> | openssl dgst -sha256 -binary | openssl base64 -A -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+        crossorigin="anonymous" />
   <style>
     html, body, #map { height: 100%; margin: 0; padding: 0; background: #F7F4EF; }
     .heatmap-canvas { pointer-events: none; }
@@ -34,7 +42,9 @@ export const WORLD_UV_HEATMAP_HTML = `<!DOCTYPE html>
 </head>
 <body>
   <div id="map"></div>
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+          integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+          crossorigin="anonymous"></script>
   <script>
     // Same continuous UV color scale as the RN side (WorldUvMap.js) —
     // duplicated, not imported, since this runs in a separate JS
